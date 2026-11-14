@@ -190,23 +190,10 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
 </head>
 <body>
 <canvas id="c"></canvas>
-
 <!-- 背景音樂開關 -->
 <button
   id="musicToggle"
   type="button"
-  <!-- 長按音符時顯示的音量滑桿 -->
-<div id="musicVolumePanel" aria-hidden="true">
-  <input
-    id="musicVolume"
-    type="range"
-    min="0"
-    max="100"
-    value="35"
-    step="1"
-    aria-label="背景音樂音量"
-  >
-</div>
   aria-label="關閉背景音樂"
   aria-pressed="true"
   title="背景音樂"
@@ -225,6 +212,7 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
       stroke-linecap="round"
       stroke-linejoin="round"
     />
+
     <ellipse
       cx="6.5"
       cy="20.5"
@@ -233,6 +221,7 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
       transform="rotate(-20 6.5 20.5)"
       fill="currentColor"
     />
+
     <ellipse
       cx="21.5"
       cy="20.5"
@@ -243,6 +232,20 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
     />
   </svg>
 </button>
+
+<!-- 長按音符後顯示的音量滑桿 -->
+<div id="musicVolumePanel" aria-hidden="true">
+  <input
+    id="musicVolume"
+    type="range"
+    min="0"
+    max="100"
+    value="35"
+    step="1"
+    aria-label="背景音樂音量"
+  >
+</div>
+
 <div id="tip">拖曳空白處探索球場。連點排球三下拋高，點擊對面場地指定殺球落點。球飛遠時，點擊球場就能叫回來。</div>
 <div id="pad" hidden>
   <div class="back" id="back"></div>
@@ -594,7 +597,6 @@ for(let i=0;i<9;i++){const g=new T3.Group(),a=rnd(0,PI*2),r=rnd(100,140),parts=[
   for(let k=0;k<4;k++){const m=new T3.Mesh(new T3.SphereGeometry(rnd(5,8),12,10),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,fog:false}));m.position.set(k*6-9,rnd(-1,2),rnd(-2,2));m.scale.y=.6;g.add(m);parts.push({m,v:new T3.Vector3(rnd(-1,1)*20,rnd(0,8),rnd(-1,1)*20),s:m.scale.clone()})}
   g.position.set(Math.cos(a)*r,rnd(34,52),Math.sin(a)*r);sc.add(g);
   const o={g,parts,a,r,p:99};clouds.push(o);g.userData.act=()=>{if(o.p>12)o.p=0};hitList.push(g)}
-const stars=[];
 
 /* ===== 星星與光暈 ===== */
 
@@ -2054,6 +2056,14 @@ musicButton.addEventListener('click', () => {
 
   updateMusicButton();
 
+  if (musicOn) {
+    startMusic();
+  } else {
+    stopMusic();
+  }
+
+});
+
 /* ===== 長按音符調整音量 ===== */
 
 const musicVolumePanel = $('#musicVolumePanel');
@@ -2205,13 +2215,6 @@ musicVolume.addEventListener('pointerup', () => {
 // 鍵盤操作時也能收起
 musicVolume.addEventListener('change', () => {
   scheduleVolumeHide();
-});
-
-  if (musicOn) {
-    startMusic();
-  } else {
-    stopMusic();
-  }
 });
 
 // 第一次碰觸球場後開始播放
