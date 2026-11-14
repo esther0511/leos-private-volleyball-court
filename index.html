@@ -954,22 +954,24 @@ function hit() {
   b.sp = false;
   b.sq = 0.15;
 
-  // 第三次擊球後開放指定落點
-  if (b.combo >= 3) {
+// 第三次擊球後開放指定落點
+if (b.combo >= 3) {
+
   hover = { y: 8, t: 0 };
-  bv.set(bv.x * 0.3, 0, bv.z * 0.3);
+
+  bv.set(
+    bv.x * 0.3,
+    0,
+    bv.z * 0.3
+  );
+
   b.armed = 60;
   b.combo = 0;
+
   popText('球停在空中了，點對面發光的場地殺球！');
 }
-
-    b.armed = 5;
-    b.combo = 0;
-
-    popText('點對面場地，選擇殺球落點！');
-  }
+  
 }
-
 function stepBall(dt){
   const p=ball.position;
   // 指定落點殺球
@@ -1145,8 +1147,6 @@ requestAnimationFrame(frame);
 const N='#1d2a50',sk=`stroke="${N}" stroke-width="2.4" stroke-linecap="round" fill="none"`;
 
 const FACE = [
-
-  const FACE = [
   // 0 喜悅
   ['#f2e06b', `
     <path d="M10 17 Q14 12 18 17 M22 17 Q26 12 30 17" ${sk}/>
