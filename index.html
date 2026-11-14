@@ -24,21 +24,65 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--sky);font-family
 .btn:focus-visible,textarea:focus-visible,.em:focus-visible{outline:3px solid #fff;outline-offset:2px}
 #ems{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 .em{border:0;background:var(--orange);border-radius:12px;padding:5px;cursor:pointer;display:flex;justify-content:center;transition:transform .15s}
-.em svg{width:100%;max-width:44px;display:block}
+.em svg,
+.em img{
+  width:100%;
+  max-width:44px;
+  aspect-ratio:1;
+  object-fit:contain;
+  display:block;
+}
 .em:hover{transform:translateY(-3px) rotate(-4deg)}
 .em.sel{outline:3px solid #fff;transform:translateY(-3px)}
 textarea{width:100%;box-sizing:border-box;min-height:120px;resize:vertical;border:0;border-radius:10px;padding:12px;background:var(--orange);color:var(--navy);font:inherit;font-size:17px;line-height:1.6}
 textarea::placeholder{color:rgba(29,42,80,.6)}
 .row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
-.foot{display:flex;justify-content:flex-end}
+.foot{
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  padding-top:12px;
+  margin-top:4px;
+  border-top:1px solid rgba(255,255,255,.22);
+}
+
+.foot .btn{
+  font-size:13px;
+  padding:7px 14px;
+  opacity:.8;
+}
 #list{margin:0;padding:0;list-style:none;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:8px}
 #list li{display:flex;gap:10px;align-items:flex-start;background:rgba(255,255,255,.13);border-radius:10px;padding:8px 10px;line-height:1.5;animation:in .4s}
-#list li svg{width:26px;flex:none}
+#list li svg,
+#list li img{
+  width:26px;
+  height:26px;
+  flex:none;
+  object-fit:contain;
+}
 #list li div{flex:1;white-space:pre-wrap;word-break:break-word}
 #list button{border:0;background:none;color:#fff;font-size:14px;cursor:pointer;opacity:.7}
 #list button:hover{opacity:1}
 @keyframes in{from{opacity:0;transform:translateY(-8px)}}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;transition-duration:.01s!important}}
+
+/* 手機版：八種表情分成兩排 */
+
+@media (max-width:560px){
+
+  #ems{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+  }
+
+  .card{
+    padding:10px;
+  }
+
+  .row{
+    flex-wrap:wrap;
+  }
+
+}
 </style>
 </head>
 <body>
@@ -52,7 +96,24 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
     <textarea id="tx" maxlength="600" placeholder="把今天的心情，打在這裡…"></textarea>
     <div class="row"><span id="hint">只存在你這台裝置的瀏覽器裡</span><button class="btn" id="send">寄出</button></div>
     <ul id="list"></ul>
-    <div class="foot"><button class="btn" id="dl" hidden>下載紀錄</button></div>
+    <div class="foot">
+
+  <button class="btn" id="dl" type="button">
+    下載紀錄
+  </button>
+
+  <button class="btn" id="ul" type="button">
+    匯入紀錄
+  </button>
+
+  <input
+    type="file"
+    id="ulFile"
+    accept=".json,application/json"
+    hidden
+  >
+
+</div>
   </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1046,17 +1107,113 @@ requestAnimationFrame(frame);
 
 /* mood faces in flat art style */
 const N='#1d2a50',sk=`stroke="${N}" stroke-width="2.4" stroke-linecap="round" fill="none"`;
-const FACE=[
-['#f2e06b',`<path d="M10 18q3.5-5 7 0M23 18q3.5-5 7 0" ${sk}/><path d="M11 24q9 11 18 0z" fill="${N}"/><path d="M16 29q4 3 8 0q-4-2-8 0z" fill="#cc5a38"/>`],
-['#52aed4',`<circle cx="13" cy="19" r="2.3" fill="${N}"/><circle cx="27" cy="19" r="2.3" fill="${N}"/><path d="M9 13l7-2M31 13l-7-2" ${sk}/><path d="M13 30q7-6 14 0" ${sk}/><path d="M12 22q-3 5 0 6q3-1 0-6z" fill="#fff"/>`],
-['#cc5a38',`<path d="M9 12l9 4M31 12l-9 4" stroke="${N}" stroke-width="3" stroke-linecap="round"/><circle cx="14" cy="21" r="2.4" fill="${N}"/><circle cx="26" cy="21" r="2.4" fill="${N}"/><path d="M13 30q7-5 14 0" ${sk}/>`],
-['#355c97',`<circle cx="13" cy="18" r="4.4" fill="#fff"/><circle cx="27" cy="18" r="4.4" fill="#fff"/><circle cx="13" cy="19" r="1.7" fill="${N}"/><circle cx="27" cy="19" r="1.7" fill="${N}"/><path d="M8 10q5-3 9 0M23 10q5-3 9 0" stroke="#fff" stroke-width="2.2" stroke-linecap="round" fill="none"/><ellipse cx="20" cy="30" rx="3.5" ry="4.5" fill="${N}"/>`],
-['#86b99a',`<path d="M10 16q3 3 7 0M23 16q3 3 7 0" ${sk}/><path d="M12 27q4-4 8 0t8 0" ${sk}/><path d="M22 28v5q3 2 6 0v-5z" fill="#cc5a38"/>`],
-['#f5ead8',`<path d="M9 10q4-3 8 0M23 10q4-3 8 0" ${sk}/><circle cx="13" cy="19" r="2.6" fill="${N}"/><circle cx="27" cy="19" r="2.6" fill="${N}"/><circle cx="20" cy="29" r="4" fill="${N}"/>`],
-['#e8a39a',`<path d="M10 19q3.5 4 7 0M23 19q3.5 4 7 0" ${sk}/><ellipse cx="9" cy="26" rx="4" ry="2.5" fill="#cc5a38" opacity=".55"/><ellipse cx="31" cy="26" rx="4" ry="2.5" fill="#cc5a38" opacity=".55"/><path d="M16 31q4-2 8 0" ${sk}/>`],
-['#e0a176',`<g fill="#cc5a38"><path d="M13 23l-4.5-4.4a2.6 2.6 0 1 1 4.5-2.6a2.6 2.6 0 1 1 4.5 2.6z"/><path d="M27 23l-4.5-4.4a2.6 2.6 0 1 1 4.5-2.6a2.6 2.6 0 1 1 4.5 2.6z"/></g><path d="M12 27q8 8 16 0" ${sk}/>`]];
+
+const FACE = [
+
+  // 0 喜悅：瞇眼、大笑、紅潤臉頰
+  ['#f2e06b', `
+    <path d="M10 18 Q14 12 18 18 M22 18 Q26 12 30 18" ${sk}/>
+    <path d="M12 24 Q20 36 28 24 Z" fill="${N}"/>
+    <path d="M17 30 Q20 27 23 30" stroke="#e8a39a" stroke-width="2" fill="none"/>
+    <ellipse cx="10" cy="24" rx="3" ry="2" fill="#e8a39a"/>
+    <ellipse cx="30" cy="24" rx="3" ry="2" fill="#e8a39a"/>
+  `],
+
+  // 1 悲傷：無助的眉毛、眼淚、下垂嘴角
+  ['#52aed4', `
+    <path d="M9 15 Q13 12 17 17 M23 17 Q27 12 31 15" ${sk}/>
+    <circle cx="14" cy="21" r="2.4" fill="${N}"/>
+    <circle cx="26" cy="21" r="2.4" fill="${N}"/>
+    <path d="M14 31 Q20 25 26 31" ${sk}/>
+    <path d="M29 23 Q25 29 28 32 Q32 33 32 29 Z" fill="#ffffff"/>
+  `],
+
+  // 2 憤怒：緊皺眉頭、瞪眼、緊繃嘴巴
+  ['#cc5a38', `
+    <path d="M9 13 L18 18 M31 13 L22 18" stroke="${N}" stroke-width="3.5" stroke-linecap="round"/>
+    <circle cx="14" cy="22" r="2.5" fill="${N}"/>
+    <circle cx="26" cy="22" r="2.5" fill="${N}"/>
+    <path d="M13 31 Q20 25 27 31" ${sk}/>
+    <path d="M8 9 L12 11 M28 11 L32 9" stroke="#f2e06b" stroke-width="2.5"/>
+  `],
+
+  // 3 恐懼：睜大的眼睛、驚恐的嘴、冷汗
+  ['#355c97', `
+    <path d="M9 12 Q13 8 17 12 M23 12 Q27 8 31 12" stroke="#ffffff" stroke-width="2.5" fill="none"/>
+    <circle cx="14" cy="21" r="5" fill="#ffffff"/>
+    <circle cx="26" cy="21" r="5" fill="#ffffff"/>
+    <circle cx="14" cy="22" r="2" fill="${N}"/>
+    <circle cx="26" cy="22" r="2" fill="${N}"/>
+    <ellipse cx="20" cy="31" rx="3.8" ry="5" fill="${N}"/>
+    <path d="M33 16 Q29 22 33 25 Q37 24 33 16 Z" fill="#d9f5ff"/>
+  `],
+
+  // 4 厭惡：瞇眼、皺眉、歪嘴
+  ['#86b99a', `
+    <path d="M9 15 Q13 12 17 16 M23 15 Q28 12 31 18" ${sk}/>
+    <path d="M11 22 Q14 20 17 22 M23 22 L29 21" ${sk}/>
+    <path d="M15 29 Q20 25 25 29 L29 27" ${sk}/>
+    <path d="M19 24 Q21 26 23 24" ${sk}/>
+    <path d="M25 30 Q27 34 30 31" stroke="#cc5a38" stroke-width="2" fill="none"/>
+  `],
+
+  // 5 驚訝：圓眼睛、上揚眉毛、O形嘴巴
+  ['#f5ead8', `
+    <path d="M9 12 Q13 8 17 12 M23 12 Q27 8 31 12" ${sk}/>
+    <circle cx="14" cy="20" r="3" fill="${N}"/>
+    <circle cx="26" cy="20" r="3" fill="${N}"/>
+    <circle cx="14.5" cy="19" r="1" fill="#ffffff"/>
+    <circle cx="26.5" cy="19" r="1" fill="#ffffff"/>
+    <ellipse cx="20" cy="30" rx="4.5" ry="5.5" fill="${N}"/>
+  `],
+
+  // 6 羞恥：低垂眼睛、臉紅、不自在
+  ['#e8a39a', `
+    <path d="M10 16 Q14 13 17 17 M23 17 Q26 13 30 16" ${sk}/>
+    <path d="M10 21 Q14 25 18 21 M22 21 Q26 25 30 21" ${sk}/>
+    <ellipse cx="10" cy="27" rx="4" ry="3" fill="#cc5a38" opacity=".65"/>
+    <ellipse cx="30" cy="27" rx="4" ry="3" fill="#cc5a38" opacity=".65"/>
+    <path d="M17 31 Q20 33 23 31" ${sk}/>
+  `],
+
+  // 7 愛：愛心眼睛、溫柔微笑
+  ['#e0a176', `
+    <path d="M14 23 C10 20 8 18 10 15 C12 12 14 14 14 15 C17 12 20 15 18 18 C17 20 15 22 14 23 Z" fill="#cc5a38"/>
+    <path d="M26 23 C22 20 20 18 22 15 C24 12 26 14 26 15 C29 12 32 15 30 18 C29 20 27 22 26 23 Z" fill="#cc5a38"/>
+    <path d="M12 28 Q20 36 28 28" ${sk}/>
+    <ellipse cx="9" cy="27" rx="2.5" ry="1.7" fill="#e8a39a"/>
+    <ellipse cx="31" cy="27" rx="2.5" ry="1.7" fill="#e8a39a"/>
+  `]
+
+];
+
 const NAMES=['喜悅','悲傷','憤怒','恐懼','厭惡','驚訝','羞恥','愛'];
-const face=i=>`<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="${FACE[i][0]}"/>${FACE[i][1]}</svg>`;
+/* ===== 自訂表情圖片 ===== */
+
+const MOOD_IMAGES = [
+  '', // 喜悅
+  '', // 悲傷
+  '', // 憤怒
+  '', // 恐懼
+  '', // 厭惡
+  '', // 驚訝
+  '', // 羞恥
+  ''  // 愛
+];
+
+const face = i => {
+
+  if (MOOD_IMAGES[i]) {
+    return `<img src="${MOOD_IMAGES[i]}" alt="${NAMES[i]}">`;
+  }
+
+  return `
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="18" fill="${FACE[i][0]}"/>
+      ${FACE[i][1]}
+    </svg>
+  `;
+};
 
 /* hidden mood pad */
 let notes=[];try{notes=JSON.parse(localStorage.getItem('vb-notes')||'[]').map(n=>typeof n==='string'?{t:n,e:-1,d:0}:n)}catch(e){}
@@ -1081,12 +1238,171 @@ const HINT='只存在你這台裝置的瀏覽器裡';
 $('#send').onclick=()=>{const t=tx.value.trim();if(!t)return;
   notes.unshift({t,e:selE,d:Date.now()});save();tx.value='';selE=-1;drawEm();paint();
   bv.set(rnd(-1,1),12,rnd(-1,1));$('#hint').textContent='已收進球場，球也跳起來了';setTimeout(()=>$('#hint').textContent=HINT,2500)};
-let DL=null;
-try{window.claude&&claude.use('downloads').then(d=>{if(d){DL=d;$('#dl').hidden=false}}).catch(()=>{})}catch(e){}
-$('#dl').onclick=()=>{
-  if(!DL||!notes.length){$('#hint').textContent=notes.length?'這裡暫時無法下載':'還沒有可以下載的內容';setTimeout(()=>$('#hint').textContent=HINT,2500);return}
-  const txt='排球場心情板紀錄\n\n'+notes.map(n=>(n.d?new Date(n.d).toLocaleString('zh-TW')+'\n':'')+(n.e>=0?NAMES[n.e]:'（未選心情）')+'\n'+n.t+'\n\n----------\n').join('\n');
-  DL.save({filename:'心情板紀錄.txt',data:txt}).then(()=>{$('#hint').textContent='已下載'}).catch(()=>{$('#hint').textContent='沒有下載'}).finally(()=>setTimeout(()=>$('#hint').textContent=HINT,2500))};
+
+/* ===== 心情板：JSON 備份與匯入 ===== */
+
+// 顯示操作結果
+function showMoodHint(message) {
+
+  $('#hint').textContent = message;
+
+  clearTimeout(showMoodHint.timer);
+
+  showMoodHint.timer = setTimeout(() => {
+    $('#hint').textContent = HINT;
+  }, 2500);
+}
+
+
+// 下載心情紀錄
+$('#dl').onclick = () => {
+
+  if (!notes.length) {
+    showMoodHint('目前還沒有可以下載的紀錄');
+    return;
+  }
+
+  const backup = {
+    format: 'volleyball-mood-board',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    notes: notes
+  };
+
+  const blob = new Blob(
+    [JSON.stringify(backup, null, 2)],
+    { type: 'application/json;charset=utf-8' }
+  );
+
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = '心情板紀錄.json';
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 30000);
+
+  showMoodHint('已啟動紀錄下載');
+};
+
+
+// 開啟檔案選擇視窗
+$('#ul').onclick = () => {
+  $('#ulFile').click();
+};
+
+
+// 匯入心情紀錄
+$('#ulFile').addEventListener('change', async e => {
+
+  const file = e.target.files[0];
+
+  if (!file) return;
+
+  try {
+
+    if (file.size > 2000000) {
+      throw new Error('檔案過大');
+    }
+
+    const text = await file.text();
+    const data = JSON.parse(text);
+
+    // 支援備份格式
+    const incoming = Array.isArray(data)
+      ? data
+      : data && data.notes;
+
+    if (
+      !Array.isArray(incoming) ||
+      incoming.length > 10000
+    ) {
+      throw new Error('紀錄格式不正確');
+    }
+
+    // 建立現有紀錄的比對資料
+    const existing = new Set(
+      notes.map(n =>
+        JSON.stringify([n.t, n.e, n.d])
+      )
+    );
+
+    let added = 0;
+
+    incoming.forEach(item => {
+
+      if (!item || typeof item.t !== 'string') {
+        return;
+      }
+
+      const note = {
+
+        t: item.t.slice(0, 600),
+
+        e: Number.isInteger(item.e) &&
+           item.e >= -1 &&
+           item.e < 8
+          ? item.e
+          : -1,
+
+        d: Number.isFinite(item.d)
+          ? item.d
+          : 0
+      };
+
+      if (!note.t.trim()) return;
+
+      const key = JSON.stringify([
+        note.t,
+        note.e,
+        note.d
+      ]);
+
+      // 已有相同紀錄就不重複匯入
+      if (!existing.has(key)) {
+
+        notes.push(note);
+        existing.add(key);
+
+        added++;
+      }
+    });
+
+    // 依照時間排序
+    notes.sort((a, b) => {
+      return (b.d || 0) - (a.d || 0);
+    });
+
+    // 保留原本的自動儲存
+    save();
+
+    // 更新心情板畫面
+    paint();
+
+    showMoodHint(
+      `成功匯入 ${added} 則新紀錄`
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    showMoodHint(
+      '匯入失敗，請檢查備份檔案'
+    );
+  }
+
+  // 清空檔案選擇，方便再次匯入
+  e.target.value = '';
+});
+
 setTimeout(()=>$('#tip').style.opacity=0,14000);
 </script>
 </body>
