@@ -404,7 +404,9 @@ let Tm=rnd(0,24),tgt=null,glowV=0,starV=0,cloudV=1;
 // 時段切換動畫
 let phaseStart = Tm;
 let phaseElapsed = 0;
-let phaseDuration = 9;
+let phaseDuration = 9
+// 球場的一天 = 現實中的一小時
+const CYCLE_SECONDS = 3600;
   
 function nextPhase() {
 
@@ -423,11 +425,11 @@ function nextPhase() {
 
   phaseElapsed = 0;
 
-  // 時段距離越遠，過渡時間越長
-  phaseDuration = Math.min(
-    16,
-    Math.max(8, (n - u) * 2)
-  );
+// 時段距離越遠，過渡時間越長
+phaseDuration = Math.min(
+  40,
+  Math.max(20, (n - u) * 6)
+);
 }
 function skyStep(dt){
   if (tgt !== null) {
@@ -452,7 +454,7 @@ function skyStep(dt){
 } else {
 
   // 沒有點擊時，維持原本自然流動的時間
-  Tm += (24 / 180) * dt;
+  Tm += (24 / CYCLE_SECONDS) * dt;
 }
   const h=Tm%24,u=h<4.5?h+24:h,[a,c,t]=seg(K,u),Lv=i=>a[i]+(c[i]-a[i])*t;
   const sk=mixc(a[1],c[1],t).clone();sc.background.copy(sk);sc.fog.color.copy(sk);
