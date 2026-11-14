@@ -195,7 +195,92 @@ const ptrs=new Map();let st=null,pinch=0;
 cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,[e.clientX,e.clientY]);$('#tip').style.opacity=0;
   if(ptrs.size===2){const [p,q]=[...ptrs.values()];pinch=Math.hypot(p[0]-q[0],p[1]-q[1]);st=null;return}
   st={x:e.clientX,y:e.clientY,lx:e.clientX,ly:e.clientY,o:pick(e),moved:false,t:performance.now()}});
-cv.addEventListener('pointermove',e=>{
+ cv.addEventListener('pointermove', e => {    
+   if (ptrs.has(e.pointerId)) {     
+     ptrs.set(e.pointerId, [e.clientX, e.clientY]);   
+   }    
+   // 雙指縮放   
+   if (ptrs.size === 2) {     
+     const [p, q] = [...ptrs.values()];     
+     const d = Math.hypot(p[0] - q[0], p[1] - q[1]);      
+     
+     ct.d = Math.min(60, Math.max(8, ct.d * pinch / d));     
+     pinch = d;     
+     return;   
+   }    
+   if (!st) {     
+     if (!e.buttons) {       
+       cv.style.cursor = pick(e) ? 'pointer' : 'default';     
+     }     
+     return;   
+   }    
+   
+   const dx = e.clientX - st.lx;   
+   const dy = e.clientY - st.ly;   
+   
+   // 判定是否開始拖曳   
+   if (     
+     !st.moved &&     
+     Math.hypot(e.clientX - st.x, e.clientY - st.y) > 6   
+   ) {     
+     st.moved = true;      
+     
+     if (st.o && st.o.userData.ball) {       
+       b.drag = true;       
+       b.sp = false;       
+       b.armed = 0;       
+       b.combo = 0;        
+       
+       bv.set(0, 0, 0);        
+       b.vx = 0;       
+       b.vz = 0;       
+       b.lt = performance.now();       
+       b.lastMove = b.lt;     
+     }   
+   }    
+   if (!st.moved) return;    
+   
+   // 拖曳排球   
+   if (b.drag) {     
+     ndc(e);     
+     ray.setFromCamera(m2, cam);      
+     
+     if (ray.ray.intersectPlane(plane, pt)) {       
+       const nx = pt.x;       
+       const nz = pt.z;      
+       const now = performance.now();        
+       
+       const dt = Math.max(         
+         0.008,         
+         (now - (b.lt || now)) / 1000       
+       );        
+       b.lt = now;       
+       b.lastMove = now;        
+       
+       b.vx = b.vx * 0.6 +         
+         (nx - ball.position.x) / dt * 0.4;        
+       
+       b.vz = b.vz * 0.6 +         
+         (nz - ball.position.z) / dt * 0.4;        
+       
+       ball.position.x = nx;       
+       ball.position.z = nz;     
+     }    
+   } else {  
+     
+     // 左右拖曳：繞球場旋轉     
+     ct.th -= dx * 0.006;      
+     
+     // 上下拖曳：自由抬頭、低頭     
+     ct.tilt = Math.max(       
+       -0.95,       
+       Math.min(1.45, ct.tilt - dy * 0.005)     
+     );   
+   }    
+   
+   st.lx = e.clientX;   
+   st.ly = e.clientY; 
+ });
   if(ptrs.has(e.pointerId))ptrs.set(e.pointerId,[e.clientX,e.clientY]);
   if(ptrs.size===2){const [p,q]=[...ptrs.values()],d=Math.hypot(p[0]-q[0],p[1]-q[1]);ct.d=Math.min(60,Math.max(8,ct.d*pinch/d));pinch=d;return}
   if(!st){if(!e.buttons)cv.style.cursor=pick(e)?'pointer':'default';return}
@@ -204,12 +289,58 @@ cv.addEventListener('pointermove',e=>{
     if(st.o&&st.o.userData.ball){b.drag=true;b.sp=false;bv.set(0,0,0);b.armed=0}}
   if(!st.moved)return;
   if(b.drag){ndc(e);ray.setFromCamera(m2,cam);if(ray.ray.intersectPlane(plane,pt)){
-      const nx=pt.x,nz=pt.z,now=performance.now(),dt=Math.max(.008,(now-(b.lt||now))/1000);b.lt=now;
+      const nx=pt.x,nz=pt.z,now=performance.now(),dt=Math.max(.008,(now-(b.lt||now))/1000);b.lt = now; b.lastMove = now;
       b.vx=b.vx*.6+(nx-ball.position.x)/dt*.4;b.vz=b.vz*.6+(nz-ball.position.z)/dt*.4;ball.position.x=nx;ball.position.z=nz}}
-  else{ct.th-=dx*.006;ct.ph=Math.min(1.45,Math.max(.2,ct.ph-dy*.005))}
+  else {
+  // 左右：繞球場旋轉
+  ct.th -= dx * 0.006;
+
+  // 上下：獨立控制觀看方向
+  ct.tilt = Math.max(
+    -0.95,
+    Math.min(1.45, ct.tilt - dy * 0.005)
+  );
+}
   st.lx=e.clientX;st.ly=e.clientY});
 const end=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=0;if(!st)return;
-  if(b.drag){b.drag=false;const m=Math.hypot(b.vx,b.vz),k=m>22?22/m:1;bv.set(b.vx*k,3+Math.min(6,m*.2),b.vz*k);b.vx=b.vz=0}
+  if (b.drag) {
+  b.drag = false;
+
+  const speed = Math.hypot(b.vx, b.vz);
+
+  // 判斷玩家是否在移動中快速放手
+  const isQuickRelease =
+    performance.now() - (b.lastMove || 0) < 120;
+
+  if (isQuickRelease && speed > 5) {
+    // 快速甩球：保留向前拋出的效果
+    const k = Math.min(1, 22 / speed);
+
+    bv.set(
+      b.vx * k,
+      Math.min(6.5, 1.5 + speed * 0.16),
+      b.vz * k
+    );
+
+  } else {
+    // 輕放：不額外向上拋球
+    // 保留少量水平速度，讓球自然停下
+    bv.set(
+      b.vx * 0.15,
+      0,
+      b.vz * 0.15
+    );
+  }
+
+  b.sp = false;
+  b.armed = 0;
+  b.combo = 0;
+
+  b.vx = 0;
+  b.vz = 0;
+  b.lt = 0;
+  b.lastMove = 0;
+}
   else if(!st.moved&&st.o){const o=st.o;if(o.userData.ball)hit();else o.userData.act()}
   st=null};
 cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
@@ -235,7 +366,21 @@ function stepBall(dt){
     if(p.y<=BR){p.y=BR;
       if(b.sp){b.sp=false;bv.y=-bv.y*.85;b.sq=.5;shake=.5;const r=new T3.Mesh(new T3.RingGeometry(.4,.6,32),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,side:T3.DoubleSide}));r.rotation.x=-PI/2;r.position.set(p.x,.06,p.z);sc.add(r);rings.push({r,t:0})}
       else if(bv.y<-2.5){bv.y*=-.72;b.sq=.22}else bv.y=0;
-      const f=Math.exp(-1.6*dt);bv.x*=f;bv.z*=f}
+                
+// 排球落地後逐漸失去水平動能
+const friction = Math.exp(-3.8 * dt);
+
+bv.x *= friction;
+bv.z *= friction;
+
+// 當球的速度已經非常低，就讓它完全靜止
+if (
+  Math.abs(bv.y) < 0.25 &&
+  Math.hypot(bv.x, bv.z) < 0.12
+) {
+  bv.set(0, 0, 0);
+}
+}
     const lim=[30,22];
     if(Math.abs(p.x)>lim[0]-BR){bv.x*=-.7;p.x=Math.sign(p.x)*(lim[0]-BR)}
     if(Math.abs(p.z)>lim[1]-BR){bv.z*=-.7;p.z=Math.sign(p.z)*(lim[1]-BR)}
