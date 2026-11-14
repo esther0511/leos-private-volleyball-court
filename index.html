@@ -488,7 +488,8 @@ const cameraAim = new T3.Vector3();
 const cameraUp = new T3.Vector3(0, 1, 0);
 
 function camStep() {
-
+tgtP.y += ((hover ? 4 : 1) - tgtP.y) * 0.05;
+  
   // 攝影機平滑移動
   cs.th += (ct.th - cs.th) * 0.18;
   cs.ph += (ct.ph - cs.ph) * 0.18;
@@ -652,13 +653,7 @@ cv.addEventListener('pointermove', e => {
     ct.th -= dx * 0.006;
 
     // 上下拖曳：自由抬頭與低頭
-    ct.tilt = Math.max(
-      -0.95,
-      Math.min(
-        1.45,
-        ct.tilt - dy * 0.005
-      )
-    );
+    ct.ph = Math.max(0.25, Math.min(1.4, ct.ph - dy * 0.005));
   }
 
   st.lx = e.clientX;
@@ -739,7 +734,14 @@ const end=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=0;if(!st)return;
   st=null};
 cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
 cv.addEventListener('wheel',e=>{e.preventDefault();ct.d=Math.min(60,Math.max(8,ct.d*Math.exp(e.deltaY*.001)))},{passive:false});
-
+cv.addEventListener('dblclick', e => {
+  if (pick(e)) return;
+  ct.th = -0.55;
+  ct.ph = 1.0;
+  ct.d = 27;
+  ct.tilt = 0;
+});
+  
 /* ball hit logic: tap 3 times quickly -> very high bounce, tap once more -> spike */
 function popText(t){const d=$('#tip');d.textContent=t;d.style.opacity=1;clearTimeout(popText.h);popText.h=setTimeout(()=>d.style.opacity=0,1800)}
 
@@ -879,7 +881,7 @@ function startSpike(point) {
     ),
 
     // 球經過球網時的安全高度
-    netY: 2.43 + BR + 0.16
+    netY: 2.43 + BR + 0.16 + (from.y - 3) * 0.45
   };
 
   b.armed = 0;
@@ -954,7 +956,7 @@ function hit() {
 
   // 第三次擊球後開放指定落點
   if (b.combo >= 3) {
-  hover = { y: 4.6, t: 0 };
+  hover = { y: 8, t: 0 };
   bv.set(bv.x * 0.3, 0, bv.z * 0.3);
   b.armed = 60;
   b.combo = 0;
@@ -1144,84 +1146,77 @@ const N='#1d2a50',sk=`stroke="${N}" stroke-width="2.4" stroke-linecap="round" fi
 
 const FACE = [
 
-  // 0 喜悅：瞇眼、大笑、紅潤臉頰
+  const FACE = [
+  // 0 喜悅
   ['#f2e06b', `
-    <path d="M10 18 Q14 12 18 18 M22 18 Q26 12 30 18" ${sk}/>
-    <path d="M12 24 Q20 36 28 24 Z" fill="${N}"/>
-    <path d="M17 30 Q20 27 23 30" stroke="#e8a39a" stroke-width="2" fill="none"/>
-    <ellipse cx="10" cy="24" rx="3" ry="2" fill="#e8a39a"/>
-    <ellipse cx="30" cy="24" rx="3" ry="2" fill="#e8a39a"/>
+    <path d="M10 17 Q14 12 18 17 M22 17 Q26 12 30 17" ${sk}/>
+    <path d="M11 23 Q20 36 29 23 Z" fill="${N}"/>
+    <ellipse cx="20" cy="29.5" rx="4" ry="2.2" fill="#e8756a"/>
+    <ellipse cx="8.5" cy="24" rx="2.6" ry="1.8" fill="#e8a39a" opacity=".7"/>
+    <ellipse cx="31.5" cy="24" rx="2.6" ry="1.8" fill="#e8a39a" opacity=".7"/>
   `],
-
-  // 1 悲傷：無助的眉毛、眼淚、下垂嘴角
+  // 1 悲傷
   ['#52aed4', `
-    <path d="M9 15 Q13 12 17 17 M23 17 Q27 12 31 15" ${sk}/>
-    <circle cx="14" cy="21" r="2.4" fill="${N}"/>
-    <circle cx="26" cy="21" r="2.4" fill="${N}"/>
-    <path d="M14 31 Q20 25 26 31" ${sk}/>
-    <path d="M29 23 Q25 29 28 32 Q32 33 32 29 Z" fill="#ffffff"/>
+    <path d="M9 16 L17 12 M31 16 L23 12" ${sk}/>
+    <circle cx="14" cy="20" r="2.6" fill="${N}"/>
+    <circle cx="26" cy="20" r="2.6" fill="${N}"/>
+    <path d="M13 31 Q20 24 27 31" ${sk}/>
+    <path d="M13 23 Q10.5 27 13 29.5 Q15.5 27 13 23 Z" fill="#ffffff"/>
   `],
-
-  // 2 憤怒：緊皺眉頭、瞪眼、緊繃嘴巴
+  // 2 憤怒
   ['#cc5a38', `
-    <path d="M9 13 L18 18 M31 13 L22 18" stroke="${N}" stroke-width="3.5" stroke-linecap="round"/>
-    <circle cx="14" cy="22" r="2.5" fill="${N}"/>
-    <circle cx="26" cy="22" r="2.5" fill="${N}"/>
-    <path d="M13 31 Q20 25 27 31" ${sk}/>
-    <path d="M8 9 L12 11 M28 11 L32 9" stroke="#f2e06b" stroke-width="2.5"/>
+    <path d="M9 13 L17 17 M31 13 L23 17" stroke="${N}" stroke-width="3.2" stroke-linecap="round"/>
+    <circle cx="14" cy="21.5" r="2.6" fill="${N}"/>
+    <circle cx="26" cy="21.5" r="2.6" fill="${N}"/>
+    <path d="M14 31 Q20 27 26 31" ${sk}/>
   `],
-
-  // 3 恐懼：睜大的眼睛、驚恐的嘴、冷汗
+  // 3 恐懼
   ['#355c97', `
-    <path d="M9 12 Q13 8 17 12 M23 12 Q27 8 31 12" stroke="#ffffff" stroke-width="2.5" fill="none"/>
-    <circle cx="14" cy="21" r="5" fill="#ffffff"/>
-    <circle cx="26" cy="21" r="5" fill="#ffffff"/>
-    <circle cx="14" cy="22" r="2" fill="${N}"/>
-    <circle cx="26" cy="22" r="2" fill="${N}"/>
-    <ellipse cx="20" cy="31" rx="3.8" ry="5" fill="${N}"/>
-    <path d="M33 16 Q29 22 33 25 Q37 24 33 16 Z" fill="#d9f5ff"/>
+    <path d="M8 13 L17 9 M32 13 L23 9" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="13.5" cy="19" r="4.6" fill="#ffffff"/>
+    <circle cx="26.5" cy="19" r="4.6" fill="#ffffff"/>
+    <circle cx="13.5" cy="19.5" r="1.8" fill="${N}"/>
+    <circle cx="26.5" cy="19.5" r="1.8" fill="${N}"/>
+    <ellipse cx="20" cy="31" rx="3.4" ry="4.4" fill="${N}"/>
+    <path d="M32 10 Q29 15 32 17 Q35 15 32 10 Z" fill="#d9f5ff"/>
   `],
-
-  // 4 厭惡：瞇眼、皺眉、歪嘴
+  // 4 厭惡
   ['#86b99a', `
-    <path d="M9 15 Q13 12 17 16 M23 15 Q28 12 31 18" ${sk}/>
-    <path d="M11 22 Q14 20 17 22 M23 22 L29 21" ${sk}/>
-    <path d="M15 29 Q20 25 25 29 L29 27" ${sk}/>
-    <path d="M19 24 Q21 26 23 24" ${sk}/>
-    <path d="M25 30 Q27 34 30 31" stroke="#cc5a38" stroke-width="2" fill="none"/>
+    <path d="M9 14 Q13 12 17 15 M23 15 Q27 12 31 14" ${sk}/>
+    <path d="M9 20 H17 M23 20 H31" ${sk}/>
+    <path d="M11 29 Q15 25 19 29 T27 29" ${sk}/>
   `],
-
-  // 5 驚訝：圓眼睛、上揚眉毛、O形嘴巴
+  // 5 驚訝
   ['#f5ead8', `
-    <path d="M9 12 Q13 8 17 12 M23 12 Q27 8 31 12" ${sk}/>
-    <circle cx="14" cy="20" r="3" fill="${N}"/>
-    <circle cx="26" cy="20" r="3" fill="${N}"/>
-    <circle cx="14.5" cy="19" r="1" fill="#ffffff"/>
-    <circle cx="26.5" cy="19" r="1" fill="#ffffff"/>
-    <ellipse cx="20" cy="30" rx="4.5" ry="5.5" fill="${N}"/>
+    <path d="M9 11 Q13 7 17 11 M23 11 Q27 7 31 11" ${sk}/>
+    <circle cx="14" cy="19" r="3.2" fill="${N}"/>
+    <circle cx="26" cy="19" r="3.2" fill="${N}"/>
+    <circle cx="15" cy="18" r="1" fill="#ffffff"/>
+    <circle cx="27" cy="18" r="1" fill="#ffffff"/>
+    <ellipse cx="20" cy="30" rx="4" ry="5.2" fill="${N}"/>
   `],
-
-  // 6 羞恥：低垂眼睛、臉紅、不自在
+  // 6 羞恥
   ['#e8a39a', `
-    <path d="M10 16 Q14 13 17 17 M23 17 Q26 13 30 16" ${sk}/>
-    <path d="M10 21 Q14 25 18 21 M22 21 Q26 25 30 21" ${sk}/>
-    <ellipse cx="10" cy="27" rx="4" ry="3" fill="#cc5a38" opacity=".65"/>
-    <ellipse cx="30" cy="27" rx="4" ry="3" fill="#cc5a38" opacity=".65"/>
-    <path d="M17 31 Q20 33 23 31" ${sk}/>
+    <path d="M9 15 L16 13 M31 15 L24 13" ${sk}/>
+    <circle cx="14" cy="20" r="2.4" fill="${N}"/>
+    <circle cx="26" cy="20" r="2.4" fill="${N}"/>
+    <ellipse cx="9" cy="26" rx="4.5" ry="3" fill="#cc5a38" opacity=".6"/>
+    <ellipse cx="31" cy="26" rx="4.5" ry="3" fill="#cc5a38" opacity=".6"/>
+    <path d="M15 31 Q17.5 29 20 31 T25 31" ${sk}/>
+    <path d="M33 9 Q30 14 33 16 Q36 14 33 9 Z" fill="#d9f5ff"/>
   `],
-
-  // 7 愛：愛心眼睛、溫柔微笑
+  // 7 愛
   ['#e0a176', `
-    <path d="M14 23 C10 20 8 18 10 15 C12 12 14 14 14 15 C17 12 20 15 18 18 C17 20 15 22 14 23 Z" fill="#cc5a38"/>
-    <path d="M26 23 C22 20 20 18 22 15 C24 12 26 14 26 15 C29 12 32 15 30 18 C29 20 27 22 26 23 Z" fill="#cc5a38"/>
-    <path d="M12 28 Q20 36 28 28" ${sk}/>
-    <ellipse cx="9" cy="27" rx="2.5" ry="1.7" fill="#e8a39a"/>
-    <ellipse cx="31" cy="27" rx="2.5" ry="1.7" fill="#e8a39a"/>
+    <path transform="translate(14 19)" d="M0 4.5 C-7 -.5 -4.5 -7.5 0 -3.5 C4.5 -7.5 7 -.5 0 4.5 Z" fill="#cc5a38"/>
+    <path transform="translate(26 19)" d="M0 4.5 C-7 -.5 -4.5 -7.5 0 -3.5 C4.5 -7.5 7 -.5 0 4.5 Z" fill="#cc5a38"/>
+    <path d="M13 27 Q20 34 27 27" ${sk}/>
+    <ellipse cx="8.5" cy="26" rx="3" ry="2" fill="#f0b0a0" opacity=".85"/>
+    <ellipse cx="31.5" cy="26" rx="3" ry="2" fill="#f0b0a0" opacity=".85"/>
   `]
-
 ];
-
+  
 const NAMES=['喜悅','悲傷','憤怒','恐懼','厭惡','驚訝','羞恥','愛'];
+const EMOJI = ['😄','😢','😠','😨','🤢','😲','😳','🥰'];
 /* ===== 自訂表情圖片 ===== */
 
 const MOOD_IMAGES = [
@@ -1244,6 +1239,7 @@ const face = i => {
   return `
     <svg viewBox="0 0 40 40" aria-hidden="true">
       <circle cx="20" cy="20" r="18" fill="${FACE[i][0]}"/>
+      <ellipse cx="14" cy="9" rx="7" ry="3.2" fill="#fff" opacity=".22" transform="rotate(-25 14 9)"/>
       ${FACE[i][1]}
     </svg>
   `;
@@ -1300,7 +1296,12 @@ $('#dl').onclick = () => {
     format: 'volleyball-mood-board',
     version: 1,
     exportedAt: new Date().toISOString(),
-    notes: notes
+    notes: notes.map(n => ({
+  ...n,
+  emoji: n.e >= 0 ? EMOJI[n.e] : '',
+  mood: n.e >= 0 ? NAMES[n.e] : '',
+  time: n.d ? new Date(n.d).toLocaleString('zh-TW') : ''
+}))
   };
 
   const blob = new Blob(
