@@ -375,6 +375,22 @@ const rings=[];let shake=0;
 const G=16;
 // 指定落點的殺球飛行狀態
 let spikeFlight = null;
+let hover = null;
+let glowA = 0;
+
+const spikeGlow = new T3.Mesh(
+  new T3.PlaneGeometry(8.1, 8.6),
+  new T3.MeshBasicMaterial({
+    color: 0xffd070,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: T3.AdditiveBlending
+  })
+);
+spikeGlow.rotation.x = -PI / 2;
+spikeGlow.position.y = 0.05;
+sc.add(spikeGlow);
   
 /* time of day: 24h = 3 min. dawn 3h, morning 4h, noon 2h, afternoon 3h, dusk 2h, night 10h */
 const K=[[4.5,'#101a40','#4b5aa6',.12,.9,.8,.15],[5.5,'#f0a98e','#ffd2c6',.25,.5,0,.7],[7.5,'#9fd3e8','#fff1e6',.35,.15,0,.9],[10,'#62bfe8','#ffffff',.4,0,0,1],[13,'#58b8e6','#ffffff',.4,0,0,1],[15,'#6cc2e8','#fff6ea',.38,.05,0,1],[16.5,'#f2b98d','#ffe0bf',.35,.35,0,.8],[17.8,'#ee8d6c','#f5a68a',.28,.75,0,.6],[18.8,'#5d4f8d','#8d78a8',.18,.9,.2,.4],[19.8,'#101a40','#4b5aa6',.12,1,.8,.15],[28.5,'#101a40','#4b5aa6',.12,.9,.8,.15]];
@@ -490,7 +506,7 @@ function camStep() {
   if (shake > 0.01) {
     cam.position.x += rnd(-1, 1) * shake;
     cam.position.y += rnd(-1, 1) * shake;
-    shake *= 0.88;
+    shake *= 0.92;
   }
 
   // 計算觀看方向
@@ -581,6 +597,7 @@ cv.addEventListener('pointermove', e => {
 
       b.drag = true;
       spikeFlight = null;
+      hover = null;
       b.sp = false;
       b.armed = 0;
       b.combo = 0;
@@ -871,7 +888,7 @@ function startSpike(point) {
 
   bv.set(0, 0, 0);
   b.sq = 0.2;
-
+  hover = null;
   popText('殺球！');
 }
 
@@ -937,6 +954,12 @@ function hit() {
 
   // 第三次擊球後開放指定落點
   if (b.combo >= 3) {
+  hover = { y: 4.6, t: 0 };
+  bv.set(bv.x * 0.3, 0, bv.z * 0.3);
+  b.armed = 60;
+  b.combo = 0;
+  popText('球停在空中了，點對面發光的場地殺球！');
+}
 
     b.armed = 5;
     b.combo = 0;
@@ -997,7 +1020,15 @@ if (spikeFlight) {
       (f.to.z - f.from.z) / f.duration * 0.22
     );
   }
-
+} else if (hover) {
+  hover.t += dt;
+  p.y += (hover.y + Math.sin(hover.t * 2) * 0.12 - p.y) * Math.min(1, dt * 3);
+  p.x += bv.x * dt;
+  p.z += bv.z * dt;
+  bv.x *= Math.exp(-2 * dt);
+  bv.z *= Math.exp(-2 * dt);
+  b.armed = 60;
+  if (hover.t > 25) { hover = null; b.armed = 0; }
 } else if (b.drag) {
 
   p.y += (1.6 - p.y) * 0.25;
@@ -1006,7 +1037,7 @@ if (spikeFlight) {
     bv.y-=G*dt*(b.sp?.45:1);p.addScaledVector(bv,dt);b.armed=Math.max(0,b.armed-dt);
     const on=p.y<=BR+.001;
 if(p.y<=BR){p.y=BR;b.armed=0;
-    if(b.sp){b.sp=false;bv.y=-bv.y*.85;b.sq=.5;shake=.5;const r=new T3.Mesh(new T3.RingGeometry(.4,.6,32),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,side:T3.DoubleSide}));r.rotation.x=-PI/2;r.position.set(p.x,.06,p.z);sc.add(r);rings.push({r,t:0})}
+    if(b.sp){b.sp=false;bv.y=-bv.y*.85;b.sq=.6;shake=1.4;netAmp=.35;const r=new T3.Mesh(new T3.RingGeometry(.4,.6,32),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,side:T3.DoubleSide}));r.rotation.x=-PI/2;r.position.set(p.x,.06,p.z);sc.add(r);rings.push({r,t:0})}
       else if(bv.y<-2.5){bv.y*=-.72;b.sq=.22}else bv.y=0;
                 
 // 排球落地後逐漸失去水平動能
@@ -1102,6 +1133,9 @@ for (let i = fallingLeaves.length - 1; i >= 0; i--) {
   stars.forEach(o=>{if(o.pop>0)o.pop=Math.max(0,o.pop-dt*1.5);const tw=.75+.25*Math.sin(clk*2+o.ph);o.s.material.opacity=starV*tw;o.s.scale.setScalar(2.2*(1+3*Math.sin(o.pop*PI)*(o.pop>0?1:0)))});
   /* impact rings */
   for(let i=rings.length-1;i>=0;i--){const q=rings[i];q.t+=dt*1.8;q.r.scale.setScalar(1+q.t*5);q.r.material.opacity=Math.max(0,1-q.t);if(q.t>=1){sc.remove(q.r);rings.splice(i,1)}}
+  glowA += ((hover ? 1 : 0) - glowA) * Math.min(1, dt * 5);
+  spikeGlow.material.opacity = glowA * (0.25 + 0.15 * Math.sin(clk * 4));
+  spikeGlow.position.x = (ball.position.x >= 0 ? -1 : 1) * 4.75;
   camStep();R.render(sc,cam);requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
 
