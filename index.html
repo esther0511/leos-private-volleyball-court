@@ -138,6 +138,54 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
   outline-offset: 2px;
   border-radius: 6px;
 }
+/* ===== 長按音符後的音量滑桿 ===== */
+
+#musicVolumePanel {
+  position: fixed;
+
+  top: calc(63px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+
+  z-index: 10;
+
+  width: 44px;
+  height: 135px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(29, 42, 80, 0.22);
+  backdrop-filter: blur(5px);
+  border-radius: 24px;
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+#musicVolumePanel.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+#musicVolume {
+  width: 22px;
+  height: 105px;
+
+  writing-mode: vertical-lr;
+  direction: rtl;
+
+  accent-color: #ffffff;
+  cursor: pointer;
+}
+
+#musicToggle {
+  touch-action: none;
+}
 </style>
 </head>
 <body>
@@ -147,6 +195,18 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
 <button
   id="musicToggle"
   type="button"
+  <!-- 長按音符時顯示的音量滑桿 -->
+<div id="musicVolumePanel" aria-hidden="true">
+  <input
+    id="musicVolume"
+    type="range"
+    min="0"
+    max="100"
+    value="35"
+    step="1"
+    aria-label="背景音樂音量"
+  >
+</div>
   aria-label="關閉背景音樂"
   aria-pressed="true"
   title="背景音樂"
@@ -259,6 +319,97 @@ const flames=[],poles=[];
 /* trees */
 const trees=[];
 
+/* ===== 樹木互動音效 ===== */
+
+let treeSoundCtx = null;
+
+function playTreeRustle() {
+
+  const AudioClass =
+    window.AudioContext || window.webkitAudioContext;
+
+  if (!AudioClass) return;
+
+  if (!treeSoundCtx) {
+    treeSoundCtx = new AudioClass();
+  }
+
+  const ctx = treeSoundCtx;
+
+  if (ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
+  }
+
+  const duration = 0.65;
+  const sampleRate = ctx.sampleRate;
+  const length = Math.ceil(duration * sampleRate);
+
+  // 產生柔和的雜訊
+  const buffer = ctx.createBuffer(
+    1,
+    length,
+    sampleRate
+  );
+
+  const data = buffer.getChannelData(0);
+
+  let previous = 0;
+
+  for (let i = 0; i < length; i++) {
+
+    const noise = Math.random() * 2 - 1;
+
+    previous =
+      previous * 0.65 +
+      noise * 0.35;
+
+    data[i] = previous;
+  }
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+
+  // 過濾刺耳的高頻
+  const filter = ctx.createBiquadFilter();
+
+  filter.type = 'bandpass';
+  filter.frequency.value = 1200;
+  filter.Q.value = 0.6;
+
+  const volume = ctx.createGain();
+
+  const now = ctx.currentTime;
+
+  // 聲音快速出現，接著自然消失
+  volume.gain.setValueAtTime(
+    0.0001,
+    now
+  );
+
+  volume.gain.exponentialRampToValueAtTime(
+    0.12,
+    now + 0.08
+  );
+
+  volume.gain.exponentialRampToValueAtTime(
+    0.0001,
+    now + duration
+  );
+
+  source.connect(filter);
+  filter.connect(volume);
+  volume.connect(ctx.destination);
+
+  source.start(now);
+  source.stop(now + duration);
+
+  source.onended = () => {
+    source.disconnect();
+    filter.disconnect();
+    volume.disconnect();
+  };
+}
+
 /* ===== 樹葉飄落系統 ===== */
 
 const fallingLeaves = [];
@@ -346,13 +497,16 @@ trees.push(o);
 
 g.userData.act = () => {
 
-  // 保留原本的樹木晃動
+  // 樹木晃動
   o.j = 1;
 
-  // 新增樹葉飄落
+  // 樹葉飄落
   dropLeaves(o);
-};
 
+  // 播放樹葉沙沙聲
+  playTreeRustle();
+};
+  
 hitList.push(g);
 });
 
@@ -441,9 +595,112 @@ for(let i=0;i<9;i++){const g=new T3.Group(),a=rnd(0,PI*2),r=rnd(100,140),parts=[
   g.position.set(Math.cos(a)*r,rnd(34,52),Math.sin(a)*r);sc.add(g);
   const o={g,parts,a,r,p:99};clouds.push(o);g.userData.act=()=>{if(o.p>12)o.p=0};hitList.push(g)}
 const stars=[];
-for(let i=0;i<70;i++){const d=new T3.Vector3(rnd(-1,1),rnd(.12,1),rnd(-1,1)).normalize().multiplyScalar(185);
-  const s=new T3.Sprite(new T3.SpriteMaterial({color:0xffffff,transparent:true,fog:false,depthWrite:false}));s.position.copy(d);s.scale.set(2.2,2.2,1);
-  const o={s,pop:0,ph:rnd(0,6)};stars.push(o);s.userData.act=()=>{o.pop=1};sc.add(s);hitList.push(s)}
+
+/* ===== 星星與光暈 ===== */
+
+// 製作柔和的放射狀光暈貼圖
+const starGlowTexture = (() => {
+
+  const c = document.createElement('canvas');
+
+  c.width = 128;
+  c.height = 128;
+
+  const g = c.getContext('2d');
+
+  const gradient = g.createRadialGradient(
+    64, 64, 0,
+    64, 64, 64
+  );
+
+  gradient.addColorStop(
+    0,
+    'rgba(255,255,255,0.95)'
+  );
+
+  gradient.addColorStop(
+    0.15,
+    'rgba(255,255,255,0.65)'
+  );
+
+  gradient.addColorStop(
+    0.45,
+    'rgba(220,235,255,0.25)'
+  );
+
+  gradient.addColorStop(
+    1,
+    'rgba(220,235,255,0)'
+  );
+
+  g.fillStyle = gradient;
+  g.fillRect(0, 0, 128, 128);
+
+  return new T3.CanvasTexture(c);
+
+})();
+
+const stars = [];
+
+for (let i = 0; i < 70; i++) {
+
+  const d = new T3.Vector3(
+    rnd(-1, 1),
+    rnd(0.12, 1),
+    rnd(-1, 1)
+  ).normalize().multiplyScalar(185);
+
+  // 保留原本的星星
+  const s = new T3.Sprite(
+    new T3.SpriteMaterial({
+      color: 0xffffff,
+      transparent: true,
+      fog: false,
+      depthWrite: false
+    })
+  );
+
+  s.position.copy(d);
+  s.scale.set(2.2, 2.2, 1);
+
+  const o = {
+    s,
+    pop: 0,
+    ph: rnd(0, 6),
+    halo: null
+  };
+
+  // 點擊星星時
+  s.userData.act = () => {
+
+    o.pop = 1;
+
+    // 第一次被點擊時才建立光暈
+    if (!o.halo) {
+
+      o.halo = new T3.Sprite(
+        new T3.SpriteMaterial({
+          map: starGlowTexture,
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0,
+          blending: T3.AdditiveBlending,
+          depthWrite: false,
+          fog: false
+        })
+      );
+
+      o.halo.position.copy(s.position);
+      o.halo.scale.set(4.5, 4.5, 1);
+
+      sc.add(o.halo);
+    }
+  };
+
+  sc.add(s);
+  stars.push(o);
+  hitList.push(s);
+}
 
 /* real-style volleyball: 18 panels = 6 groups of 3 strips, groups alternate direction */
 const BR=.34;
@@ -1239,8 +1496,42 @@ for (let i = fallingLeaves.length - 1; i >= 0; i--) {
       q.m.scale.set(q.s.x*Math.max(.01,sc2),q.s.y*Math.max(.01,sc2),q.s.z*Math.max(.01,sc2));q.m.material.opacity=al});
     if(o.p>12){o.parts.forEach((q,k)=>q.m.position.set(k*6-9,q.m.position.y,q.m.position.z))}});
   /* stars */
-  stars.forEach(o=>{if(o.pop>0)o.pop=Math.max(0,o.pop-dt*1.5);const tw=.75+.25*Math.sin(clk*2+o.ph);o.s.material.opacity=starV*tw;o.s.scale.setScalar(2.2*(1+3*Math.sin(o.pop*PI)*(o.pop>0?1:0)))});
-  /* impact rings */
+ 
+stars.forEach(o => {
+
+  // 點擊效果約持續一秒
+  if (o.pop > 0) {
+    o.pop = Math.max(0, o.pop - dt * 1.0);
+  }
+
+  // 保留原本的自然閃爍
+  const tw =
+    0.75 + 0.25 * Math.sin(clk * 2 + o.ph);
+
+  o.s.material.opacity = starV * tw;
+
+  // 點擊時的光芒強度
+  const pulse = Math.sin(o.pop * PI);
+
+  // 星星最多放大 30%
+  o.s.scale.setScalar(
+    2.2 * (1 + 0.3 * pulse)
+  );
+
+  // 額外的柔和光暈
+  if (o.halo) {
+
+    // 光暈逐漸出現、再逐漸消失
+    o.halo.material.opacity =
+      starV * 0.65 * pulse;
+
+    // 光暈也有非常輕微的擴張
+    o.halo.scale.setScalar(
+      4.5 * (1 + 0.2 * pulse)
+    );
+  }
+});
+
   for(let i=rings.length-1;i>=0;i--){const q=rings[i];q.t+=dt*1.8;q.r.scale.setScalar(1+q.t*5);q.r.material.opacity=Math.max(0,1-q.t);if(q.t>=1){sc.remove(q.r);rings.splice(i,1)}}
   glowA += ((hover ? 1 : 0) - glowA) * Math.min(1, dt * 5);
   spikeGlow.material.opacity = glowA * (0.25 + 0.15 * Math.sin(clk * 4));
@@ -1691,11 +1982,11 @@ async function startMusic() {
   // 音量漸漸變大
   musicMaster.gain.cancelScheduledValues(now);
 
-  musicMaster.gain.setTargetAtTime(
-    0.4,
-    now,
-    0.4
-  );
+musicMaster.gain.setTargetAtTime(
+  getMusicVolumeLevel(),
+  now,
+  0.4
+);
 
   musicStep = 0;
   nextMusicTime = now + 0.08;
@@ -1762,6 +2053,159 @@ musicButton.addEventListener('click', () => {
   } catch (e) {}
 
   updateMusicButton();
+
+/* ===== 長按音符調整音量 ===== */
+
+const musicVolumePanel = $('#musicVolumePanel');
+const musicVolume = $('#musicVolume');
+
+// 讀取上次儲存的音量
+try {
+  const saved = localStorage.getItem('vb-music-volume');
+
+  if (saved !== null) {
+    const value = Number(saved);
+
+    if (Number.isFinite(value)) {
+      musicVolume.value = Math.max(
+        0,
+        Math.min(100, value)
+      );
+    }
+  }
+} catch (e) {}
+
+// 取得目前音量，範圍 0～1
+function getMusicVolumeLevel() {
+  return Number(musicVolume.value) / 100;
+}
+
+// 即時調整音量
+function applyMusicVolume() {
+
+  if (!musicCtx || !musicMaster) return;
+
+  const now = musicCtx.currentTime;
+
+  musicMaster.gain.cancelScheduledValues(now);
+
+  musicMaster.gain.setTargetAtTime(
+    musicOn ? getMusicVolumeLevel() : 0.0001,
+    now,
+    0.08
+  );
+}
+
+let musicHoldTimer = null;
+let musicHideTimer = null;
+
+let longPressOpened = false;
+let blockMusicClickUntil = 0;
+
+// 顯示音量滑桿
+function showMusicVolume() {
+  clearTimeout(musicHideTimer);
+
+  musicVolumePanel.classList.add('open');
+  musicVolumePanel.setAttribute('aria-hidden', 'false');
+}
+
+// 隱藏音量滑桿
+function hideMusicVolume() {
+  musicVolumePanel.classList.remove('open');
+  musicVolumePanel.setAttribute('aria-hidden', 'true');
+}
+
+// 停止操作後自動收起
+function scheduleVolumeHide() {
+  clearTimeout(musicHideTimer);
+
+  musicHideTimer = setTimeout(
+    hideMusicVolume,
+    2500
+  );
+}
+
+// 按住音符開始計時
+musicButton.addEventListener('pointerdown', e => {
+
+  if (e.button !== 0) return;
+
+  longPressOpened = false;
+
+  clearTimeout(musicHoldTimer);
+
+  musicHoldTimer = setTimeout(() => {
+
+    longPressOpened = true;
+    showMusicVolume();
+
+  }, 500);
+});
+
+// 放開音符
+musicButton.addEventListener('pointerup', () => {
+
+  clearTimeout(musicHoldTimer);
+
+  if (longPressOpened) {
+    blockMusicClickUntil = performance.now() + 700;
+    scheduleVolumeHide();
+  }
+});
+
+// 中途取消長按
+musicButton.addEventListener('pointerleave', () => {
+  clearTimeout(musicHoldTimer);
+});
+
+musicButton.addEventListener('pointercancel', () => {
+  clearTimeout(musicHoldTimer);
+});
+
+// 防止手機長按時出現選單
+musicButton.addEventListener('contextmenu', e => {
+  e.preventDefault();
+});
+
+// 長按後不觸發原本的音樂開關
+musicButton.addEventListener('click', e => {
+
+  if (performance.now() < blockMusicClickUntil) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+
+}, true);
+
+// 拖曳滑桿時保持展開
+musicVolume.addEventListener('pointerdown', () => {
+  clearTimeout(musicHideTimer);
+});
+
+// 音量改變時
+musicVolume.addEventListener('input', () => {
+
+  try {
+    localStorage.setItem(
+      'vb-music-volume',
+      musicVolume.value
+    );
+  } catch (e) {}
+
+  applyMusicVolume();
+  scheduleVolumeHide();
+});
+
+// 完成調整後收起
+musicVolume.addEventListener('pointerup', () => {
+  scheduleVolumeHide();
+});
+
+// 鍵盤操作時也能收起
+musicVolume.addEventListener('change', () => {
+  scheduleVolumeHide();
+});
 
   if (musicOn) {
     startMusic();
