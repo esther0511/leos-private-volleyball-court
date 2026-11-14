@@ -43,7 +43,7 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="tip">拖曳空白處探索球場，滾輪或雙指縮放。輕放排球會慢慢停下，快速拖曳可以拋球，連點三下高拋，再點一下殺球！</div>
+<div id="tip">拖曳空白處探索球場。連點排球三下拋高，點擊對面場地指定殺球落點。球飛遠時，點擊球場就能叫回來。</div>
 <div id="pad" hidden>
   <div class="back" id="back"></div>
   <div class="card" id="card" role="dialog" aria-label="心情板">
@@ -203,12 +203,75 @@ hitList.push(g);
 /* scoreboard */
 const board=new T3.Group();board.position.set(7,0,-9.5);sc.add(board);
 [-1.2,1.2].forEach(x=>{const l=new T3.Mesh(new T3.BoxGeometry(.14,1.4,.14),L(0x1d2a50));l.position.set(x,.7,0);board.add(l)});
-const bx=new T3.Mesh(new T3.BoxGeometry(3.6,2.1,.22),L(0x1d2a50));bx.position.y=2.45;board.add(bx);
-const bt=(()=>{const c=document.createElement('canvas');c.width=680;c.height=400;const g=c.getContext('2d');
-  g.fillStyle='#355c97';g.fillRect(0,0,680,400);g.fillStyle='#fff';g.font='700 34px "PingFang TC","Noto Sans TC",sans-serif';g.textAlign='center';
-  [['主隊',130],['局',340],['客隊',550]].forEach(([t,x])=>g.fillText(t,x,70));
-  [['21',130,200],['3',340,130],['19',550,200]].forEach(([t,x,w])=>{g.fillStyle='#e0a176';g.fillRect(x-w/2+(w<150?0:0)-0,100,w*.9,230);g.fillStyle='#fff';g.font='800 150px ui-monospace,Menlo,monospace';g.fillText(t,x,270)});
-  return new T3.CanvasTexture(c)})();
+const bx=new T3.Mesh(
+  new T3.BoxGeometry(3.6,2.1,.22),
+  L(0x1d2a50)
+);
+  
+  bx.position.y=2.45;
+  board.add(bx);
+/* ===== 記分板配色 ===== */
+
+const bt = (() => {
+
+  const c = document.createElement('canvas');
+  c.width = 680;
+  c.height = 400;
+
+  const g = c.getContext('2d');
+
+  // 整體底色：黑色
+  g.fillStyle = '#000000';
+  g.fillRect(0, 0, 680, 400);
+
+  // 三個分數區塊
+  const panels = [
+    {
+      name: '主隊',
+      score: '21',
+      x: 40,
+      w: 180,
+      color: '#355c97'
+    },
+    {
+      name: '局',
+      score: '3',
+      x: 280,
+      w: 120,
+      color: '#42464d'
+    },
+    {
+      name: '客隊',
+      score: '19',
+      x: 460,
+      w: 180,
+      color: '#c94c50'
+    }
+  ];
+
+  panels.forEach(p => {
+
+    // 白色標題
+    g.fillStyle = '#ffffff';
+    g.textAlign = 'center';
+    g.font = '700 34px "PingFang TC", sans-serif';
+
+    g.fillText(p.name, p.x + p.w / 2, 73);
+
+    // 分數背景
+    g.fillStyle = p.color;
+    g.fillRect(p.x, 107, p.w, 240);
+
+    // 白色分數
+    g.fillStyle = '#ffffff';
+    g.font = '800 140px ui-monospace, Menlo, monospace';
+
+    g.fillText(p.score, p.x + p.w / 2, 279);
+  });
+
+  return new T3.CanvasTexture(c);
+
+})();
 const bf=new T3.Mesh(new T3.PlaneGeometry(3.4,2),new T3.MeshLambertMaterial({map:bt}));bf.position.set(0,2.45,.12);board.add(bf);
 const bpx=new T3.Mesh(new T3.BoxGeometry(3.8,2.3,.6),ghost());bpx.position.set(0,2.45,0);board.add(bpx);
 board.userData.act=()=>openPad();hitList.push(board);
@@ -249,7 +312,9 @@ const shadow=new T3.Mesh(new T3.CircleGeometry(BR*1.1,24),new T3.MeshBasicMateri
 const bv=new T3.Vector3(),b={sq:0,sp:false,armed:0,drag:false,combo:0,last:0,vx:0,vz:0};
 const rings=[];let shake=0;
 const G=16;
-
+// 指定落點的殺球飛行狀態
+let spikeFlight = null;
+  
 /* time of day: 24h = 3 min. dawn 3h, morning 4h, noon 2h, afternoon 3h, dusk 2h, night 10h */
 const K=[[4.5,'#101a40','#4b5aa6',.12,.9,.8,.15],[5.5,'#f0a98e','#ffd2c6',.25,.5,0,.7],[7.5,'#9fd3e8','#fff1e6',.35,.15,0,.9],[10,'#62bfe8','#ffffff',.4,0,0,1],[13,'#58b8e6','#ffffff',.4,0,0,1],[15,'#6cc2e8','#fff6ea',.38,.05,0,1],[16.5,'#f2b98d','#ffe0bf',.35,.35,0,.8],[17.8,'#ee8d6c','#f5a68a',.28,.75,0,.6],[18.8,'#5d4f8d','#8d78a8',.18,.9,.2,.4],[19.8,'#101a40','#4b5aa6',.12,1,.8,.15],[28.5,'#101a40','#4b5aa6',.12,.9,.8,.15]];
 const SC=[[5,'#ffb48a'],[7,'#ffd89a'],[9.5,'#fff3a0'],[13,'#fff6b8'],[15.5,'#ffe48a'],[17.5,'#ff9a5a'],[18.5,'#ff7a4a']];
@@ -258,9 +323,60 @@ const seg=(A,u)=>{let i=0;while(i<A.length-2&&u>=A[i+1][0])i++;const a=A[i],c=A[
 const cA=new T3.Color(),cB=new T3.Color();
 const mixc=(h1,h2,t)=>cA.set(h1).lerp(cB.set(h2),t);
 let Tm=rnd(0,24),tgt=null,glowV=0,starV=0,cloudV=1;
-function nextPhase(){const h=Tm%24,u=h<4.5?h+24:h;let n=PS.find(v=>v>u+.01);if(n===undefined)n=28.5;tgt=Tm+(n-u)}
+
+// 時段切換動畫
+let phaseStart = Tm;
+let phaseElapsed = 0;
+let phaseDuration = 9;
+  
+function nextPhase() {
+
+  // 過渡期間不重複觸發
+  if (tgt !== null) return;
+
+  const h = Tm % 24;
+  const u = h < 4.5 ? h + 24 : h;
+
+  let n = PS.find(v => v > u + 0.01);
+  if (n === undefined) n = 28.5;
+
+  // 記住起點與終點
+  phaseStart = Tm;
+  tgt = Tm + (n - u);
+
+  phaseElapsed = 0;
+
+  // 時段距離越遠，過渡時間越長
+  phaseDuration = Math.min(
+    16,
+    Math.max(8, (n - u) * 2)
+  );
+}
 function skyStep(dt){
-  Tm+=(tgt!==null?30:24/180)*dt;if(tgt!==null&&Tm>=tgt){Tm=tgt;tgt=null}
+  if (tgt !== null) {
+
+  phaseElapsed += dt;
+
+  const t = Math.min(
+    1,
+    phaseElapsed / phaseDuration
+  );
+
+  // 平滑加速、再平滑減速
+  const smooth = t * t * (3 - 2 * t);
+
+  Tm = phaseStart + (tgt - phaseStart) * smooth;
+
+  if (t >= 1) {
+    Tm = tgt;
+    tgt = null;
+  }
+
+} else {
+
+  // 沒有點擊時，維持原本自然流動的時間
+  Tm += (24 / 180) * dt;
+}
   const h=Tm%24,u=h<4.5?h+24:h,[a,c,t]=seg(K,u),Lv=i=>a[i]+(c[i]-a[i])*t;
   const sk=mixc(a[1],c[1],t).clone();sc.background.copy(sk);sc.fog.color.copy(sk);
   const ti=mixc(a[2],c[2],t).clone();amb.color.copy(ti);sunL.color.copy(ti);sunL.intensity=Lv(3);
@@ -403,6 +519,7 @@ cv.addEventListener('pointermove', e => {
     if (st.o && st.o.userData.ball) {
 
       b.drag = true;
+      spikeFlight = null;
       b.sp = false;
       b.armed = 0;
       b.combo = 0;
@@ -510,7 +627,37 @@ const end=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=0;if(!st)return;
   b.lt = 0;
   b.lastMove = 0;
 }
-  else if(!st.moved&&st.o){const o=st.o;if(o.userData.ball)hit();else o.userData.act()}
+  else if (!st.moved && e.type === 'pointerup') {
+
+  // 點擊原有互動物件
+  if (st.o) {
+
+    if (st.o.userData.ball) {
+      hit();
+    } else {
+      st.o.userData.act();
+    }
+
+  } else {
+
+    // 點擊球場地面
+    const spot = courtPoint(e);
+
+    if (spot) {
+
+      // 優先判斷排球是否需要找回
+      if (ballNeedsRecall()) {
+
+        recallBall(spot);
+
+      } else if (b.armed > 0) {
+
+        // 排球準備殺球時，點擊地面指定落點
+        startSpike(spot);
+      }
+    }
+  }
+}
   st=null};
 cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
 cv.addEventListener('wheel',e=>{e.preventDefault();ct.d=Math.min(60,Math.max(8,ct.d*Math.exp(e.deltaY*.001)))},{passive:false});
@@ -518,96 +665,287 @@ cv.addEventListener('wheel',e=>{e.preventDefault();ct.d=Math.min(60,Math.max(8,c
 /* ball hit logic: tap 3 times quickly -> very high bounce, tap once more -> spike */
 function popText(t){const d=$('#tip');d.textContent=t;d.style.opacity=1;clearTimeout(popText.h);popText.h=setTimeout(()=>d.style.opacity=0,1800)}
 
-/* ===== 排球點擊、三連擊與殺球 ===== */
+  /* ===== 定點殺球與排球找回系統 ===== */
+
+// 判斷玩家點擊的球場位置
+function courtPoint(e) {
+
+  ndc(e);
+  ray.setFromCamera(m2, cam);
+
+  // 偵測球場內側與外側地面
+  const hits = ray.intersectObjects(
+    [court.children[1], court.children[0]],
+    false
+  );
+
+  return hits.length
+    ? hits[0].point.clone()
+    : null;
+}
+
+
+// 判斷排球是否已經飛遠或離開視野
+function ballNeedsRecall() {
+
+  const p = ball.position;
+
+  // 球離球場中心太遠
+  const far = Math.hypot(p.x, p.z) > 24;
+
+  // 球已經離開主要球場範圍
+  const outside =
+    Math.abs(p.x) > 10 ||
+    Math.abs(p.z) > 5.5;
+
+  // 判斷是否還在攝影機畫面內
+  const q = p.clone().project(cam);
+
+  const offscreen =
+    Math.abs(q.x) > 1.05 ||
+    Math.abs(q.y) > 1.05 ||
+    q.z < -1 ||
+    q.z > 1;
+
+  return far || (outside && offscreen);
+}
+
+
+// 讓遺失的排球回到點擊位置
+function recallBall(point) {
+
+  spikeFlight = null;
+
+  bv.set(0, 0, 0);
+
+  ball.position.set(
+    point.x,
+    BR,
+    point.z
+  );
+
+  b.drag = false;
+  b.sp = false;
+  b.armed = 0;
+  b.combo = 0;
+  b.sq = 0.12;
+
+  popText('球回來了！');
+}
+
+
+// 發動指定落點殺球
+function startSpike(point) {
+
+  const p = ball.position;
+
+  if (b.armed <= 0) return;
+
+  // 球需要先高過球網
+  if (p.y < 2.85) {
+    popText('先讓球高過球網，再點對面場地！');
+    return;
+  }
+
+  // 目標必須在球網另一側的有效場區
+  if (
+    Math.abs(point.x) > 8.8 ||
+    Math.abs(point.z) > 4.3 ||
+    Math.abs(point.x) < 0.7 ||
+    p.x * point.x >= 0
+  ) {
+    popText('請點球網另一側的場內落點！');
+    return;
+  }
+
+  // 記錄起點與目的地
+  const from = p.clone();
+
+  const to = new T3.Vector3(
+    point.x,
+    BR,
+    point.z
+  );
+
+  const dist = Math.hypot(
+    to.x - from.x,
+    to.z - from.z
+  );
+
+  // 算出球穿過球網所在平面的時間比例
+  const cross = -from.x / (to.x - from.x);
+
+  // 確認路線會通過球網兩柱之間
+  const netZ =
+    from.z + (to.z - from.z) * cross;
+
+  if (Math.abs(netZ) > 4.5) {
+    popText('請選擇能穿過球網兩柱之間的落點！');
+    return;
+  }
+
+  // 建立殺球飛行資料
+  spikeFlight = {
+    from,
+    to,
+    elapsed: 0,
+
+    duration: Math.max(
+      0.55,
+      Math.min(0.85, dist / 14)
+    ),
+
+    cross: Math.max(
+      0.03,
+      Math.min(0.97, cross)
+    ),
+
+    // 球經過球網時的安全高度
+    netY: 2.43 + BR + 0.16
+  };
+
+  b.armed = 0;
+  b.combo = 0;
+  b.sp = false;
+
+  bv.set(0, 0, 0);
+  b.sq = 0.2;
+
+  popText('殺球！');
+}
+
+
+/* ===== 排球點擊與三連擊 ===== */
 
 function hit() {
 
+  if (spikeFlight) return;
+
   const now = performance.now();
 
-  // 超過 1.5 秒沒有連續點擊，重新計算次數
+  // 超過 1.5 秒重置連擊
   if (now - b.last > 1500) {
     b.combo = 0;
   }
 
   b.last = now;
 
-  // 第三次高拋後，下一次點擊可以殺球
+  // 原本第四次點球的操作仍然可以自動殺球
   if (b.armed > 0) {
 
-    // 球必須升到一定高度才能殺球
-    if (ball.position.y <= 2.2) {
-      popText('球再高一點就可以殺球！');
-      return;
-    }
-
-    const dir = new T3.Vector3(
-      ball.position.x >= 0 ? -1 : 1,
-      0,
-      -ball.position.z * 0.12 + rnd(-0.3, 0.3)
-    ).normalize();
-
-    bv.set(
-      dir.x * 20,
-      -17,
-      dir.z * 20
+    startSpike(
+      new T3.Vector3(
+        ball.position.x >= 0 ? -4 : 4,
+        BR,
+        Math.max(
+          -3.5,
+          Math.min(
+            3.5,
+            ball.position.z + rnd(-1, 1)
+          )
+        )
+      )
     );
 
-    b.sp = true;
-    b.armed = 0;
-    b.combo = 0;
-    b.sq = 0.2;
-
-    popText('殺球！');
     return;
   }
 
-  // 一般擊球次數
   b.combo++;
 
-  // 三種擊球的目標最高高度
-  const targetHeights = [
-    1.5,  // 第一次：輕彈
-    2.4,  // 第二次：中高度
-    3.8   // 第三次：高拋
+  // 三種擊球高度
+  const heights = [
+    1.5,
+    2.4,
+    3.8
   ];
 
-  const targetY =
-    targetHeights[Math.min(b.combo, 3) - 1];
-
-  // 根據球目前的高度，計算需要的向上速度
   const rise = Math.max(
     0.25,
-    targetY - ball.position.y
+    heights[Math.min(b.combo, 3) - 1]
+      - ball.position.y
   );
-
-  const upwardSpeed = Math.sqrt(2 * G * rise);
 
   bv.set(
     rnd(-0.8, 0.8),
-    upwardSpeed,
+    Math.sqrt(2 * G * rise),
     rnd(-0.8, 0.8)
   );
 
   b.sp = false;
   b.sq = 0.15;
 
-  // 第三次擊球後進入可殺球狀態
+  // 第三次擊球後開放指定落點
   if (b.combo >= 3) {
+
     b.armed = 5;
     b.combo = 0;
 
-    popText('再點一下殺球！');
+    popText('點對面場地，選擇殺球落點！');
   }
 }
 
 function stepBall(dt){
   const p=ball.position;
-  if(b.drag){p.y+=(1.6-p.y)*.25}
-  else{
+  // 指定落點殺球
+if (spikeFlight) {
+
+  const f = spikeFlight;
+
+  f.elapsed = Math.min(
+    f.duration,
+    f.elapsed + dt
+  );
+
+  const u = f.elapsed / f.duration;
+
+  // 水平位置朝指定落點移動
+  p.lerpVectors(f.from, f.to, u);
+
+  // 球網前：維持足夠的過網高度
+  if (u <= f.cross) {
+
+    const a = u / f.cross;
+
+    p.y = f.netY +
+      (f.from.y - f.netY) * (1 - a) * (1 - a);
+
+  } else {
+
+    // 球網後：加速向目標落下
+    const a =
+      (u - f.cross) / (1 - f.cross);
+
+    p.y = f.netY +
+      (BR - f.netY) * a * a;
+  }
+
+  // 保留排球旋轉
+  ball.rotation.z += dt * 8;
+
+  // 殺球抵達指定地面位置
+  if (u >= 1) {
+
+    spikeFlight = null;
+
+    // 恢復原本的殺球落地特效與反彈
+    b.sp = true;
+
+    bv.set(
+      (f.to.x - f.from.x) / f.duration * 0.22,
+      -12,
+      (f.to.z - f.from.z) / f.duration * 0.22
+    );
+  }
+
+} else if (b.drag) {
+
+  p.y += (1.6 - p.y) * 0.25;
+
+} else {
     bv.y-=G*dt*(b.sp?.45:1);p.addScaledVector(bv,dt);b.armed=Math.max(0,b.armed-dt);
     const on=p.y<=BR+.001;
-    if(p.y<=BR){p.y=BR;
-      if(b.sp){b.sp=false;bv.y=-bv.y*.85;b.sq=.5;shake=.5;const r=new T3.Mesh(new T3.RingGeometry(.4,.6,32),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,side:T3.DoubleSide}));r.rotation.x=-PI/2;r.position.set(p.x,.06,p.z);sc.add(r);rings.push({r,t:0})}
+if(p.y<=BR){p.y=BR;b.armed=0;
+    if(b.sp){b.sp=false;bv.y=-bv.y*.85;b.sq=.5;shake=.5;const r=new T3.Mesh(new T3.RingGeometry(.4,.6,32),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,side:T3.DoubleSide}));r.rotation.x=-PI/2;r.position.set(p.x,.06,p.z);sc.add(r);rings.push({r,t:0})}
       else if(bv.y<-2.5){bv.y*=-.72;b.sq=.22}else bv.y=0;
                 
 // 排球落地後逐漸失去水平動能
