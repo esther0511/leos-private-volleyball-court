@@ -83,10 +83,106 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
   }
 
 }
+/* ===== 背景音樂按鈕 ===== */
+
+#musicToggle {
+  position: fixed;
+
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+
+  z-index: 9;
+
+  width: 44px;
+  height: 44px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+  border: none;
+  background: transparent;
+
+  color: #ffffff;
+
+  cursor: pointer;
+
+  opacity: 1;
+
+  transition: opacity 0.3s ease;
+
+  filter: drop-shadow(
+    0 2px 3px rgba(0, 0, 0, 0.25)
+  );
+}
+
+/* 關閉音樂：透明 70% */
+
+#musicToggle.off {
+  opacity: 0.3;
+}
+
+/* 滑鼠移上去時稍微變亮 */
+
+#musicToggle.off:hover {
+  opacity: 0.6;
+}
+
+#musicToggle svg {
+  pointer-events: none;
+}
+
+#musicToggle:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+
+<!-- 背景音樂開關 -->
+<button
+  id="musicToggle"
+  type="button"
+  aria-label="關閉背景音樂"
+  aria-pressed="true"
+  title="背景音樂"
+>
+  <svg
+    viewBox="0 0 32 32"
+    width="28"
+    height="28"
+    aria-hidden="true"
+  >
+    <path
+      d="M9 18V8L24 4V18"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <ellipse
+      cx="6.5"
+      cy="20.5"
+      rx="4"
+      ry="3"
+      transform="rotate(-20 6.5 20.5)"
+      fill="currentColor"
+    />
+    <ellipse
+      cx="21.5"
+      cy="20.5"
+      rx="4"
+      ry="3"
+      transform="rotate(-20 21.5 20.5)"
+      fill="currentColor"
+    />
+  </svg>
+</button>
 <div id="tip">拖曳空白處探索球場。連點排球三下拋高，點擊對面場地指定殺球落點。球飛遠時，點擊球場就能叫回來。</div>
 <div id="pad" hidden>
   <div class="back" id="back"></div>
@@ -865,17 +961,32 @@ function startSpike(point) {
     popText('請選擇能穿過球網兩柱之間的落點！');
     return;
   }
+// ===== 確認直線殺球能越過球網 =====
 
+// 計算排球經過球網時的球心高度
+const netCrossY =
+  from.y + (BR - from.y) * cross;
+
+// 球網高度 + 排球半徑 + 安全距離
+const minNetY = 2.43 + BR + 0.12;
+
+if (netCrossY < minNetY) {
+
+  popText('球還不夠高，或落點太靠近球網！');
+
+  return;
+}
   // 建立殺球飛行資料
   spikeFlight = {
     from,
     to,
     elapsed: 0,
 
-    duration: Math.max(
-      0.55,
-      Math.min(0.85, dist / 14)
-    ),
+   // 殺球飛行時間
+duration: Math.max(
+  0.42,
+  Math.min(0.65, dist / 18)
+),
 
     cross: Math.max(
       0.03,
@@ -988,26 +1099,18 @@ if (spikeFlight) {
 
   const u = f.elapsed / f.duration;
 
-  // 水平位置朝指定落點移動
-  p.lerpVectors(f.from, f.to, u);
+  // ===== 直線殺球軌跡 =====
 
-  // 球網前：維持足夠的過網高度
-  if (u <= f.cross) {
+// 剛開始就有速度，接近地面時逐漸加快
+const progress = u * (0.65 + 0.35 * u);
 
-    const a = u / f.cross;
-
-    p.y = f.netY +
-      (f.from.y - f.netY) * (1 - a) * (1 - a);
-
-  } else {
-
-    // 球網後：加速向目標落下
-    const a =
-      (u - f.cross) / (1 - f.cross);
-
-    p.y = f.netY +
-      (BR - f.netY) * a * a;
-  }
+// X、Y、Z 使用相同進度
+// 讓排球沿著一條斜直線飛向指定落點
+p.lerpVectors(
+  f.from,
+  f.to,
+  progress
+);
 
   // 保留排球旋轉
   ball.rotation.z += dt * 8;
@@ -1439,6 +1542,245 @@ $('#ulFile').addEventListener('change', async e => {
   // 清空檔案選擇，方便再次匯入
   e.target.value = '';
 });
+
+/* ===== 背景音樂系統 ===== */
+
+const musicButton = $('#musicToggle');
+
+const AudioContextClass =
+  window.AudioContext || window.webkitAudioContext;
+
+// 記住上次音樂開關狀態
+let musicOn = true;
+
+try {
+  musicOn = localStorage.getItem('vb-music') !== 'off';
+} catch (e) {}
+
+let musicCtx = null;
+let musicMaster = null;
+let musicTimer = null;
+
+let musicStep = 0;
+let nextMusicTime = 0;
+
+// 音樂速度：數字越大，旋律越慢
+const MUSIC_SPEED = 0.8;
+
+// 四組柔和和弦
+const MUSIC_CHORDS = [
+  [60, 64, 67, 71],
+  [57, 60, 64, 67],
+  [53, 57, 60, 64],
+  [55, 59, 62, 67]
+];
+
+// 旋律音符的排列
+const MUSIC_PATTERN = [0, 2, 1, 3, 2, 1, 0, 2];
+
+// 產生一個柔和的音符
+function playMusicNote(
+  midi,
+  start,
+  duration,
+  volume,
+  attack = 0.04
+) {
+
+  const oscillator = musicCtx.createOscillator();
+  const gain = musicCtx.createGain();
+
+  const frequency =
+    440 * Math.pow(2, (midi - 69) / 12);
+
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(
+    frequency,
+    start
+  );
+
+  gain.gain.setValueAtTime(0.0001, start);
+
+  gain.gain.exponentialRampToValueAtTime(
+    volume,
+    start + attack
+  );
+
+  gain.gain.exponentialRampToValueAtTime(
+    0.0001,
+    start + duration
+  );
+
+  oscillator.connect(gain);
+  gain.connect(musicMaster);
+
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+}
+
+// 安排下一組旋律
+function scheduleMusic() {
+
+  if (!musicCtx || !musicOn) return;
+
+  while (
+    nextMusicTime < musicCtx.currentTime + 0.6
+  ) {
+
+    const chordIndex =
+      Math.floor(musicStep / 8) % 4;
+
+    const noteIndex = musicStep % 8;
+
+    const chord = MUSIC_CHORDS[chordIndex];
+
+    // 每八拍加入柔和的背景和弦
+    if (noteIndex === 0) {
+
+      chord.forEach(midi => {
+        playMusicNote(
+          midi - 12,
+          nextMusicTime,
+          6.3,
+          0.028,
+          1.0
+        );
+      });
+    }
+
+    // 播放主要旋律
+    playMusicNote(
+      chord[MUSIC_PATTERN[noteIndex]] + 12,
+      nextMusicTime,
+      1.9,
+      0.11
+    );
+
+    nextMusicTime += MUSIC_SPEED;
+    musicStep++;
+  }
+}
+
+// 開始播放音樂
+async function startMusic() {
+
+  if (!musicOn || !AudioContextClass || musicTimer) {
+    return;
+  }
+
+  if (!musicCtx) {
+
+    musicCtx = new AudioContextClass();
+
+    musicMaster = musicCtx.createGain();
+    musicMaster.gain.value = 0;
+
+    musicMaster.connect(musicCtx.destination);
+  }
+
+  try {
+    await musicCtx.resume();
+  } catch (e) {
+    return;
+  }
+
+  if (!musicOn || musicTimer) return;
+
+  const now = musicCtx.currentTime;
+
+  // 音量漸漸變大
+  musicMaster.gain.cancelScheduledValues(now);
+
+  musicMaster.gain.setTargetAtTime(
+    0.4,
+    now,
+    0.4
+  );
+
+  musicStep = 0;
+  nextMusicTime = now + 0.08;
+
+  scheduleMusic();
+
+  musicTimer = setInterval(
+    scheduleMusic,
+    150
+  );
+}
+
+// 關閉音樂
+function stopMusic() {
+
+  if (musicTimer !== null) {
+    clearInterval(musicTimer);
+    musicTimer = null;
+  }
+
+  if (!musicCtx || !musicMaster) return;
+
+  const now = musicCtx.currentTime;
+
+  // 音樂柔和地淡出
+  musicMaster.gain.cancelScheduledValues(now);
+
+  musicMaster.gain.setTargetAtTime(
+    0.0001,
+    now,
+    0.15
+  );
+}
+
+// 更新按鈕外觀
+function updateMusicButton() {
+
+  musicButton.classList.toggle(
+    'off',
+    !musicOn
+  );
+
+  musicButton.setAttribute(
+    'aria-pressed',
+    String(musicOn)
+  );
+
+  musicButton.setAttribute(
+    'aria-label',
+    musicOn ? '關閉背景音樂' : '開啟背景音樂'
+  );
+}
+
+// 點擊音符：開啟或關閉音樂
+musicButton.addEventListener('click', () => {
+
+  musicOn = !musicOn;
+
+  try {
+    localStorage.setItem(
+      'vb-music',
+      musicOn ? 'on' : 'off'
+    );
+  } catch (e) {}
+
+  updateMusicButton();
+
+  if (musicOn) {
+    startMusic();
+  } else {
+    stopMusic();
+  }
+});
+
+// 第一次碰觸球場後開始播放
+cv.addEventListener('pointerdown', () => {
+
+  if (musicOn) {
+    startMusic();
+  }
+
+}, { once: true });
+
+// 初始化按鈕外觀
+updateMusicButton();
 
 setTimeout(()=>$('#tip').style.opacity=0,14000);
 </script>
