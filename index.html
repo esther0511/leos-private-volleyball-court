@@ -43,7 +43,7 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="tip">拖曳空白處轉動視角，滾輪或雙指縮放。拖曳排球丟出去，連點球三下會彈很高，再點一下就是殺球</div>
+<div id="tip">拖曳空白處探索球場，滾輪或雙指縮放。輕放排球會慢慢停下，快速拖曳可以拋球，連點三下高拋，再點一下殺球！</div>
 <div id="pad" hidden>
   <div class="back" id="back"></div>
   <div class="card" id="card" role="dialog" aria-label="心情板">
@@ -101,10 +101,104 @@ const flames=[],poles=[];
 
 /* trees */
 const trees=[];
+
+/* ===== 樹葉飄落系統 ===== */
+
+const fallingLeaves = [];
+
+// 葉片形狀
+const leafShape = new T3.Shape();
+
+leafShape.moveTo(0, -0.12);
+leafShape.quadraticCurveTo(-0.13, 0, 0, 0.15);
+leafShape.quadraticCurveTo(0.13, 0, 0, -0.12);
+
+const leafGeometry = new T3.ShapeGeometry(leafShape);
+
+// 樹葉顏色
+const leafColors = [
+  0x5fae93,
+  0x79c7ac,
+  0x8bbba9,
+  0xe0a176
+];
+
+// 點擊樹木後產生落葉
+function dropLeaves(tree) {
+
+  const origin = new T3.Vector3();
+  tree.g.getWorldPosition(origin);
+
+  // 每次掉落 5～8 片，限制同時存在的葉片數量
+  const count = Math.min(
+    5 + Math.floor(Math.random() * 4),
+    80 - fallingLeaves.length
+  );
+
+  for (let i = 0; i < count; i++) {
+
+    const material = new T3.MeshBasicMaterial({
+      color: leafColors[
+        Math.floor(Math.random() * leafColors.length)
+      ],
+      side: T3.DoubleSide,
+      transparent: true,
+      opacity: 1,
+      depthWrite: false
+    });
+
+    const leaf = new T3.Mesh(
+      leafGeometry,
+      material
+    );
+
+    leaf.position.set(
+      origin.x + rnd(-0.85, 0.85),
+      origin.y + rnd(2.2, 3.4),
+      origin.z + rnd(-0.85, 0.85)
+    );
+
+    leaf.rotation.set(
+      rnd(0, PI),
+      rnd(0, PI),
+      rnd(-PI, PI)
+    );
+
+    leaf.scale.setScalar(rnd(0.8, 1.3));
+
+    sc.add(leaf);
+
+    fallingLeaves.push({
+      mesh: leaf,
+      age: 0,
+      speed: rnd(0.55, 0.95),
+      driftX: rnd(-0.15, 0.15),
+      driftZ: rnd(-0.15, 0.15),
+      spin: rnd(-2, 2),
+      phase: rnd(0, PI * 2)
+    });
+  }
+}
+
 [[-14,-8],[-17,6],[14,-12],[16,7],[-6,-17],[5,16],[-21,-2],[19,-3]].forEach(([x,z])=>{
   const g=new T3.Group(),t=new T3.Mesh(new T3.CylinderGeometry(.18,.24,1.7,8),L(0x2d4a7a));t.position.y=.85;
   const f=new T3.Mesh(new T3.SphereGeometry(1.2,16,12),L(0x5fae93));f.position.y=2.5;g.add(t,f);g.position.set(x,0,z);sc.add(g);
-  const o={g,j:0};trees.push(o);g.userData.act=()=>{o.j=1};hitList.push(g)});
+  const o = { g, j: 0 };
+
+trees.push(o);
+
+g.userData.act = () => {
+
+  // 保留原本的樹木晃動
+  o.j = 1;
+
+  // 新增樹葉飄落
+  dropLeaves(o);
+};
+
+hitList.push(g);
+});
+
 
 /* scoreboard */
 const board=new T3.Group();board.position.set(7,0,-9.5);sc.add(board);
@@ -177,12 +271,69 @@ function skyStep(dt){
   sunL.position.copy(sun.position).normalize().multiplyScalar(40)}
 
 /* camera orbit (own implementation) */
-const cs={th:-.55,ph:1.0,d:27},ct={th:-.55,ph:1.0,d:27},tgtP=new T3.Vector3(0,1,0);
-function camStep(){
-  cs.th+=(ct.th-cs.th)*.18;cs.ph+=(ct.ph-cs.ph)*.18;cs.d+=(ct.d-cs.d)*.18;
-  cam.position.set(tgtP.x+cs.d*Math.sin(cs.ph)*Math.sin(cs.th),tgtP.y+cs.d*Math.cos(cs.ph),tgtP.z+cs.d*Math.sin(cs.ph)*Math.cos(cs.th));
-  if(shake>.01){cam.position.x+=rnd(-1,1)*shake;cam.position.y+=rnd(-1,1)*shake;shake*=.88}
-  cam.lookAt(tgtP)}
+
+// 攝影機目前狀態與目標狀態
+const cs = {
+  th: -0.55,
+  ph: 1.0,
+  d: 27,
+  tilt: 0
+};
+
+const ct = {
+  th: -0.55,
+  ph: 1.0,
+  d: 27,
+  tilt: 0
+};
+
+const tgtP = new T3.Vector3(0, 1, 0);
+
+const cameraForward = new T3.Vector3();
+const cameraRight = new T3.Vector3();
+const cameraAim = new T3.Vector3();
+const cameraUp = new T3.Vector3(0, 1, 0);
+
+function camStep() {
+
+  // 攝影機平滑移動
+  cs.th += (ct.th - cs.th) * 0.18;
+  cs.ph += (ct.ph - cs.ph) * 0.18;
+  cs.d += (ct.d - cs.d) * 0.18;
+  cs.tilt += (ct.tilt - cs.tilt) * 0.18;
+
+  // 環繞球場的位置
+  cam.position.set(
+    tgtP.x + cs.d * Math.sin(cs.ph) * Math.sin(cs.th),
+    tgtP.y + cs.d * Math.cos(cs.ph),
+    tgtP.z + cs.d * Math.sin(cs.ph) * Math.cos(cs.th)
+  );
+
+  // 保留殺球的攝影機震動
+  if (shake > 0.01) {
+    cam.position.x += rnd(-1, 1) * shake;
+    cam.position.y += rnd(-1, 1) * shake;
+    shake *= 0.88;
+  }
+
+  // 計算觀看方向
+  cameraForward.subVectors(tgtP, cam.position).normalize();
+
+  cameraRight.crossVectors(
+    cameraForward,
+    cameraUp
+  ).normalize();
+
+  // 讓攝影機可以抬頭與低頭
+  cameraForward.applyAxisAngle(
+    cameraRight,
+    cs.tilt
+  );
+
+  cameraAim.copy(cam.position).add(cameraForward);
+
+  cam.lookAt(cameraAim);
+}
 function resize(){R.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
 addEventListener('resize',resize);resize();
 
@@ -195,113 +346,131 @@ const ptrs=new Map();let st=null,pinch=0;
 cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,[e.clientX,e.clientY]);$('#tip').style.opacity=0;
   if(ptrs.size===2){const [p,q]=[...ptrs.values()];pinch=Math.hypot(p[0]-q[0],p[1]-q[1]);st=null;return}
   st={x:e.clientX,y:e.clientY,lx:e.clientX,ly:e.clientY,o:pick(e),moved:false,t:performance.now()}});
- cv.addEventListener('pointermove', e => {    
-   if (ptrs.has(e.pointerId)) {     
-     ptrs.set(e.pointerId, [e.clientX, e.clientY]);   
-   }    
-   // 雙指縮放   
-   if (ptrs.size === 2) {     
-     const [p, q] = [...ptrs.values()];     
-     const d = Math.hypot(p[0] - q[0], p[1] - q[1]);      
-     
-     ct.d = Math.min(60, Math.max(8, ct.d * pinch / d));     
-     pinch = d;     
-     return;   
-   }    
-   if (!st) {     
-     if (!e.buttons) {       
-       cv.style.cursor = pick(e) ? 'pointer' : 'default';     
-     }     
-     return;   
-   }    
-   
-   const dx = e.clientX - st.lx;   
-   const dy = e.clientY - st.ly;   
-   
-   // 判定是否開始拖曳   
-   if (     
-     !st.moved &&     
-     Math.hypot(e.clientX - st.x, e.clientY - st.y) > 6   
-   ) {     
-     st.moved = true;      
-     
-     if (st.o && st.o.userData.ball) {       
-       b.drag = true;       
-       b.sp = false;       
-       b.armed = 0;       
-       b.combo = 0;        
-       
-       bv.set(0, 0, 0);        
-       b.vx = 0;       
-       b.vz = 0;       
-       b.lt = performance.now();       
-       b.lastMove = b.lt;     
-     }   
-   }    
-   if (!st.moved) return;    
-   
-   // 拖曳排球   
-   if (b.drag) {     
-     ndc(e);     
-     ray.setFromCamera(m2, cam);      
-     
-     if (ray.ray.intersectPlane(plane, pt)) {       
-       const nx = pt.x;       
-       const nz = pt.z;      
-       const now = performance.now();        
-       
-       const dt = Math.max(         
-         0.008,         
-         (now - (b.lt || now)) / 1000       
-       );        
-       b.lt = now;       
-       b.lastMove = now;        
-       
-       b.vx = b.vx * 0.6 +         
-         (nx - ball.position.x) / dt * 0.4;        
-       
-       b.vz = b.vz * 0.6 +         
-         (nz - ball.position.z) / dt * 0.4;        
-       
-       ball.position.x = nx;       
-       ball.position.z = nz;     
-     }    
-   } else {  
-     
-     // 左右拖曳：繞球場旋轉     
-     ct.th -= dx * 0.006;      
-     
-     // 上下拖曳：自由抬頭、低頭     
-     ct.tilt = Math.max(       
-       -0.95,       
-       Math.min(1.45, ct.tilt - dy * 0.005)     
-     );   
-   }    
-   
-   st.lx = e.clientX;   
-   st.ly = e.clientY; 
- });
-  if(ptrs.has(e.pointerId))ptrs.set(e.pointerId,[e.clientX,e.clientY]);
-  if(ptrs.size===2){const [p,q]=[...ptrs.values()],d=Math.hypot(p[0]-q[0],p[1]-q[1]);ct.d=Math.min(60,Math.max(8,ct.d*pinch/d));pinch=d;return}
-  if(!st){if(!e.buttons)cv.style.cursor=pick(e)?'pointer':'default';return}
-  const dx=e.clientX-st.lx,dy=e.clientY-st.ly;
-  if(!st.moved&&Math.hypot(e.clientX-st.x,e.clientY-st.y)>6){st.moved=true;
-    if(st.o&&st.o.userData.ball){b.drag=true;b.sp=false;bv.set(0,0,0);b.armed=0}}
-  if(!st.moved)return;
-  if(b.drag){ndc(e);ray.setFromCamera(m2,cam);if(ray.ray.intersectPlane(plane,pt)){
-      const nx=pt.x,nz=pt.z,now=performance.now(),dt=Math.max(.008,(now-(b.lt||now))/1000);b.lt = now; b.lastMove = now;
-      b.vx=b.vx*.6+(nx-ball.position.x)/dt*.4;b.vz=b.vz*.6+(nz-ball.position.z)/dt*.4;ball.position.x=nx;ball.position.z=nz}}
-  else {
-  // 左右：繞球場旋轉
-  ct.th -= dx * 0.006;
+/* ===== 滑鼠與觸控拖曳 ===== */
 
-  // 上下：獨立控制觀看方向
-  ct.tilt = Math.max(
-    -0.95,
-    Math.min(1.45, ct.tilt - dy * 0.005)
-  );
-}
-  st.lx=e.clientX;st.ly=e.clientY});
+cv.addEventListener('pointermove', e => {
+
+  if (ptrs.has(e.pointerId)) {
+    ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  }
+
+  // 手機雙指縮放
+  if (ptrs.size === 2) {
+
+    const [p, q] = [...ptrs.values()];
+
+    const d = Math.hypot(
+      p[0] - q[0],
+      p[1] - q[1]
+    );
+
+    if (d > 0 && pinch > 0) {
+      ct.d = Math.min(
+        60,
+        Math.max(8, ct.d * pinch / d)
+      );
+    }
+
+    pinch = d;
+    return;
+  }
+
+  // 沒有拖曳時，檢查滑鼠指向的物件
+  if (!st) {
+    if (!e.buttons) {
+      cv.style.cursor = pick(e)
+        ? 'pointer'
+        : 'default';
+    }
+    return;
+  }
+
+  const dx = e.clientX - st.lx;
+  const dy = e.clientY - st.ly;
+
+  // 判斷是否開始拖曳
+  if (
+    !st.moved &&
+    Math.hypot(
+      e.clientX - st.x,
+      e.clientY - st.y
+    ) > 6
+  ) {
+
+    st.moved = true;
+
+    // 如果正在拖曳排球
+    if (st.o && st.o.userData.ball) {
+
+      b.drag = true;
+      b.sp = false;
+      b.armed = 0;
+      b.combo = 0;
+
+      bv.set(0, 0, 0);
+
+      b.vx = 0;
+      b.vz = 0;
+
+      b.lt = performance.now();
+      b.lastMove = b.lt;
+    }
+  }
+
+  if (!st.moved) return;
+
+  // 排球拖曳
+  if (b.drag) {
+
+    ndc(e);
+    ray.setFromCamera(m2, cam);
+
+    if (ray.ray.intersectPlane(plane, pt)) {
+
+      const nx = pt.x;
+      const nz = pt.z;
+      const now = performance.now();
+
+      const dt = Math.max(
+        0.008,
+        (now - (b.lt || now)) / 1000
+      );
+
+      b.lt = now;
+      b.lastMove = now;
+
+      b.vx =
+        b.vx * 0.6 +
+        (nx - ball.position.x) / dt * 0.4;
+
+      b.vz =
+        b.vz * 0.6 +
+        (nz - ball.position.z) / dt * 0.4;
+
+      ball.position.x = nx;
+      ball.position.z = nz;
+    }
+
+  } else {
+
+    // 左右拖曳：繞球場旋轉
+    ct.th -= dx * 0.006;
+
+    // 上下拖曳：自由抬頭與低頭
+    ct.tilt = Math.max(
+      -0.95,
+      Math.min(
+        1.45,
+        ct.tilt - dy * 0.005
+      )
+    );
+  }
+
+  st.lx = e.clientX;
+  st.ly = e.clientY;
+});
+
+// 接下來是原本的放手事件
 const end=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=0;if(!st)return;
   if (b.drag) {
   b.drag = false;
@@ -348,15 +517,89 @@ cv.addEventListener('wheel',e=>{e.preventDefault();ct.d=Math.min(60,Math.max(8,c
 
 /* ball hit logic: tap 3 times quickly -> very high bounce, tap once more -> spike */
 function popText(t){const d=$('#tip');d.textContent=t;d.style.opacity=1;clearTimeout(popText.h);popText.h=setTimeout(()=>d.style.opacity=0,1800)}
-function hit(){
-  const now=performance.now();if(now-b.last>1500)b.combo=0;b.last=now;
-  if(b.armed>0&&ball.position.y>2.2){ /* spike */
-    const dir=new T3.Vector3(ball.position.x>=0?-1:1,0,-ball.position.z*.12+rnd(-.3,.3)).normalize();
-    bv.set(dir.x*20,-17,dir.z*20);b.sp=true;b.armed=0;b.combo=0;b.sq=.2;popText('殺球！');return}
+
+/* ===== 排球點擊、三連擊與殺球 ===== */
+
+function hit() {
+
+  const now = performance.now();
+
+  // 超過 1.5 秒沒有連續點擊，重新計算次數
+  if (now - b.last > 1500) {
+    b.combo = 0;
+  }
+
+  b.last = now;
+
+  // 第三次高拋後，下一次點擊可以殺球
+  if (b.armed > 0) {
+
+    // 球必須升到一定高度才能殺球
+    if (ball.position.y <= 2.2) {
+      popText('球再高一點就可以殺球！');
+      return;
+    }
+
+    const dir = new T3.Vector3(
+      ball.position.x >= 0 ? -1 : 1,
+      0,
+      -ball.position.z * 0.12 + rnd(-0.3, 0.3)
+    ).normalize();
+
+    bv.set(
+      dir.x * 20,
+      -17,
+      dir.z * 20
+    );
+
+    b.sp = true;
+    b.armed = 0;
+    b.combo = 0;
+    b.sq = 0.2;
+
+    popText('殺球！');
+    return;
+  }
+
+  // 一般擊球次數
   b.combo++;
-  if(b.combo>=3){bv.set(rnd(-1.5,1.5),20,rnd(-1.5,1.5));b.armed=5;b.combo=0;popText('再點一下殺球！')}
-  else{bv.set(rnd(-1,1),6+b.combo*2.5,rnd(-1,1))}
-  b.sq=.15}
+
+  // 三種擊球的目標最高高度
+  const targetHeights = [
+    1.5,  // 第一次：輕彈
+    2.4,  // 第二次：中高度
+    3.8   // 第三次：高拋
+  ];
+
+  const targetY =
+    targetHeights[Math.min(b.combo, 3) - 1];
+
+  // 根據球目前的高度，計算需要的向上速度
+  const rise = Math.max(
+    0.25,
+    targetY - ball.position.y
+  );
+
+  const upwardSpeed = Math.sqrt(2 * G * rise);
+
+  bv.set(
+    rnd(-0.8, 0.8),
+    upwardSpeed,
+    rnd(-0.8, 0.8)
+  );
+
+  b.sp = false;
+  b.sq = 0.15;
+
+  // 第三次擊球後進入可殺球狀態
+  if (b.combo >= 3) {
+    b.armed = 5;
+    b.combo = 0;
+
+    popText('再點一下殺球！');
+  }
+}
+
 function stepBall(dt){
   const p=ball.position;
   if(b.drag){p.y+=(1.6-p.y)*.25}
@@ -381,9 +624,7 @@ if (
   bv.set(0, 0, 0);
 }
 }
-    const lim=[30,22];
-    if(Math.abs(p.x)>lim[0]-BR){bv.x*=-.7;p.x=Math.sign(p.x)*(lim[0]-BR)}
-    if(Math.abs(p.z)>lim[1]-BR){bv.z*=-.7;p.z=Math.sign(p.z)*(lim[1]-BR)}
+    
     if(Math.abs(p.x)<BR&&Math.abs(p.z)<4.95&&p.y>1.43-BR&&p.y<2.43+BR){bv.x=Math.sign(p.x||1)*Math.abs(bv.x)*.3;p.x=Math.sign(p.x||1)*(BR+.01);netAmp=Math.min(.35,.1+Math.abs(bv.length())*.01)}
     [-1,1].forEach(s=>{const dx=p.x,dz=p.z-s*5.1,d=Math.hypot(dx,dz),mn=.13+BR;if(d<mn&&p.y<2.6){const nx=dx/d,nz=dz/d,vn=bv.x*nx+bv.z*nz;p.x+=nx*(mn-d);p.z+=nz*(mn-d);if(vn<0){bv.x-=1.6*vn*nx;bv.z-=1.6*vn*nz}}});
     const sp=Math.hypot(bv.x,bv.z);if(sp>.05&&on){const ax=new T3.Vector3(bv.z,0,-bv.x).normalize();ball.rotateOnWorldAxis(ax,sp*dt/BR)}
@@ -410,6 +651,47 @@ function frame(now){
   poles.forEach(p=>{p.material.emissive.lerp(cA.set(0),.1)});
   /* trees */
   trees.forEach(o=>{if(o.j>0){o.j=Math.max(0,o.j-dt*1.4);const w=Math.sin((1-o.j)*PI*4)*o.j;o.g.scale.set(1+.12*w,1-.1*w,1+.12*w);o.g.rotation.z=.08*w}else{o.g.scale.set(1,1,1);o.g.rotation.z=0}});
+ 
+/* ===== 樹葉飄落動畫 ===== */
+
+for (let i = fallingLeaves.length - 1; i >= 0; i--) {
+
+  const leaf = fallingLeaves[i];
+  const mesh = leaf.mesh;
+
+  leaf.age += dt;
+
+  // 緩慢落下
+  mesh.position.y -= leaf.speed * dt;
+
+  // 左右自然飄動
+  mesh.position.x += (
+    leaf.driftX +
+    Math.sin(leaf.age * 3 + leaf.phase) * 0.25
+  ) * dt;
+
+  mesh.position.z += leaf.driftZ * dt;
+
+  // 葉片在空中翻轉
+  mesh.rotation.x += dt * 0.8;
+  mesh.rotation.z += leaf.spin * dt;
+
+  // 靠近地面時漸漸透明
+  mesh.material.opacity = Math.max(
+    0,
+    Math.min(1, (mesh.position.y - 0.06) / 0.5)
+  );
+
+  // 葉片落地後移除
+  if (mesh.position.y <= 0.08 || leaf.age > 8) {
+
+    sc.remove(mesh);
+    mesh.material.dispose();
+
+    fallingLeaves.splice(i, 1);
+  }
+}
+
   /* clouds */
   clouds.forEach(o=>{o.a+=dt*.004;o.g.position.x=Math.cos(o.a)*o.r;o.g.position.z=Math.sin(o.a)*o.r;o.p+=dt;
     o.parts.forEach(q=>{const t=o.p;let sc2=1,al=cloudV*.9;
