@@ -83,156 +83,88 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
   }
 
 }
-/* ===== 背景音樂按鈕 ===== */
-
-#musicToggle {
-  position: fixed;
-
-  top: calc(16px + env(safe-area-inset-top, 0px));
-  right: calc(16px + env(safe-area-inset-right, 0px));
-
-  z-index: 9;
-
-  width: 44px;
-  height: 44px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  padding: 0;
-  border: none;
-  background: transparent;
-
-  color: #ffffff;
-
-  cursor: pointer;
-
-  opacity: 1;
-
-  transition: opacity 0.3s ease;
-
-  filter: drop-shadow(
-    0 2px 3px rgba(0, 0, 0, 0.25)
-  );
+/* ===== 背景音樂按鈕（記分板風格） ===== */
+#musicToggle{
+  position:fixed;
+  top:calc(16px + env(safe-area-inset-top,0px));
+  right:calc(16px + env(safe-area-inset-right,0px));
+  z-index:9;
+  width:46px;height:46px;
+  display:flex;align-items:center;justify-content:center;
+  padding:0;
+  background:var(--face);
+  border:3px solid var(--navy);
+  border-radius:14px;
+  box-shadow:0 4px 0 var(--navy);
+  color:var(--orange);
+  cursor:pointer;
+  touch-action:none;
+  transition:transform .15s, box-shadow .15s, background .3s, color .3s;
 }
+#musicToggle:hover{transform:translateY(-2px);box-shadow:0 6px 0 var(--navy)}
+#musicToggle:active{transform:translateY(3px);box-shadow:0 1px 0 var(--navy)}
+#musicToggle.off{background:#42464d;color:#aeb3bb}
+#musicToggle svg{pointer-events:none}
+#musicToggle .slash{display:none}
+#musicToggle.off .slash{display:block}
+#musicToggle:focus-visible{outline:3px solid #fff;outline-offset:3px}
 
-/* 關閉音樂：透明 70% */
-
-#musicToggle.off {
-  opacity: 0.3;
+/* ===== 音量滑軌 ===== */
+#musicVolumePanel{
+  position:fixed;
+  top:calc(70px + env(safe-area-inset-top,0px));
+  right:calc(16px + env(safe-area-inset-right,0px));
+  z-index:10;
+  width:46px;height:150px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--face);
+  border:3px solid var(--navy);
+  border-radius:14px;
+  box-shadow:0 4px 0 var(--navy);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transform:translateY(-6px);
+  transition:opacity .2s, visibility .2s, transform .2s;
 }
+#musicVolumePanel.open{opacity:1;visibility:visible;pointer-events:auto;transform:none}
 
-/* 滑鼠移上去時稍微變亮 */
-
-#musicToggle.off:hover {
-  opacity: 0.6;
+#musicVolume{
+  --v:35%;
+  -webkit-appearance:none;appearance:none;
+  width:22px;height:112px;margin:0;
+  writing-mode:vertical-lr;direction:rtl;
+  background:transparent;cursor:pointer;
 }
-
-#musicToggle svg {
-  pointer-events: none;
+#musicVolume::-webkit-slider-runnable-track{
+  width:10px;border-radius:999px;
+  background:linear-gradient(to top,var(--orange) var(--v),var(--navy) var(--v));
 }
-
-#musicToggle:focus-visible {
-  outline: 2px solid white;
-  outline-offset: 2px;
-  border-radius: 6px;
+#musicVolume::-moz-range-track{
+  width:10px;border-radius:999px;
+  background:linear-gradient(to top,var(--orange) var(--v),var(--navy) var(--v));
 }
-/* ===== 長按音符後的音量滑桿 ===== */
-
-#musicVolumePanel {
-  position: fixed;
-
-  top: calc(63px + env(safe-area-inset-top, 0px));
-  right: calc(16px + env(safe-area-inset-right, 0px));
-
-  z-index: 10;
-
-  width: 44px;
-  height: 135px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  background: rgba(29, 42, 80, 0.22);
-  backdrop-filter: blur(5px);
-  border-radius: 24px;
-
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-
-  transition: opacity 0.2s ease, visibility 0.2s ease;
+#musicVolume::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:24px;height:24px;margin-left:-7px;border:0;border-radius:50%;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3CclipPath id='c'%3E%3Ccircle r='47'/%3E%3C/clipPath%3E%3Ccircle r='47' fill='%23f6dc5b' stroke='%23c9a92f' stroke-width='3'/%3E%3Cg clip-path='url(%23c)' fill='none' stroke='%232a5aa5' stroke-width='13' stroke-linecap='round'%3E%3Cpath d='M-40 -26Q-6 -8 -10 46'/%3E%3Cpath d='M42 -22Q10 -6 14 -48'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
 }
-
-#musicVolumePanel.open {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-#musicVolume {
-  width: 22px;
-  height: 105px;
-
-  writing-mode: vertical-lr;
-  direction: rtl;
-
-  accent-color: #ffffff;
-  cursor: pointer;
-}
-
-#musicToggle {
-  touch-action: none;
+#musicVolume::-moz-range-thumb{
+  width:24px;height:24px;border:0;border-radius:50%;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3CclipPath id='c'%3E%3Ccircle r='47'/%3E%3C/clipPath%3E%3Ccircle r='47' fill='%23f6dc5b' stroke='%23c9a92f' stroke-width='3'/%3E%3Cg clip-path='url(%23c)' fill='none' stroke='%232a5aa5' stroke-width='13' stroke-linecap='round'%3E%3Cpath d='M-40 -26Q-6 -8 -10 46'/%3E%3Cpath d='M42 -22Q10 -6 14 -48'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
 }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <!-- 背景音樂開關 -->
-<button
-  id="musicToggle"
-  type="button"
-  aria-label="關閉背景音樂"
-  aria-pressed="true"
-  title="背景音樂"
->
-  <svg
-    viewBox="0 0 32 32"
-    width="28"
-    height="28"
-    aria-hidden="true"
-  >
-    <path
-      d="M9 18V8L24 4V18"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-
-    <ellipse
-      cx="6.5"
-      cy="20.5"
-      rx="4"
-      ry="3"
-      transform="rotate(-20 6.5 20.5)"
-      fill="currentColor"
-    />
-
-    <ellipse
-      cx="21.5"
-      cy="20.5"
-      rx="4"
-      ry="3"
-      transform="rotate(-20 21.5 20.5)"
-      fill="currentColor"
-    />
+<button id="musicToggle" type="button" aria-label="關閉背景音樂" aria-pressed="true" title="背景音樂">
+  <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
+    <path d="M12 21V8l12-3v13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <ellipse cx="9" cy="22" rx="4.5" ry="3.4" transform="rotate(-20 9 22)" fill="currentColor"/>
+    <ellipse cx="21" cy="19" rx="4.5" ry="3.4" transform="rotate(-20 21 19)" fill="currentColor"/>
+    <path class="slash" d="M5 5L27 27" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
   </svg>
 </button>
-
+  
 <!-- 長按音符後顯示的音量滑桿 -->
 <div id="musicVolumePanel" aria-hidden="true">
   <input
@@ -304,7 +236,7 @@ const netG=new T3.PlaneGeometry(9.9,1,30,6);netG.rotateY(PI/2);
 const net=new T3.Mesh(netG,new T3.MeshBasicMaterial({map:netTex,transparent:true,side:T3.DoubleSide,alphaTest:.1}));net.position.set(0,1.93,0);sc.add(net);
 const netBase=Float32Array.from(netG.attributes.position.array);let netAmp=0;
 const tape=new T3.Mesh(new T3.BoxGeometry(.06,.09,9.9),L(0xffffff));tape.position.set(0,2.39,0);sc.add(tape);
-const swayNet=()=>{netAmp=.28};net.userData.act=swayNet;hitList.push(net);
+const swayNet=()=>{netAmp=.28;sfxNet()};net.userData.act=swayNet;hitList.push(net);
 const flames=[],poles=[];
 [-1,1].forEach((s,i)=>{
   const p=new T3.Mesh(new T3.CylinderGeometry(.13,.13,2.43,20),L(0x1d2a50));p.position.set(0,1.215,s*5.1);sc.add(p);poles.push(p);
@@ -316,8 +248,8 @@ const flames=[],poles=[];
   const px=new T3.Mesh(new T3.SphereGeometry(.4,8,8),ghost());px.position.y=.3;
   g.add(o,n,gl,pl,px);sc.add(g);
   const f={g,gl,pl,t:99,pop:0,i};flames.push(f);
-  px.userData.act=()=>{if(f.t>7)f.t=0};hitList.push(px);
-  p.userData.act=()=>{p.material.emissive.setHex(0x4466aa);f.pop=.6};hitList.push(p)});
+  px.userData.act=()=>{if(f.t>7){f.t=0;sfxBlow()}};hitList.push(px);
+  p.userData.act=()=>{p.material.emissive.setHex(0x4466aa);f.pop=.6};sfxPole();hitList.push(p)});
 
 /* trees */
 const trees=[];
@@ -588,15 +520,15 @@ const bt = (() => {
 })();
 const bf=new T3.Mesh(new T3.PlaneGeometry(3.4,2),new T3.MeshLambertMaterial({map:bt}));bf.position.set(0,2.45,.12);board.add(bf);
 const bpx=new T3.Mesh(new T3.BoxGeometry(3.8,2.3,.6),ghost());bpx.position.set(0,2.45,0);board.add(bpx);
-board.userData.act=()=>openPad();hitList.push(board);
+board.userData.act=()=>{sfxBoard();openPad()};hitList.push(board);
 
 /* sky: sun/moon, clouds, stars */
-const sun=new T3.Mesh(new T3.CircleGeometry(11,32),new T3.MeshBasicMaterial({color:0xfff3a0,fog:false}));sc.add(sun);sun.userData.act=()=>nextPhase();hitList.push(sun);
+const sun=new T3.Mesh(new T3.CircleGeometry(11,32),new T3.MeshBasicMaterial({color:0xfff3a0,fog:false}));sc.add(sun);sun.userData.act=()=>{nextPhase();sfxSun()};hitList.push(sun);
 const clouds=[];
 for(let i=0;i<9;i++){const g=new T3.Group(),a=rnd(0,PI*2),r=rnd(100,140),parts=[];
   for(let k=0;k<4;k++){const m=new T3.Mesh(new T3.SphereGeometry(rnd(5,8),12,10),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,fog:false}));m.position.set(k*6-9,rnd(-1,2),rnd(-2,2));m.scale.y=.6;g.add(m);parts.push({m,v:new T3.Vector3(rnd(-1,1)*20,rnd(0,8),rnd(-1,1)*20),s:m.scale.clone()})}
   g.position.set(Math.cos(a)*r,rnd(34,52),Math.sin(a)*r);sc.add(g);
-  const o={g,parts,a,r,p:99};clouds.push(o);g.userData.act=()=>{if(o.p>12)o.p=0};hitList.push(g)}
+  const o={g,parts,a,r,p:99};clouds.push(o);g.userData.act=()=>{if(o.p>12){o.p=0;sfxCloud()}};hitList.push(g)}
 
 /* ===== 星星與光暈 ===== */
 
@@ -675,7 +607,7 @@ for (let i = 0; i < 70; i++) {
   // 點擊星星時
   s.userData.act = () => {
 
-    o.pop = 1;
+    o.pop = 1;sfxStar();
 
     // 第一次被點擊時才建立光暈
     if (!o.halo) {
@@ -1010,7 +942,21 @@ cv.addEventListener('pointermove', e => {
     ct.th -= dx * 0.006;
 
     // 上下拖曳：自由抬頭與低頭
-    ct.ph = Math.max(0.25, Math.min(1.4, ct.ph - dy * 0.005));
+    if (dy < 0) {
+  // 往上拖：先降低鏡頭，降到底再抬頭看天
+  if (ct.ph < 1.4) {
+    ct.ph = Math.min(1.4, ct.ph - dy * 0.005);
+  } else {
+    ct.tilt = Math.min(1.0, ct.tilt - dy * 0.005);
+  }
+} else {
+  // 往下拖：先把頭放平，再升高鏡頭
+  if (ct.tilt > 0) {
+    ct.tilt = Math.max(0, ct.tilt - dy * 0.005);
+  } else {
+    ct.ph = Math.max(0.25, ct.ph - dy * 0.005);
+  }
+}
   }
 
   st.lx = e.clientX;
@@ -1166,7 +1112,7 @@ function recallBall(point) {
   b.armed = 0;
   b.combo = 0;
   b.sq = 0.12;
-
+  sfxRecall();
   popText('球回來了！');
 }
 
@@ -1263,6 +1209,7 @@ duration: Math.max(
   bv.set(0, 0, 0);
   b.sq = 0.2;
   hover = null;
+  sfxWhoosh();
   popText('殺球！');
 }
 
@@ -1302,8 +1249,8 @@ function hit() {
     return;
   }
 
-  b.combo++;
-
+  b.combo++;sfxTap(b.combo);
+  
   // 三種擊球高度
   const heights = [
     1.5,
@@ -1327,7 +1274,8 @@ function hit() {
   b.sq = 0.15;
 
 // 第三次擊球後開放指定落點
-if (b.combo >= 3) {
+  if (b.combo >= 3) {
+    sfxRise();
 
   hover = { y: 8, t: 0 };
 
@@ -1340,7 +1288,7 @@ if (b.combo >= 3) {
   b.armed = 60;
   b.combo = 0;
 
-  popText('球停在空中了，點對面發光的場地殺球！');
+  popText('球停在空中了，點對面的場地殺球！');
 }
   
 }
@@ -1405,8 +1353,10 @@ p.lerpVectors(
     bv.y-=G*dt*(b.sp?.45:1);p.addScaledVector(bv,dt);b.armed=Math.max(0,b.armed-dt);
     const on=p.y<=BR+.001;
 if(p.y<=BR){p.y=BR;b.armed=0;
-    if(b.sp){b.sp=false;bv.y=-bv.y*.85;b.sq=.6;shake=1.4;netAmp=.35;const r=new T3.Mesh(new T3.RingGeometry(.4,.6,32),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,side:T3.DoubleSide}));r.rotation.x=-PI/2;r.position.set(p.x,.06,p.z);sc.add(r);rings.push({r,t:0})}
-      else if(bv.y<-2.5){bv.y*=-.72;b.sq=.22}else bv.y=0;
+    if(b.sp){b.sp=false;bv.y=-bv.y*.85;b.sq=.6;shake=1.4;netAmp=.35;sfxSpike();const r=new T3.Mesh(new T3.RingGeometry(.4,.6,32),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,side:T3.DoubleSide}));r.rotation.x=-PI/2;r.position.set(p.x,.06,p.z);sc.add(r);rings.push({r,t:0})}
+      else if(bv.y<-2.5)
+      {sfxBounce(Math.min(1,-
+      bv.y/12));bv.y*=-.72;b.sq=.22}else bv.y=0;
                 
 // 排球落地後逐漸失去水平動能
 const friction = Math.exp(-3.8 * dt);
@@ -1535,9 +1485,7 @@ stars.forEach(o => {
 });
 
   for(let i=rings.length-1;i>=0;i--){const q=rings[i];q.t+=dt*1.8;q.r.scale.setScalar(1+q.t*5);q.r.material.opacity=Math.max(0,1-q.t);if(q.t>=1){sc.remove(q.r);rings.splice(i,1)}}
-  glowA += ((hover ? 1 : 0) - glowA) * Math.min(1, dt * 5);
-  spikeGlow.material.opacity = glowA * (0.25 + 0.15 * Math.sin(clk * 4));
-  spikeGlow.position.x = (ball.position.x >= 0 ? -1 : 1) * 4.75;
+  
   camStep();R.render(sc,cam);requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
 
@@ -1664,7 +1612,7 @@ $('#x').onclick=closePad;$('#back').onclick=closePad;
 addEventListener('keydown',e=>{if(e.key==='Escape'&&!pad.hidden)closePad()});
 const HINT='只存在你這台裝置的瀏覽器裡';
 $('#send').onclick=()=>{const t=tx.value.trim();if(!t)return;
-  notes.unshift({t,e:selE,d:Date.now()});save();tx.value='';selE=-1;drawEm();paint();
+  notes.unshift({t,e:selE,d:Date.now()});save();tx.value='';selE=-1;drawEm();paint();sfxSend();
   bv.set(rnd(-1,1),12,rnd(-1,1));$('#hint').textContent='已收進球場，球也跳起來了';setTimeout(()=>$('#hint').textContent=HINT,2500)};
 
 /* ===== 心情板：JSON 備份與匯入 ===== */
@@ -1835,7 +1783,78 @@ $('#ulFile').addEventListener('change', async e => {
   // 清空檔案選擇，方便再次匯入
   e.target.value = '';
 });
+/* ===== 音效系統（音樂按鈕關閉時，音效也會一起靜音） ===== */
 
+let sfxCtx = null;
+const sfxLast = {};
+
+function sfxGate(key, ms) {
+  const now = performance.now();
+  if (now - (sfxLast[key] || 0) < ms) return false;
+  sfxLast[key] = now;
+  return true;
+}
+
+function sfxAudio() {
+  if (typeof musicOn !== 'undefined' && !musicOn) return null;
+  const A = window.AudioContext || window.webkitAudioContext;
+  if (!A) return null;
+  if (!sfxCtx) sfxCtx = new A();
+  if (sfxCtx.state === 'suspended') sfxCtx.resume().catch(() => {});
+  return sfxCtx;
+}
+
+function sfxTone(freq, dur, o = {}) {
+  const c = sfxAudio();
+  if (!c) return;
+  const { type = 'sine', vol = 0.15, slide = 0, delay = 0 } = o;
+  const t = c.currentTime + delay;
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g); g.connect(c.destination);
+  osc.start(t); osc.stop(t + dur + 0.02);
+}
+
+function sfxNoise(dur, o = {}) {
+  const c = sfxAudio();
+  if (!c) return;
+  const { freq = 1000, q = 0.8, vol = 0.1, type = 'bandpass', delay = 0 } = o;
+  const n = Math.ceil(dur * c.sampleRate);
+  const buf = c.createBuffer(1, n, c.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const s = c.createBufferSource();
+  const f = c.createBiquadFilter();
+  const g = c.createGain();
+  const t = c.currentTime + delay;
+  s.buffer = buf;
+  f.type = type; f.frequency.value = freq; f.Q.value = q;
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f); f.connect(g); g.connect(c.destination);
+  s.start(t);
+}
+
+const sfxBounce = k => { if (sfxGate('bounce', 80)) { sfxTone(160, 0.18, { vol: 0.05 + 0.2 * k, slide: -90 }); sfxNoise(0.08, { freq: 500, vol: 0.05 * k, type: 'lowpass' }); } };
+const sfxTap    = n => sfxTone(440 * Math.pow(1.12, n), 0.1, { type: 'triangle', vol: 0.12, slide: 120 });
+const sfxRise   = () => [523, 659, 784, 1047].forEach((f, i) => sfxTone(f, 0.5, { type: 'triangle', vol: 0.08, delay: i * 0.09 }));
+const sfxWhoosh = () => { sfxNoise(0.3, { freq: 2400, q: 0.5, vol: 0.12 }); sfxTone(900, 0.3, { vol: 0.05, slide: -700 }); };
+const sfxSpike  = () => { sfxTone(90, 0.4, { vol: 0.45, slide: -50 }); sfxNoise(0.25, { freq: 500, vol: 0.3, type: 'lowpass' }); };
+const sfxNet    = () => { if (sfxGate('net', 250)) sfxNoise(0.35, { freq: 3000, q: 1.5, vol: 0.07, type: 'highpass' }); };
+const sfxBlow   = () => sfxNoise(0.4, { freq: 900, q: 0.4, vol: 0.12 });
+const sfxPole   = () => { sfxTone(880, 0.5, { vol: 0.1 }); sfxTone(1760, 0.4, { vol: 0.03 }); };
+const sfxStar   = () => { sfxTone(1568, 0.4, { vol: 0.06 }); sfxTone(2093, 0.5, { vol: 0.05, delay: 0.08 }); };
+const sfxCloud  = () => sfxNoise(0.5, { freq: 600, vol: 0.05, type: 'lowpass' });
+const sfxSun    = () => { sfxTone(392, 0.5, { type: 'triangle', vol: 0.1 }); sfxTone(523, 0.5, { type: 'triangle', vol: 0.1, delay: 0.12 }); };
+const sfxBoard  = () => { sfxTone(300, 0.06, { type: 'square', vol: 0.05 }); sfxTone(380, 0.06, { type: 'square', vol: 0.05, delay: 0.07 }); };
+const sfxSend   = () => { sfxTone(659, 0.15, { type: 'triangle', vol: 0.1 }); sfxTone(988, 0.3, { type: 'triangle', vol: 0.1, delay: 0.1 }); };
+const sfxRecall = () => sfxTone(440, 0.25, { vol: 0.1, slide: 300 });
 /* ===== 背景音樂系統 ===== */
 
 const musicButton = $('#musicToggle');
@@ -2084,7 +2103,10 @@ try {
     }
   }
 } catch (e) {}
-
+const paintVolume = () =>
+  musicVolume.style.setProperty('--v', musicVolume.value + '%');
+paintVolume();
+  
 // 取得目前音量，範圍 0～1
 function getMusicVolumeLevel() {
   return Number(musicVolume.value) / 100;
@@ -2190,6 +2212,7 @@ musicButton.addEventListener('click', e => {
 
 // 拖曳滑桿時保持展開
 musicVolume.addEventListener('pointerdown', () => {
+  paintVolume();
   clearTimeout(musicHideTimer);
 });
 
