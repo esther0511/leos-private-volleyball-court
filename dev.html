@@ -324,35 +324,33 @@ document.querySelector('#resetCamera').addEventListener(
   () => send('resetCamera')
 );
 
-// 預覽造訪天數
+// 開發者：直接切換造訪天數
+
 visitDay.addEventListener('change', () => {
 
-  const courtWindow = preview.contentWindow;
+  const game = preview.contentWindow;
 
   if (
-    courtWindow &&
-    typeof courtWindow.setWorldPreviewDay === 'function'
+    !game ||
+    typeof game.setWorldPreviewDay !== 'function'
   ) {
 
-    courtWindow.setWorldPreviewDay(
-      Number(visitDay.value)
-    );
+    status.textContent =
+      '場邊物件系統尚未載入，請檢查 world-items.js';
 
-  } else {
-
-    alert(
-      '場邊物件尚未載入，請重新整理開發者頁面。'
-    );
-
+    return;
   }
 
-});
+  // 不依賴原本的訊息連線狀態
+  game.setWorldPreviewDay(
+    Number(visitDay.value)
+  );
 
-  send('visitDay', {
-    day: Number(visitDay.value)
-  });
+  status.textContent =
+    `已切換至第 ${visitDay.value} 天`;
 
 });
+  
 // 開發者：直接播放生日彩蛋
 document.querySelector('#testBirthday')
   .addEventListener('click', () => {
