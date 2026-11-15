@@ -54,22 +54,6 @@
       will-change: transform;
     }
     .vb-roam-knob.released { transition: transform .16s ease-out; }
-    #vbRoamCrosshair {
-      position: fixed;
-      left: 50%;
-      top: 50%;
-      width: 9px;
-      height: 9px;
-      transform: translate(-50%,-50%);
-      border: 1.2px solid rgba(255,255,255,.72);
-      border-radius: 50%;
-      box-shadow: 0 0 4px rgba(29,42,80,.5);
-      z-index: 8;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity .2s;
-    }
-    #vbRoamCrosshair.visible { opacity: .8; }
     /* 控制元件顯示設定：透明白色按鈕，不使用常駐面板 */
     #vbRoamUiButton {
       position: fixed;
@@ -131,7 +115,7 @@
       .vb-roam-knob { width: 23px; height: 23px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .vb-roam-stick, .vb-roam-knob, #vbRoamCrosshair { transition: none; }
+      .vb-roam-stick, .vb-roam-knob { transition: none; }
     }
   `;
   document.head.append(css);
@@ -203,15 +187,9 @@
   const leftStick = makeStick('left', '移動搖桿：前後左右移動');
   const rightStick = makeStick('right', '視角搖桿：左右轉頭、上下抬頭低頭');
 
-  const crosshair = document.createElement('div');
-  crosshair.id = 'vbRoamCrosshair';
-  crosshair.setAttribute('aria-hidden', 'true');
-  document.body.append(crosshair);
-
-  // 兩個選項互不影響；使用者調整後，下一次造訪仍沿用。
-  // 預設顯示搖桿、隱藏準心；純鍵盤按 E 仍可對準畫面中央互動。
+  // 搖桿顯示設定記住上次選擇；E 鍵仍能以畫面中心進行互動。
   const uiPrefKey = 'vb-roam-ui-v1';
-  const uiPrefs = { sticks: true, crosshair: false };
+  const uiPrefs = { sticks: true };
   try {
     const raw = typeof vbStore !== 'undefined'
       ? vbStore.getItem(uiPrefKey)
@@ -219,7 +197,6 @@
     const saved = raw ? JSON.parse(raw) : null;
     if (saved && typeof saved === 'object') {
       if (typeof saved.sticks === 'boolean') uiPrefs.sticks = saved.sticks;
-      if (typeof saved.crosshair === 'boolean') uiPrefs.crosshair = saved.crosshair;
     }
   } catch (_) { /* 儲存空間受限時仍能操作 */ }
 
@@ -228,16 +205,14 @@
   uiButton.id = 'vbRoamUiButton';
   uiButton.textContent = '⋯';
   uiButton.setAttribute('aria-label', '操作介面顯示設定');
-  uiButton.setAttribute('title', '顯示或隱藏搖桿、準心');
+  uiButton.setAttribute('title', '顯示或隱藏搖桿');
   uiButton.setAttribute('aria-expanded', 'false');
 
   const uiMenu = document.createElement('div');
   uiMenu.id = 'vbRoamUiMenu';
   const sticksButton = document.createElement('button');
   sticksButton.type = 'button';
-  const crosshairButton = document.createElement('button');
-  crosshairButton.type = 'button';
-  uiMenu.append(sticksButton, crosshairButton);
+  uiMenu.append(sticksButton);
   document.body.append(uiButton, uiMenu);
 
   function saveUiPrefs() {
@@ -251,8 +226,6 @@
   function refreshUiButtons() {
     sticksButton.textContent = `搖桿 ${uiPrefs.sticks ? '開' : '關'}`;
     sticksButton.setAttribute('aria-pressed', String(uiPrefs.sticks));
-    crosshairButton.textContent = `準心 ${uiPrefs.crosshair ? '開' : '關'}`;
-    crosshairButton.setAttribute('aria-pressed', String(uiPrefs.crosshair));
   }
 
   uiButton.addEventListener('click', () => {
@@ -262,11 +235,6 @@
   sticksButton.addEventListener('click', () => {
     uiPrefs.sticks = !uiPrefs.sticks;
     if (!uiPrefs.sticks) { leftStick.release(); rightStick.release(); }
-    saveUiPrefs();
-    refreshUiButtons();
-  });
-  crosshairButton.addEventListener('click', () => {
-    uiPrefs.crosshair = !uiPrefs.crosshair;
     saveUiPrefs();
     refreshUiButtons();
   });
@@ -282,7 +250,6 @@
   const held = new Set();
   const velocity = { x: 0, z: 0 };
   let resetting = false;
-  let keyboardUsed = false;
   let wasAvailable = true;
 
   const isTyping = () => {
@@ -384,14 +351,12 @@
     }
 
     if (code === 'KeyE' && !e.repeat && !busy()) {
-      keyboardUsed = true;
       interactAtCenter();
       e.preventDefault();
       return;
     }
 
     if (code === 'Space' && !e.repeat && controlsAvailable()) {
-      keyboardUsed = true;
       hitBallByKeyboard();
       e.preventDefault();
       return;
@@ -401,7 +366,6 @@
     if (heldCodes.has(code) && (controlsAvailable() ||
         (curMode === 'chair' && code.startsWith('Arrow')))) {
       held.add(code);
-      keyboardUsed = true;
       e.preventDefault();
     }
   });
@@ -447,8 +411,6 @@
 
     leftStick.base.classList.toggle('hidden', !available || !uiPrefs.sticks);
     rightStick.base.classList.toggle('hidden', !available || !uiPrefs.sticks);
-    crosshair.classList.toggle('visible',
-      uiPrefs.crosshair && keyboardUsed && !busy() && curMode !== 'boat');
 
     // 裁判椅：純鍵盤方向鍵仍能抬頭與環顧；帆船使用舊有操控。
     if (curMode === 'chair' && !busy()) {
