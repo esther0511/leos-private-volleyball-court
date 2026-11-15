@@ -83,100 +83,261 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
   }
 
 }
-/* ===== 背景音樂按鈕（記分板風格） ===== */
-#musicToggle{
-  position:fixed;
-  top:calc(16px + env(safe-area-inset-top,0px));
-  right:calc(16px + env(safe-area-inset-right,0px));
-  z-index:9;
-  width:46px;height:46px;
-  display:flex;align-items:center;justify-content:center;
-  padding:0;
-  background:var(--face);
-  border:3px solid var(--navy);
-  border-radius:14px;
-  box-shadow:0 4px 0 var(--navy);
-  color:var(--orange);
-  cursor:pointer;
-  touch-action:none;
-  transition:transform .15s, box-shadow .15s, background .3s, color .3s;
-}
-#musicToggle:hover{transform:translateY(-2px);box-shadow:0 6px 0 var(--navy)}
-#musicToggle:active{transform:translateY(3px);box-shadow:0 1px 0 var(--navy)}
-#musicToggle.off{background:#42464d;color:#aeb3bb}
-#musicToggle svg{pointer-events:none}
-#musicToggle .slash{display:none}
-#musicToggle.off .slash{display:block}
-#musicToggle:focus-visible{outline:3px solid #fff;outline-offset:3px}
 
-/* ===== 音量滑軌 ===== */
-#musicVolumePanel{
-  position:fixed;
-  top:calc(70px + env(safe-area-inset-top,0px));
-  right:calc(16px + env(safe-area-inset-right,0px));
-  z-index:10;
-  width:46px;height:150px;
-  display:flex;align-items:center;justify-content:center;
-  background:var(--face);
-  border:3px solid var(--navy);
-  border-radius:14px;
-  box-shadow:0 4px 0 var(--navy);
-  opacity:0;visibility:hidden;pointer-events:none;
-  transform:translateY(-6px);
-  transition:opacity .2s, visibility .2s, transform .2s;
-}
-#musicVolumePanel.open{opacity:1;visibility:visible;pointer-events:auto;transform:none}
+/* ===== 星白音符與雙音量控制 ===== */
 
-#musicVolume{
-  --v:35%;
-  -webkit-appearance:none;appearance:none;
-  width:22px;height:112px;margin:0;
-  writing-mode:vertical-lr;direction:rtl;
-  background:transparent;cursor:pointer;
+#musicToggle {
+  position: fixed;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+
+  z-index: 9;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+
+  display: grid;
+  place-items: center;
+
+  color: #fff;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 14px;
+
+  cursor: pointer;
+  touch-action: none;
+
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(255,255,255,.65));
+
+  transition:
+    opacity .25s,
+    background .2s,
+    border-color .2s,
+    filter .25s;
 }
-#musicVolume::-webkit-slider-runnable-track{
-  width:10px;border-radius:999px;
-  background:linear-gradient(to top,var(--orange) var(--v),var(--navy) var(--v));
+
+/* 操作時才出現淡淡的底板 */
+#musicToggle:hover,
+#musicToggle.holding,
+#musicToggle:focus-visible {
+  background: rgba(29,42,80,.3);
+  border-color: rgba(255,255,255,.24);
 }
-#musicVolume::-moz-range-track{
-  width:10px;border-radius:999px;
-  background:linear-gradient(to top,var(--orange) var(--v),var(--navy) var(--v));
+
+#musicToggle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
-#musicVolume::-webkit-slider-thumb{
-  -webkit-appearance:none;appearance:none;
-  width:24px;height:24px;margin-left:-7px;border:0;border-radius:50%;
-  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3CclipPath id='c'%3E%3Ccircle r='47'/%3E%3C/clipPath%3E%3Ccircle r='47' fill='%23f6dc5b' stroke='%23c9a92f' stroke-width='3'/%3E%3Cg clip-path='url(%23c)' fill='none' stroke='%232a5aa5' stroke-width='13' stroke-linecap='round'%3E%3Cpath d='M-40 -26Q-6 -8 -10 46'/%3E%3Cpath d='M42 -22Q10 -6 14 -48'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+
+/* 關閉／靜音：25% 不透明 */
+#musicToggle.off {
+  opacity: .25;
+  filter: none;
 }
-#musicVolume::-moz-range-thumb{
-  width:24px;height:24px;border:0;border-radius:50%;
-  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3CclipPath id='c'%3E%3Ccircle r='47'/%3E%3C/clipPath%3E%3Ccircle r='47' fill='%23f6dc5b' stroke='%23c9a92f' stroke-width='3'/%3E%3Cg clip-path='url(%23c)' fill='none' stroke='%232a5aa5' stroke-width='13' stroke-linecap='round'%3E%3Cpath d='M-40 -26Q-6 -8 -10 46'/%3E%3Cpath d='M42 -22Q10 -6 14 -48'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+
+#musicToggle svg {
+  pointer-events: none;
 }
+
+/* 聲波依照音量顯示 */
+#musicToggle .wave {
+  opacity: 0;
+  transition: opacity .2s;
+}
+
+#musicToggle[data-waves="1"] .wave1,
+#musicToggle[data-waves="2"] .wave1,
+#musicToggle[data-waves="2"] .wave2,
+#musicToggle[data-waves="3"] .wave1,
+#musicToggle[data-waves="3"] .wave2,
+#musicToggle[data-waves="3"] .wave3 {
+  opacity: 1;
+}
+
+/* ===== 長按後的雙滑桿面板 ===== */
+
+#musicVolumePanel {
+  position: fixed;
+  top: calc(72px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+
+  z-index: 10;
+  width: 144px;
+  padding: 14px 12px 12px;
+
+  background: rgba(29,42,80,.76);
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 16px;
+  box-shadow: 0 6px 22px rgba(0,0,0,.16);
+
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  transform: translateY(-6px);
+
+  transition:
+    opacity .2s,
+    visibility .2s,
+    transform .2s;
+}
+
+#musicVolumePanel.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
+}
+
+.volumeColumns {
+  display: flex;
+  justify-content: space-around;
+  gap: 12px;
+}
+
+.volumeColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.volumeColumn input {
+  width: 28px;
+  height: 120px;
+  margin: 0;
+
+  writing-mode: vertical-lr;
+  direction: rtl;
+
+  accent-color: #fff;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.volumeColumn label {
+  color: #fff;
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<!-- 背景音樂開關 -->
-<button id="musicToggle" type="button" aria-label="關閉背景音樂" aria-pressed="true" title="背景音樂">
-  <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
-    <path d="M12 21V8l12-3v13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-    <ellipse cx="9" cy="22" rx="4.5" ry="3.4" transform="rotate(-20 9 22)" fill="currentColor"/>
-    <ellipse cx="21" cy="19" rx="4.5" ry="3.4" transform="rotate(-20 21 19)" fill="currentColor"/>
-    <path class="slash" d="M5 5L27 27" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+
+<!-- 星白音符：短按開關、拖曳音量、長按雙滑桿 -->
+
+<button
+  id="musicToggle"
+  type="button"
+  data-waves="2"
+  aria-label="關閉背景音樂"
+  aria-pressed="true"
+>
+  <svg
+    viewBox="0 0 50 50"
+    width="36"
+    height="36"
+    aria-hidden="true"
+  >
+
+    <!-- 白色音符 -->
+    <path
+      d="M13 31V13L27 9V28"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="3"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+
+    <ellipse
+      cx="10" cy="33"
+      rx="4.5" ry="3.2"
+      transform="rotate(-20 10 33)"
+      fill="currentColor"
+    />
+
+    <ellipse
+      cx="24" cy="30"
+      rx="4.5" ry="3.2"
+      transform="rotate(-20 24 30)"
+      fill="currentColor"
+    />
+
+    <!-- 三條聲波 -->
+    <path
+      class="wave wave1"
+      d="M33 23Q36 26 33 29"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+    />
+
+    <path
+      class="wave wave2"
+      d="M36 19Q42 26 36 33"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+    />
+
+    <path
+      class="wave wave3"
+      d="M39 15Q49 26 39 37"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+    />
+
   </svg>
 </button>
-  
-<!-- 長按音符後顯示的音量滑桿 -->
+
+<!-- 長按音符展開雙音量滑桿 -->
+
 <div id="musicVolumePanel" aria-hidden="true">
-  <input
-    id="musicVolume"
-    type="range"
-    min="0"
-    max="100"
-    value="35"
-    step="1"
-    aria-label="背景音樂音量"
-  >
+
+  <div class="volumeColumns">
+
+    <div class="volumeColumn">
+      <input
+        id="musicVolume"
+        type="range"
+        min="0"
+        max="100"
+        value="35"
+        step="1"
+        aria-label="音樂音量"
+      >
+      <label for="musicVolume">音樂</label>
+    </div>
+
+    <div class="volumeColumn">
+      <input
+        id="sfxVolume"
+        type="range"
+        min="0"
+        max="100"
+        value="55"
+        step="1"
+        aria-label="音效音量"
+      >
+      <label for="sfxVolume">音效</label>
+    </div>
+
+  </div>
+
 </div>
+
 
 <div id="tip">拖曳空白處探索球場。連點排球三下拋高，點擊對面場地指定殺球落點。球飛遠時，點擊球場就能叫回來。</div>
 <div id="pad" hidden>
@@ -315,6 +476,11 @@ let lastTreeRustle = 0;
 
 function playTreeRustle() {
 
+  // 樹葉音效使用獨立的音效音量
+  treeRustleAudio.volume =
+    0.18 * getSfxVolumeLevel();
+
+  if (treeRustleAudio.volume === 0) return;
   const now = performance.now();
 
   if (now - lastTreeRustle < 400) return;
@@ -1777,7 +1943,7 @@ function playSoftImpact(power = 0.5) {
   const AudioClass =
     window.AudioContext || window.webkitAudioContext;
 
-  if (!AudioClass) return;
+  if (!AudioClass || getSfxVolumeLevel() === 0) return;
 
   const stamp = performance.now();
 
@@ -1830,7 +1996,8 @@ function playSoftImpact(power = 0.5) {
     Math.min(1, power)
   );
 
-  const volume = 0.07 + strength * 0.12;
+  const volume =
+    (0.07 + strength * 0.12) * getSfxVolumeLevel();
 
   gain.gain.setValueAtTime(0.0001, now);
 
@@ -2067,77 +2234,87 @@ function stopMusic() {
   );
 }
 
-// 更新按鈕外觀
-function updateMusicButton() {
-
-  musicButton.classList.toggle(
-    'off',
-    !musicOn
-  );
-
-  musicButton.setAttribute(
-    'aria-pressed',
-    String(musicOn)
-  );
-
-  musicButton.setAttribute(
-    'aria-label',
-    musicOn ? '關閉背景音樂' : '開啟背景音樂'
-  );
-}
-
-// 點擊音符：開啟或關閉音樂
-musicButton.addEventListener('click', () => {
-
-  musicOn = !musicOn;
-
-  try {
-    vbStore.setItem(
-      'vb-music',
-      musicOn ? 'on' : 'off'
-    );
-  } catch (e) {}
-
-  updateMusicButton();
-
-  if (musicOn) {
-    startMusic();
-  } else {
-    stopMusic();
-  }
-
-});
-
-/* ===== 長按音符調整音量 ===== */
+/* ===== 音樂與音效：獨立音量 ===== */
 
 const musicVolumePanel = $('#musicVolumePanel');
 const musicVolume = $('#musicVolume');
+const sfxVolume = $('#sfxVolume');
 
-// 讀取上次儲存的音量
-try {
-  const saved = vbStore.getItem('vb-music-volume');
+const clampVolume = v =>
+  Math.max(0, Math.min(100, Math.round(v)));
 
-  if (saved !== null) {
-    const value = Number(saved);
+// 讀取上次的音量設定
+function readSavedVolume(key, fallback) {
 
-    if (Number.isFinite(value)) {
-      musicVolume.value = Math.max(
-        0,
-        Math.min(100, value)
-      );
+  try {
+    const saved = vbStore.getItem(key);
+
+    if (
+      saved !== null &&
+      Number.isFinite(Number(saved))
+    ) {
+      return clampVolume(Number(saved));
     }
-  }
-} catch (e) {}
-const paintVolume = () =>
-  musicVolume.style.setProperty('--v', musicVolume.value + '%');
-paintVolume();
-  
-// 取得目前音量，範圍 0～1
+  } catch (e) {}
+
+  return fallback;
+}
+
+// 預設音樂 35%，音效 55%
+musicVolume.value =
+  readSavedVolume('vb-music-volume', 35);
+
+sfxVolume.value =
+  readSavedVolume('vb-sfx-volume', 55);
+
+// 記住上次非零音量
+let lastMusicNonZero =
+  readSavedVolume('vb-music-last-volume', 35) || 35;
+
+if (Number(musicVolume.value) > 0) {
+  lastMusicNonZero = Number(musicVolume.value);
+}
+
 function getMusicVolumeLevel() {
   return Number(musicVolume.value) / 100;
 }
 
-// 即時調整音量
+function getSfxVolumeLevel() {
+  return Number(sfxVolume.value) / 100;
+}
+
+function musicAudible() {
+  return musicOn && getMusicVolumeLevel() > 0;
+}
+
+// ===== 音符外觀與聲波 =====
+
+function updateMusicButton() {
+
+  const audible = musicAudible();
+  const v = getMusicVolumeLevel();
+
+  musicButton.classList.toggle('off', !audible);
+
+  musicButton.dataset.waves =
+    !audible ? '0'
+    : v <= .33 ? '1'
+    : v <= .66 ? '2'
+    : '3';
+
+  musicButton.setAttribute(
+    'aria-pressed',
+    String(audible)
+  );
+
+  musicButton.setAttribute(
+    'aria-label',
+    audible ? '關閉背景音樂' : '開啟背景音樂'
+  );
+}
+
+// ===== 平滑調整音樂音量 =====
+
 function applyMusicVolume() {
 
   if (!musicCtx || !musicMaster) return;
@@ -2147,135 +2324,469 @@ function applyMusicVolume() {
   musicMaster.gain.cancelScheduledValues(now);
 
   musicMaster.gain.setTargetAtTime(
-    musicOn ? getMusicVolumeLevel() : 0.0001,
+    musicAudible() ? getMusicVolumeLevel() : .0001,
     now,
-    0.08
+    .08
   );
 }
 
-let musicHoldTimer = null;
-let musicHideTimer = null;
+// 手機瀏覽器需要在使用者按下時啟用音訊
+function prepareMusicAudio() {
 
-let longPressOpened = false;
-let blockMusicClickUntil = 0;
+  if (!AudioContextClass) return;
 
-// 顯示音量滑桿
-function showMusicVolume() {
-  clearTimeout(musicHideTimer);
+  if (!musicCtx) {
 
-  musicVolumePanel.classList.add('open');
-  musicVolumePanel.setAttribute('aria-hidden', 'false');
-}
+    musicCtx = new AudioContextClass();
 
-// 隱藏音量滑桿
-function hideMusicVolume() {
-  musicVolumePanel.classList.remove('open');
-  musicVolumePanel.setAttribute('aria-hidden', 'true');
-}
+    musicMaster = musicCtx.createGain();
+    musicMaster.gain.value = 0;
 
-// 停止操作後自動收起
-function scheduleVolumeHide() {
-  clearTimeout(musicHideTimer);
-
-  musicHideTimer = setTimeout(
-    hideMusicVolume,
-    2500
-  );
-}
-
-// 按住音符開始計時
-musicButton.addEventListener('pointerdown', e => {
-
-  if (e.button !== 0) return;
-
-  longPressOpened = false;
-
-  clearTimeout(musicHoldTimer);
-
-  musicHoldTimer = setTimeout(() => {
-
-    longPressOpened = true;
-    showMusicVolume();
-
-  }, 500);
-});
-
-// 放開音符
-musicButton.addEventListener('pointerup', () => {
-
-  clearTimeout(musicHoldTimer);
-
-  if (longPressOpened) {
-    blockMusicClickUntil = performance.now() + 700;
-    scheduleVolumeHide();
-  }
-});
-
-// 中途取消長按
-musicButton.addEventListener('pointerleave', () => {
-  clearTimeout(musicHoldTimer);
-});
-
-musicButton.addEventListener('pointercancel', () => {
-  clearTimeout(musicHoldTimer);
-});
-
-// 防止手機長按時出現選單
-musicButton.addEventListener('contextmenu', e => {
-  e.preventDefault();
-});
-
-// 長按後不觸發原本的音樂開關
-musicButton.addEventListener('click', e => {
-
-  if (performance.now() < blockMusicClickUntil) {
-    e.preventDefault();
-    e.stopImmediatePropagation();
+    musicMaster.connect(musicCtx.destination);
   }
 
-}, true);
+  if (musicCtx.state === 'suspended') {
+    musicCtx.resume().catch(() => {});
+  }
+}
 
-// 拖曳滑桿時保持展開
-musicVolume.addEventListener('pointerdown', () => {
-  paintVolume();
-  clearTimeout(musicHideTimer);
-});
+// ===== 設定音樂音量 =====
 
-// 音量改變時
-musicVolume.addEventListener('input', () => {
+function setMusicVolume(v) {
+
+  const value = clampVolume(v);
+
+  musicVolume.value = value;
 
   try {
     vbStore.setItem(
       'vb-music-volume',
-      musicVolume.value
+      String(value)
     );
   } catch (e) {}
 
-  applyMusicVolume();
-  scheduleVolumeHide();
+  if (value > 0) {
+
+    lastMusicNonZero = value;
+
+    try {
+      vbStore.setItem(
+        'vb-music-last-volume',
+        String(value)
+      );
+    } catch (e) {}
+
+    if (!musicOn) {
+      musicOn = true;
+
+      try {
+        vbStore.setItem('vb-music', 'on');
+      } catch (e) {}
+    }
+
+    if (musicTimer) {
+      applyMusicVolume();
+    } else {
+      startMusic();
+    }
+
+  } else {
+
+    // 音量歸零，等同靜音
+    stopMusic();
+  }
+
+  updateMusicButton();
+}
+
+// ===== 設定音效音量 =====
+
+function setSfxVolume(v) {
+
+  const value = clampVolume(v);
+
+  sfxVolume.value = value;
+
+  try {
+    vbStore.setItem(
+      'vb-sfx-volume',
+      String(value)
+    );
+  } catch (e) {}
+
+  // 真實樹葉錄音也跟著調整
+  treeRustleAudio.volume =
+    .18 * getSfxVolumeLevel();
+}
+
+// ===== 音效音量預聽 =====
+
+// 短促、低沉的叮聲
+let lastPreviewTime = 0;
+
+function previewSfx() {
+
+  const nowStamp = performance.now();
+
+  if (
+    nowStamp - lastPreviewTime < 200 ||
+    getSfxVolumeLevel() === 0
+  ) return;
+
+  lastPreviewTime = nowStamp;
+
+  if (!AudioContextClass) return;
+
+  if (!impactAudioCtx) {
+    impactAudioCtx = new AudioContextClass();
+  }
+
+  const ctx = impactAudioCtx;
+
+  if (ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
+  }
+
+  const now = ctx.currentTime;
+
+  const osc = ctx.createOscillator();
+  const tone = ctx.createBiquadFilter();
+  const gain = ctx.createGain();
+
+  osc.type = 'sine';
+
+  osc.frequency.setValueAtTime(420, now);
+
+  osc.frequency.exponentialRampToValueAtTime(
+    340,
+    now + .2
+  );
+
+  tone.type = 'lowpass';
+  tone.frequency.value = 650;
+
+  gain.gain.setValueAtTime(.0001, now);
+
+  gain.gain.exponentialRampToValueAtTime(
+    .055 * getSfxVolumeLevel(),
+    now + .012
+  );
+
+  gain.gain.exponentialRampToValueAtTime(
+    .0001,
+    now + .22
+  );
+
+  osc.connect(tone);
+  tone.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + .23);
+
+  osc.onended = () => {
+    osc.disconnect();
+    tone.disconnect();
+    gain.disconnect();
+  };
+}
+
+// ===== 控制面板顯示與隱藏 =====
+
+let musicHoldTimer = null;
+let musicHideTimer = null;
+let musicPress = null;
+
+let suppressMusicClickUntil = 0;
+
+function showVolumePanel() {
+
+  clearTimeout(musicHideTimer);
+
+  musicVolumePanel.classList.add('open');
+
+  musicVolumePanel.setAttribute(
+    'aria-hidden',
+    'false'
+  );
+}
+
+function hideVolumePanel() {
+
+  musicVolumePanel.classList.remove('open');
+
+  musicVolumePanel.setAttribute(
+    'aria-hidden',
+    'true'
+  );
+}
+
+function scheduleVolumeHide() {
+
+  clearTimeout(musicHideTimer);
+
+  musicHideTimer = setTimeout(
+    hideVolumePanel,
+    2500
+  );
+}
+
+// ===== 按住音符 =====
+
+musicButton.addEventListener('pointerdown', e => {
+
+  if (e.button !== 0) return;
+
+  prepareMusicAudio();
+
+  clearTimeout(musicHideTimer);
+
+  musicButton.classList.add('holding');
+
+  musicPress = {
+    id: e.pointerId,
+    x: e.clientX,
+    y: e.clientY,
+    initial: Number(musicVolume.value),
+    dragging: false,
+    long: false
+  };
+
+  musicButton.setPointerCapture(e.pointerId);
+
+  clearTimeout(musicHoldTimer);
+
+  // 靜止長按 0.5 秒，展開雙滑桿
+  musicHoldTimer = setTimeout(() => {
+
+    if (
+      !musicPress ||
+      musicPress.dragging
+    ) return;
+
+    musicPress.long = true;
+
+    showVolumePanel();
+
+  }, 500);
 });
 
-// 完成調整後收起
-musicVolume.addEventListener('pointerup', () => {
-  scheduleVolumeHide();
+// ===== 上下拖曳音符 =====
+
+musicButton.addEventListener('pointermove', e => {
+
+  if (
+    !musicPress ||
+    musicPress.id !== e.pointerId
+  ) return;
+
+  const dx = e.clientX - musicPress.x;
+  const dy = e.clientY - musicPress.y;
+
+  if (
+    !musicPress.dragging &&
+    !musicPress.long &&
+    (
+      Math.abs(dy) > 6 ||
+      Math.abs(dx) > 12
+    )
+  ) {
+
+    musicPress.dragging = true;
+
+    clearTimeout(musicHoldTimer);
+  }
+
+  if (musicPress.dragging) {
+
+    // 往上拖：音量增加
+    // 往下拖：音量減少
+    setMusicVolume(
+      musicPress.initial - dy * .8
+    );
+  }
 });
 
-// 鍵盤操作時也能收起
-musicVolume.addEventListener('change', () => {
-  scheduleVolumeHide();
+// ===== 放開音符 =====
+
+function finishMusicPress(e) {
+
+  if (
+    !musicPress ||
+    musicPress.id !== e.pointerId
+  ) return;
+
+  clearTimeout(musicHoldTimer);
+
+  musicButton.classList.remove('holding');
+
+  // 長按或拖曳，不觸發音樂開關
+  if (
+    musicPress.dragging ||
+    musicPress.long
+  ) {
+    suppressMusicClickUntil =
+      performance.now() + 400;
+  }
+
+  if (musicPress.long) {
+    scheduleVolumeHide();
+  }
+
+  if (musicButton.hasPointerCapture(e.pointerId)) {
+    musicButton.releasePointerCapture(e.pointerId);
+  }
+
+  musicPress = null;
+}
+
+musicButton.addEventListener(
+  'pointerup',
+  finishMusicPress
+);
+
+musicButton.addEventListener(
+  'pointercancel',
+  finishMusicPress
+);
+
+musicButton.addEventListener(
+  'contextmenu',
+  e => e.preventDefault()
+);
+
+// ===== 短按音符：開關音樂 =====
+
+musicButton.addEventListener('click', e => {
+
+  if (
+    performance.now() <
+    suppressMusicClickUntil
+  ) {
+    e.preventDefault();
+    return;
+  }
+
+  if (musicAudible()) {
+
+    musicOn = false;
+    stopMusic();
+
+  } else {
+
+    // 如果音量是 0，恢復上次的非零音量
+    if (Number(musicVolume.value) === 0) {
+
+      musicVolume.value = lastMusicNonZero;
+
+      try {
+        vbStore.setItem(
+          'vb-music-volume',
+          musicVolume.value
+        );
+      } catch (e) {}
+    }
+
+    musicOn = true;
+    startMusic();
+  }
+
+  try {
+    vbStore.setItem(
+      'vb-music',
+      musicOn ? 'on' : 'off'
+    );
+  } catch (e) {}
+
+  updateMusicButton();
 });
 
-// 第一次碰觸球場後開始播放
+// ===== 雙滑桿操作 =====
+
+// 滑鼠進入面板時暫停自動收起
+musicVolumePanel.addEventListener(
+  'pointerenter',
+  () => clearTimeout(musicHideTimer)
+);
+
+musicVolumePanel.addEventListener(
+  'pointerleave',
+  scheduleVolumeHide
+);
+
+for (const slider of [musicVolume, sfxVolume]) {
+
+  slider.addEventListener('pointerdown', () => {
+
+    clearTimeout(musicHideTimer);
+
+    if (slider === musicVolume) {
+      prepareMusicAudio();
+    }
+
+    if (
+      slider === sfxVolume &&
+      AudioContextClass
+    ) {
+
+      if (!impactAudioCtx) {
+        impactAudioCtx = new AudioContextClass();
+      }
+
+      if (impactAudioCtx.state === 'suspended') {
+        impactAudioCtx.resume().catch(() => {});
+      }
+    }
+  });
+
+  slider.addEventListener(
+    'pointerup',
+    scheduleVolumeHide
+  );
+
+  slider.addEventListener(
+    'change',
+    scheduleVolumeHide
+  );
+
+  slider.addEventListener(
+    'focus',
+    showVolumePanel
+  );
+}
+
+// 音樂：即時調整
+musicVolume.addEventListener('input', () => {
+
+  setMusicVolume(
+    Number(musicVolume.value)
+  );
+});
+
+// 音效：即時調整並預聽
+sfxVolume.addEventListener('input', () => {
+
+  setSfxVolume(
+    Number(sfxVolume.value)
+  );
+
+  previewSfx();
+});
+
+// ===== 第一次碰觸球場 =====
+
 cv.addEventListener('pointerdown', () => {
 
-  if (musicOn) {
+  if (musicAudible()) {
     startMusic();
   }
 
 }, { once: true });
 
-// 初始化按鈕外觀
+// 初始化
+setSfxVolume(Number(sfxVolume.value));
 updateMusicButton();
+
 
 /* ===== 開發者頁面通訊 ===== */
 
