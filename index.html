@@ -375,33 +375,35 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
 
   <div class="volumeColumns">
 
-    <div class="volumeColumn">
-      <input
-        id="musicVolume"
-        type="range"
-        min="0"
-        max="100"
-        value="35"
-        step="1"
-        aria-label="音樂音量"
-      >
-      <label for="musicVolume">音樂</label>
-    </div>
-
-    <div class="volumeColumn">
-      <input
-        id="sfxVolume"
-        type="range"
-        min="0"
-        max="100"
-        value="55"
-        step="1"
-        aria-label="音效音量"
-      >
-      <label for="sfxVolume">音效</label>
-    </div>
-
+  <!-- 左邊：音效 -->
+  <div class="volumeColumn">
+    <input
+      id="sfxVolume"
+      type="range"
+      min="0"
+      max="100"
+      value="55"
+      step="1"
+      aria-label="音效音量"
+    >
+    <label for="sfxVolume">音效</label>
   </div>
+
+  <!-- 右邊：音樂 -->
+  <div class="volumeColumn">
+    <input
+      id="musicVolume"
+      type="range"
+      min="0"
+      max="100"
+      value="35"
+      step="1"
+      aria-label="音樂音量"
+    >
+    <label for="musicVolume">音樂</label>
+  </div>
+
+</div>
 
 </div>
 
