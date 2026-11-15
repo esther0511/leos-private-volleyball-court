@@ -2277,6 +2277,79 @@ cv.addEventListener('pointerdown', () => {
 // 初始化按鈕外觀
 updateMusicButton();
 
+/* ===== 開發者頁面通訊 ===== */
+
+if (VB_IS_DEV) {
+
+  window.addEventListener('message', event => {
+
+    // 只接收外層開發者頁面的指令
+    if (event.source !== window.parent) return;
+
+    const msg = event.data;
+
+    if (!msg || msg.type !== 'VB_DEV_COMMAND') {
+      return;
+    }
+
+    // 回報開發者頁面已準備好
+    if (msg.action === 'ping') {
+      window.parent.postMessage({
+        type: 'VB_DEV_READY'
+      }, '*');
+    }
+
+    // 手動切換日夜時間
+    if (msg.action === 'time') {
+
+      const hour = Number(msg.hour);
+
+      if (
+        Number.isFinite(hour) &&
+        hour >= 0 &&
+        hour < 24
+      ) {
+
+        Tm = hour < 4.5 ? hour + 24 : hour;
+
+        // 取消正在執行的日夜過渡
+        tgt = null;
+        phaseElapsed = 0;
+      }
+    }
+
+    // 攝影機回到初始視角
+    if (msg.action === 'resetCamera') {
+
+      ct.th = -0.55;
+      ct.ph = 1.0;
+      ct.d = 27;
+      ct.tilt = 0;
+    }
+
+    // 預留給未來的場邊物件解鎖系統
+    if (msg.action === 'visitDay') {
+
+      const day = Number(msg.day);
+
+      if (
+        Number.isInteger(day) &&
+        day >= 1 &&
+        day <= 365
+      ) {
+        VB_DEV_STATE.visitDay = day;
+      }
+    }
+
+  });
+
+  // 通知外層頁面：球場已經準備好
+  window.parent.postMessage({
+    type: 'VB_DEV_READY'
+  }, '*');
+
+}
+
 setTimeout(()=>$('#tip').style.opacity=0,14000);
 </script>
 </body>
