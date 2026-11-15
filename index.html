@@ -1456,8 +1456,12 @@ function hit() {
 
   if (spikeFlight) return;
 
-  const now = performance.now();
+  // 發球機練習：判斷玩家是否在空中接球
+  if (typeof window.worldMachineOnBallHit === 'function') {
+    window.worldMachineOnBallHit();
+  }
 
+  const now = performance.now();
   // 超過 1.5 秒重置連擊
   if (now - b.last > 1500) {
     b.combo = 0;
@@ -1589,6 +1593,11 @@ p.lerpVectors(
     bv.y-=G*dt*(b.sp?.45:1);p.addScaledVector(bv,dt);b.armed=Math.max(0,b.armed-dt);
     const on=p.y<=BR+.001;
 if(p.y<=BR){p.y=BR;b.armed=0;
+
+// 發球機練習：通知這顆球已經落地
+if (typeof window.worldMachineOnBallGround === 'function') {
+  window.worldMachineOnBallGround();
+}
     if(b.sp){b.sp=false;bv.y=-bv.y*.85;b.sq=.6;shake=1.4;netAmp=.35;sfxSpike();
 
 if (typeof window.worldOnValidSpike === 'function') {
