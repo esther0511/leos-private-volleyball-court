@@ -109,13 +109,20 @@
           <option value="2">第 2 天・水瓶／毛巾</option>
           <option value="3">第 3 天・排球車</option>
           <option value="5">第 5 天・裁判椅</option>
-          <option value="7">第 7 天・場邊物件</option>
+          <option value="7">第 7 天・發球機</option>
           <option value="10">第 10 天・野餐墊／香檳</option>
           <option value="14">第 14 天・黑貓</option>
           <option value="15">第 15 天・野餐籃</option>
           <option value="30">第 30 天・帆船</option>
         </select>
         <button id="testSpikeUnlock" class="primary space-top" type="button">測試：殺球後解鎖本日物件</button>
+        <button
+  id="testMachine"
+  class="secondary space-top"
+  type="button"
+>
+  測試：第 7 天發球機遊戲
+</button>
         <p class="note">選擇天數會直接展示當天內容；按下「測試」後，本日新物件會先隱藏，完成有效殺球才會緩緩降落。</p>
       </section>
 
@@ -149,7 +156,6 @@
         <div class="future">
           <button type="button" disabled>小雨／雷雨</button>
           <button type="button" disabled>彩虹</button>
-          <button type="button" disabled>發球機遊戲</button>
           <button type="button" disabled>射手座</button>
         </div>
         <p class="note">未完成的功能維持停用，不會影響目前的場景測試。</p>
@@ -169,6 +175,7 @@
   const itemsState = document.querySelector('#itemsState');
   const roamState = document.querySelector('#roamState');
   const testSpikeUnlock = document.querySelector('#testSpikeUnlock');
+  const testMachine = document.querySelector('#testMachine');
   const timeButtons = [...document.querySelectorAll('[data-hour]')];
   let firstDaySynced = false;
   let previewLoaded = false;
@@ -198,6 +205,7 @@
     itemsState.textContent = items ? '已載入' : '未就緒';
     roamState.textContent = roam ? '已載入' : '尚未載入';
     testSpikeUnlock.disabled = !isFn(g, 'worldTestSpikeUnlock');
+    testMachine.disabled = !isFn(g, 'worldOpenMachinePanel');
 
     if (!previewLoaded) return;
 
@@ -310,6 +318,55 @@
     }
   });
 
+  // ===== 開發者：測試第 7 天發球機 =====
+
+document.querySelector('#testMachine')
+  .addEventListener('click', () => {
+
+    const g = court();
+
+    if (!isFn(g, 'worldOpenMachinePanel')) {
+
+      report(
+        '發球機尚未載入，請檢查 world-items.js。',
+        'error'
+      );
+
+      return;
+    }
+
+    // 若目前還沒到第 7 天，先切換預覽日期
+    if (Number(visitDay.value) < 7) {
+
+      visitDay.value = '7';
+      g.setWorldPreviewDay(7);
+
+      report(
+        '已切換至第 7 天。請等發球機降落完成，再按一次測試。'
+      );
+
+      return;
+    }
+
+    const ok = g.worldOpenMachinePanel();
+
+    if (ok) {
+
+      report(
+        '已開啟發球練習，請選擇單球或連發五球。',
+        'success'
+      );
+
+    } else {
+
+      report(
+        '發球機尚未解鎖，或仍在降落中。',
+        'error'
+      );
+
+    }
+
+  });
   document.querySelector('#testBirthday').addEventListener('click', () => {
     const g = court();
     if (!isFn(g, 'startBirthday')) {
