@@ -1033,7 +1033,8 @@
         } else {
           o.arrival = null;
         }
-        
+      }
+
       if (!unlock) {
         o.unlocked = false;
         o.arrival = null; 
