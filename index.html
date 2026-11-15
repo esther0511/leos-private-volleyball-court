@@ -2175,7 +2175,7 @@ function birthdayStep(dt) {
 let ptime=performance.now(),clk=0;
 function frame(now){
   const dt=Math.min(.05,(now-ptime)/1000);ptime=now;clk+=dt;
-  skyStep(dt);
+skyStep(dt);
 birthdayStep(dt);
 if (typeof worldItemsStep === 'function') {
   worldItemsStep(dt);
