@@ -225,17 +225,17 @@ const vbStore = {
 
   getItem(key) {
     const name = (VB_IS_DEV ? 'vb-dev-' : '') + key;
-    return window['localStorage'].getItem(name);
+    return window['vbStore'].getItem(name);
   },
 
   setItem(key, value) {
     const name = (VB_IS_DEV ? 'vb-dev-' : '') + key;
-    window['localStorage'].setItem(name, value);
+    window['vbStore'].setItem(name, value);
   },
 
   removeItem(key) {
     const name = (VB_IS_DEV ? 'vb-dev-' : '') + key;
-    window['localStorage'].removeItem(name);
+    window['vbStore'].removeItem(name);
   }
 
 };
@@ -1574,8 +1574,8 @@ const face = i => {
 };
 
 /* hidden mood pad */
-let notes=[];try{notes=JSON.parse(localStorage.getItem('vb-notes')||'[]').map(n=>typeof n==='string'?{t:n,e:-1,d:0}:n)}catch(e){}
-const save=()=>{try{localStorage.setItem('vb-notes',JSON.stringify(notes))}catch(e){}};
+let notes=[];try{notes=JSON.parse(vbStore.getItem('vb-notes')||'[]').map(n=>typeof n==='string'?{t:n,e:-1,d:0}:n)}catch(e){}
+const save=()=>{try{vbStore.setItem('vb-notes',JSON.stringify(notes))}catch(e){}};
 const pad=$('#pad'),card=$('#card'),tx=$('#tx');let selE=-1;
 function drawEm(){const w=$('#ems');w.textContent='';
   FACE.forEach((_,i)=>{const e=document.createElement('button');e.className='em'+(i===selE?' sel':'');e.innerHTML=face(i);e.setAttribute('aria-label',NAMES[i]);e.onclick=()=>{selE=selE===i?-1:i;drawEm()};w.append(e)})}
@@ -1891,7 +1891,7 @@ const AudioContextClass =
 let musicOn = true;
 
 try {
-  musicOn = localStorage.getItem('vb-music') !== 'off';
+  musicOn = vbStore.getItem('vb-music') !== 'off';
 } catch (e) {}
 
 let musicCtx = null;
@@ -2092,7 +2092,7 @@ musicButton.addEventListener('click', () => {
   musicOn = !musicOn;
 
   try {
-    localStorage.setItem(
+    vbStore.setItem(
       'vb-music',
       musicOn ? 'on' : 'off'
     );
@@ -2115,7 +2115,7 @@ const musicVolume = $('#musicVolume');
 
 // 讀取上次儲存的音量
 try {
-  const saved = localStorage.getItem('vb-music-volume');
+  const saved = vbStore.getItem('vb-music-volume');
 
   if (saved !== null) {
     const value = Number(saved);
@@ -2245,7 +2245,7 @@ musicVolume.addEventListener('pointerdown', () => {
 musicVolume.addEventListener('input', () => {
 
   try {
-    localStorage.setItem(
+    vbStore.setItem(
       'vb-music-volume',
       musicVolume.value
     );
