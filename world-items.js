@@ -10,7 +10,7 @@
     towel: 2,
     cart: 3,
     chair: 5,
-    bench: 7,
+    machine: 7,
     picnic: 10,
     cat: 14,
     basket: 15,
@@ -22,7 +22,7 @@
     towel: '毛巾',
     cart: '排球車',
     chair: '裁判椅',
-    bench: '觀眾長椅',
+    machine: '發球機',
     picnic: '野餐墊與酒杯',
     cat: '黑貓',
     basket: '野餐籃',
@@ -35,7 +35,7 @@
     towel: [-15.2, 2.5],
     cart: [14.5, 1.5],
     chair: [1.0, 10.5],
-    bench: [-14.5, -4],
+    machine: [-14.5, -4],
     picnic: [16, 13.2],
     cat: [12.4, -15],
     basket: [16, 13.2],
@@ -426,55 +426,538 @@ o.parts.waterSurface.material.depthWrite = false;
     fixed: true
   });
   
-  // ===== 第 7 天：觀眾長椅與坐墊 =====
+  // ===== 第 7 天：發球機／接球練習 =====
+// 與原本球場共用同一顆排球
 
-  create('bench', o => {
-    cub(
-      o.art, 3.0, .19, 1.05,
-      0, 1.05, 0, 0x926a4f
+const machineGame = {
+  running: false,
+  inFlight: false,
+  target: 0,
+  launched: 0,
+  returned: 0,
+  missed: 0,
+  flightAge: 0,
+  nextIn: 0,
+  open: false
+};
+
+// 建立發球機
+create('machine', o => {
+
+  const metal = 0x263653;
+  const blue = 0x355c97;
+  const cream = 0xfff3d6;
+  const gold = 0xe0a176;
+
+  // 四個輪子
+  for (const x of [-.70, .70]) {
+    for (const z of [-.49, .49]) {
+
+      const wheel = cyl(
+        o.art, .18, .18, .12,
+        x, .19, z, metal, 12
+      );
+
+      wheel.rotation.z = Math.PI / 2;
+    }
+  }
+
+  // 底盤與機身
+  cub(o.art, 1.75, .16, 1.14, 0, .46, 0, blue);
+  cub(o.art, 1.05, .83, .79, -.16, 1.03, 0, cream);
+  cub(o.art, .86, .12, .72, -.24, 1.50, 0, blue);
+
+  // 支架
+  for (const z of [-.32, .32]) {
+
+    const leg = cub(
+      o.art, .09, .67, .09,
+      -.37, .91, z, metal
     );
 
-    for (const x of [-1.2, 1.2]) {
-      for (const z of [-.35, .35]) {
-        cub(
-          o.art, .16, .96, .16,
-          x, .49, z, 0x6b4938
-        );
-      }
+    leg.rotation.z = -.13;
+  }
+
+  // 雙滾輪
+  o.parts.rollers = [];
+
+  for (const z of [-.23, .23]) {
+
+    const roller = cyl(
+      o.art, .265, .265, .13,
+      .48, 1.53, z, blue, 24
+    );
+
+    roller.rotation.x = Math.PI / 2;
+    o.parts.rollers.push(roller);
+
+    const hub = cyl(
+      o.art, .095, .095, .15,
+      .48, 1.53, z, gold, 14
+    );
+
+    hub.rotation.x = Math.PI / 2;
+  }
+
+  // 出球口
+  const muzzle = cyl(
+    o.art, .15, .21, .45,
+    .81, 1.53, 0, metal, 18
+  );
+
+  muzzle.rotation.z = -Math.PI / 2;
+
+  const rim = cyl(
+    o.art, .21, .21, .07,
+    1.06, 1.53, 0, cream, 20
+  );
+
+  rim.rotation.z = -Math.PI / 2;
+
+  // 機器上放兩顆裝飾排球
+  // 真正發射仍使用球場原本那顆球
+  volley(o.art, -.48, 1.82, -.18, .21);
+  volley(o.art, -.09, 1.82, .17, .21);
+
+  cub(o.art, .36, .08, .52, -.29, 1.61, 0, gold);
+
+  // 啟動按鈕
+  const switchButton = cub(
+    o.art, .16, .08, .2,
+    -.18, 1.51, -.42, 0x8bbba9
+  );
+
+  switchButton.rotation.z = .1;
+
+  // 點擊機器開啟操作面板
+  clickZone(
+    o, 2.1, 2.5, 1.6,
+    0, 1.30, 0,
+    () => o.interact(o)
+  );
+
+}, () => openMachinePanel());
+
+
+// ===== 發球機操作面板 =====
+
+const machinePanel = document.createElement('div');
+
+machinePanel.id = 'vbMachinePanel';
+machinePanel.hidden = true;
+
+machinePanel.setAttribute('role', 'region');
+machinePanel.setAttribute('aria-label', '發球機練習');
+
+machinePanel.innerHTML = `
+  <div class="vb-machine-head">
+    <strong>發球練習</strong>
+    <button
+      type="button"
+      data-machine="close"
+      aria-label="關閉"
+    >×</button>
+  </div>
+
+  <p class="vb-machine-score" id="vbMachineScore">
+    準備開始
+  </p>
+
+  <p class="vb-machine-note" id="vbMachineNote">
+    球在空中時點擊它，或靠近後按空白鍵接球。
+  </p>
+
+  <div class="vb-machine-buttons">
+    <button type="button" data-machine="one">單球</button>
+    <button type="button" data-machine="five">連發 5 球</button>
+    <button type="button" data-machine="stop">停止</button>
+  </div>
+`;
+
+document.body.append(machinePanel);
+
+
+// ===== 發球機面板樣式 =====
+
+const machineStyle = document.createElement('style');
+
+machineStyle.textContent = `
+  #vbMachinePanel {
+    position: fixed;
+    right: calc(16px + env(safe-area-inset-right, 0px));
+    top: calc(82px + env(safe-area-inset-top, 0px));
+    z-index: 17;
+    width: min(310px, calc(100vw - 32px));
+    padding: 15px 16px 14px;
+    border: 1px solid rgba(255,255,255,.5);
+    border-radius: 16px;
+    background: rgba(29,42,80,.94);
+    color: white;
+    box-shadow: 0 12px 28px rgba(10,20,45,.24);
+    font: 13px/1.55 system-ui, "PingFang TC", sans-serif;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  #vbMachinePanel[hidden] {
+    display: none;
+  }
+
+  #vbMachinePanel .vb-machine-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  #vbMachinePanel .vb-machine-head strong {
+    font-size: 15px;
+    letter-spacing: .08em;
+  }
+
+  #vbMachinePanel button {
+    border: 1px solid rgba(255,255,255,.38);
+    border-radius: 9px;
+    background: rgba(255,255,255,.12);
+    color: white;
+    font: inherit;
+    cursor: pointer;
+    padding: 9px 10px;
+  }
+
+  #vbMachinePanel .vb-machine-head button {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    font-size: 22px;
+  }
+
+  #vbMachinePanel button:hover {
+    background: rgba(255,255,255,.22);
+  }
+
+  #vbMachinePanel button:focus-visible {
+    outline: 2px solid #fff1c5;
+    outline-offset: 2px;
+  }
+
+  #vbMachinePanel .vb-machine-score {
+    margin: 10px 0 4px;
+    font-weight: 700;
+    color: #fff1c5;
+  }
+
+  #vbMachinePanel .vb-machine-note {
+    margin: 0 0 12px;
+    opacity: .8;
+    font-size: 12px;
+  }
+
+  #vbMachinePanel .vb-machine-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr .75fr;
+    gap: 7px;
+  }
+`;
+
+document.head.append(machineStyle);
+
+const machineScore =
+  machinePanel.querySelector('#vbMachineScore');
+
+const machineNote =
+  machinePanel.querySelector('#vbMachineNote');
+
+
+// 更新計分資訊
+function machineStatus(note = '') {
+
+  machineScore.textContent = machineGame.running
+    ? `接到 ${machineGame.returned}／${machineGame.launched} 球（共 ${machineGame.target} 球）`
+    : machineGame.target
+      ? `本次完成：${machineGame.returned}／${machineGame.target} 球`
+      : '準備開始';
+
+  if (note) {
+    machineNote.textContent = note;
+  }
+}
+
+
+// 開啟面板
+function openMachinePanel() {
+
+  const o = byId.get('machine');
+
+  if (!o || !active(o) || o.arrival) {
+    return false;
+  }
+
+  if (organizing) toggleOrganizer();
+
+  machinePanel.hidden = false;
+  machineGame.open = true;
+
+  machineStatus(
+    '球在空中時點擊它，或靠近後按空白鍵接球。'
+  );
+
+  return true;
+}
+
+
+// 停止練習
+function stopMachineGame(message = '練習已停止。') {
+
+  machineGame.running = false;
+  machineGame.inFlight = false;
+  machineGame.nextIn = 0;
+
+  machineStatus(message);
+}
+
+
+// 開始單球或五球練習
+function startMachineGame(count) {
+
+  if (!openMachinePanel()) return;
+
+  if (
+    bday.active ||
+    reveal ||
+    spikeFlight ||
+    hover ||
+    b.drag
+  ) {
+    machineStatus(
+      '請先結束目前的殺球、生日演出或物件降落。'
+    );
+    return;
+  }
+
+  machineGame.running = true;
+  machineGame.inFlight = false;
+  machineGame.target = count;
+  machineGame.launched = 0;
+  machineGame.returned = 0;
+  machineGame.missed = 0;
+  machineGame.flightAge = 0;
+  machineGame.nextIn = .55;
+
+  machineStatus('準備發球，請看向球場。');
+}
+
+
+// 發射球場原有的排球
+function launchMachineBall() {
+
+  const o = byId.get('machine');
+
+  if (!o || !active(o)) {
+    stopMachineGame('發球機目前不可用。');
+    return;
+  }
+
+  // 清除上一球的特殊動作
+  spikeFlight = null;
+  hover = null;
+
+  b.drag = false;
+  b.sp = false;
+  b.armed = 0;
+  b.combo = 0;
+  b.sq = 0;
+
+  // 發球位置
+  const startX = o.x + 1.12;
+  const startY = 1.53;
+  const startZ = o.z;
+
+  // 落點位於球場另一側
+  const targetX = 3.2 + Math.random() * 2.4;
+  const targetZ = -2.6 + Math.random() * 5.2;
+
+  const duration = 1.68;
+
+  ball.position.set(
+    startX,
+    startY,
+    startZ
+  );
+
+  // 使用原本重力計算拋物線
+  bv.set(
+    (targetX - startX) / duration,
+
+    (
+      BR - startY +
+      .5 * G * duration * duration
+    ) / duration,
+
+    (targetZ - startZ) / duration
+  );
+
+  machineGame.launched++;
+  machineGame.inFlight = true;
+  machineGame.flightAge = 0;
+
+  machineStatus(
+    `第 ${machineGame.launched} 球發出！趁球落地前接住。`
+  );
+}
+
+
+// 完成一球
+function finishMachineBall(caught) {
+
+  if (
+    !machineGame.running ||
+    !machineGame.inFlight
+  ) return;
+
+  machineGame.inFlight = false;
+
+  if (caught) {
+    machineGame.returned++;
+  } else {
+    machineGame.missed++;
+  }
+
+  machineGame.nextIn = 2.1;
+
+  machineStatus(
+    caught ? '接到了！' : '這球沒接到。'
+  );
+}
+
+
+// 玩家在空中接到球
+window.worldMachineOnBallHit = () => {
+
+  if (
+    !machineGame.running ||
+    !machineGame.inFlight
+  ) return false;
+
+  if (
+    machineGame.flightAge < .14 ||
+    ball.position.y <= BR + .24
+  ) return false;
+
+  finishMachineBall(true);
+
+  return true;
+};
+
+
+// 排球落地：記錄失誤
+window.worldMachineOnBallGround = () => {
+
+  if (
+    !machineGame.running ||
+    !machineGame.inFlight
+  ) return false;
+
+  finishMachineBall(false);
+
+  return true;
+};
+
+
+// 每幀更新發球機
+function machineGameStep(dt) {
+
+  if (!machineGame.running) return;
+
+  const o = byId.get('machine');
+
+  if (
+    !o ||
+    !active(o) ||
+    o.arrival ||
+    organizing ||
+    bday.active ||
+    reveal
+  ) {
+    stopMachineGame('已離開發球練習。');
+    return;
+  }
+
+  if (machineGame.inFlight) {
+
+    machineGame.flightAge += dt;
+
+    if (machineGame.flightAge > 4.5) {
+      finishMachineBall(false);
     }
 
-    cub(
-      o.art, 3.0, .57, .15,
-      0, 1.44, -.52, 0x926a4f
+    return;
+  }
+
+  machineGame.nextIn -= dt;
+
+  if (machineGame.nextIn > 0) return;
+
+  if (machineGame.launched >= machineGame.target) {
+
+    machineGame.running = false;
+
+    machineStatus(
+      '練習完成！可重新選擇單球或連發。'
     );
 
-    o.parts.cushion = cub(
-      o.art, 2.65, .2, .8,
-      0, 1.22, 0, 0xe8a39a
-    );
+  } else {
 
-    // 坐墊分成左側、中央、右側
-    const touch = (x, action) => {
-      clickZone(
-        o, .85, .24, .9,
-        x, 1.44, 0,
-        () => {
-          if (organizing) return;
+    launchMachineBall();
 
-          o.action = action;
-          o.time = .55;
-        }
-      );
-    };
+  }
+}
 
-    touch(-.88, 'right');
-    touch(0, 'press');
-    touch(.88, 'left');
 
-  }, o => {
-    o.action = 'press';
-    o.time = .55;
-  });
+// 避免操作面板時誤觸球場
+machinePanel.addEventListener('keydown', e => {
+
+  if (['Space', 'Enter', 'KeyE'].includes(e.code)) {
+    e.stopPropagation();
+  }
+
+});
+
+
+// 面板按鈕
+machinePanel.addEventListener('click', e => {
+
+  const button = e.target.closest('[data-machine]');
+
+  if (!button) return;
+
+  const action = button.dataset.machine;
+
+  if (action === 'one') {
+    startMachineGame(1);
+  }
+
+  if (action === 'five') {
+    startMachineGame(5);
+  }
+
+  if (action === 'stop') {
+    stopMachineGame();
+  }
+
+  if (action === 'close') {
+
+    stopMachineGame();
+
+    machinePanel.hidden = true;
+    machineGame.open = false;
+  }
+
+});
+
+
+// 開發者頁面可以直接開啟發球機
+window.worldOpenMachinePanel = openMachinePanel;
 
   // ===== 第 10 天：野餐墊與香檳酒杯 =====
 
@@ -1163,7 +1646,7 @@ o.parts.waterSurface.material.depthWrite = false;
   const btn = text => { const b = el('button'); b.type = 'button'; b.textContent = text; return b; };
 
   let selected = null;
-  const RADIUS = { bottle: .6, towel: 1.1, cart: 1.5, picnic: 2.9, bench: 1.8 };
+  const RADIUS = { bottle: .6, towel: 1.1, cart: 1.5, picnic: 2.9, machine: 1.8 };
 
   const selRing = new T3.Mesh(
     new T3.RingGeometry(1.05, 1.25, 48),
@@ -1630,7 +2113,7 @@ o.parts.waterSurface.material.depthWrite = false;
     // ===== 新物件送達 =====
 
   const touched = load('vb-items-touched', {});
-  const TOP = { bottle: 1.9, towel: 1.2, cart: 2.6, chair: 5.3, bench: 2.4, picnic: 1.9, cat: 1.6, basket: 1.7, sailboat: 3.6 };
+  const TOP = { bottle: 1.9, towel: 1.2, cart: 2.6, chair: 5.3, machine: 2.8, picnic: 1.9, cat: 1.6, basket: 1.7, sailboat: 3.6 };
   const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
   function markTouched(id) {
@@ -2056,9 +2539,22 @@ currentDay = n;
       : Math.max(1, dates.length);
 
     if (day !== currentDay) {
-      syncDay(day);
-      currentDay = day;
+
+  syncDay(day);
+  currentDay = day;
+
+  // 第 7 天以前，不顯示發球機面板
+  if (!active(byId.get('machine'))) {
+
+    if (machineGame.running) {
+      stopMachineGame('發球機尚未解鎖。');
     }
+
+    machinePanel.hidden = true;
+    machineGame.open = false;
+  }
+
+}
 
     const picnic = byId.get('picnic');
     const basket = byId.get('basket');
@@ -2077,7 +2573,10 @@ currentDay = n;
 
     refreshVisibility();
 
-    for (const o of list) {
+// 每一幀更新發球機的發球與計分
+machineGameStep(dt);
+
+for (const o of list) {
       
       if (!active(o)) continue;
       
@@ -2164,28 +2663,24 @@ if (
     Math.min(1.2, o.time);
 
 }
-      // 坐墊中央下陷、側邊移動
-      if (
-        o.id === 'bench' &&
-        o.parts.cushion
-      ) {
-        const t = Math.sin(
-          Math.PI *
-          Math.min(1, o.time / .55)
-        );
+      // 發球機雙滾輪旋轉
+if (
+  o.id === 'machine' &&
+  o.parts.rollers
+) {
 
-        o.parts.cushion.scale.y =
-          o.action === 'press'
-            ? 1 - .3 * t
-            : 1;
+  const speed = machineGame.running
+    ? dt * 16
+    : dt * .2;
 
-        o.parts.cushion.position.x =
-          o.action === 'left'
-            ? -.22 * t
-            : o.action === 'right'
-              ? .22 * t
-              : 0;
-      }
+  o.parts.rollers.forEach((roller, i) => {
+
+    roller.rotation.y +=
+      speed * (i === 0 ? 1 : -1);
+
+  });
+
+}
 
       // 香檳氣泡
             if (o.id === 'picnic' && o.parts.bubbles) {
