@@ -1749,10 +1749,15 @@ let lastInput = 0;
     ) return;
 
     if (!(interacted || now - openedAt > 5000)) return;
-
+    
     // 玩家停止操作後，才開始引導鏡頭
     if (now - lastInput < 1500) return;
-
+    if (
+  typeof window.vbIsRoamMoving === 'function' &&
+  window.vbIsRoamMoving()
+) {
+  return;
+}
     // 一次殺球只處理最早的一個解鎖日
     const day = Math.min(...pend.map(o => o.day));
 
@@ -1924,7 +1929,30 @@ let lastInput = 0;
   
   // 給 index.html 判斷目前是不是一般視角
   window.worldCameraMode = () => cameraMode;
-  // ===== 開發者：預覽造訪天數 =====
+  window.worldIsRevealing = () => !!reveal;
+
+window.worldIsOrganizing = () => organizing;
+
+window.worldIsSpecialTransitioning = () =>
+  cameraMode === 'orbit' && viewMix > .02;
+
+window.worldChairControl = (yaw, pitch) => {
+  if (cameraMode !== 'chair') return;
+
+  chairLook.yaw += yaw;
+
+  chairLook.pitch = Math.max(
+    -.6,
+    Math.min(1.45, chairLook.pitch + pitch)
+  );
+};
+
+window.worldExitSpecialView = () => {
+  if (cameraMode === 'orbit') return;
+
+  cameraMode = 'orbit';
+  updateBoatControls();
+};
 
   // ===== 開發者：切換天數並對準新物件 =====
 
