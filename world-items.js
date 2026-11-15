@@ -198,9 +198,29 @@
     o.art.add(shell);
     cyl(o.art, .2, .2, .03, 0, .06, 0, 0xcfe6ee, 22);
 
-    o.parts.water = cyl(o.art, .19, .17, .46, 0, .3, 0, 0x6fc3e6, 22);
-    o.parts.water.material.transparent = true;
-    o.parts.water.material.opacity = .62;
+    // 水體縮進瓶壁內，避免晃動時穿模
+o.parts.water = cyl(
+  o.art,
+  .155, .145, .43,
+  0, .30, 0,
+  0x6fc3e6, 24
+);
+
+o.parts.water.material.transparent = true;
+o.parts.water.material.opacity = .62;
+o.parts.water.material.depthWrite = false;
+
+// 獨立水面：只做小幅度晃動
+o.parts.waterSurface = cyl(
+  o.art,
+  .155, .155, .012,
+  0, .518, 0,
+  0xb9eaf5, 24
+);
+
+o.parts.waterSurface.material.transparent = true;
+o.parts.waterSurface.material.opacity = .73;
+o.parts.waterSurface.material.depthWrite = false;
 
     for (let i = 0; i < 4; i++) cub(o.art, .09, .014, .01, 0, .2 + i * .14, .222, 0xffffff);
 
@@ -241,34 +261,69 @@
   })();
 
   create('towel', o => {
-    // 三層折疊，邊緣有圓角，才像厚毛巾而不是板子
-    const fold = (w, h, d, y, rotY) => {
-      const side = material(0xf6e3c8);
-      const g = new T3.Group();
-      g.add(new T3.Mesh(
-        new T3.BoxGeometry(w, h, d),
-        [side, side, new T3.MeshLambertMaterial({ map: towelTex }), side, side, side]
-      ));
-      for (const s of [-1, 1]) {
-        const e = new T3.Mesh(new T3.CylinderGeometry(h / 2, h / 2, d, 10), material(0xf6e3c8));
-        e.rotation.x = Math.PI / 2;
-        e.position.x = s * w / 2;
-        g.add(e);
-      }
-      g.position.y = y;
-      g.rotation.y = rotY;
-      o.art.add(g);
-      return g;
-    };
 
-    fold(1.5, .11, .86, .07, 0);
-    fold(1.42, .1, .8, .17, .05);
-    o.parts.cloth = fold(1.34, .1, .74, .27, -.04);
+  // 只有一條毛巾，不再疊成三層
+  const cloth = new T3.Group();
 
-    clickZone(o, 1.8, .6, 1.2, 0, .25, 0, () => o.interact(o));
-  }, o => {
-    o.time = 1.5;
-  });
+  o.art.add(cloth);
+  o.parts.cloth = cloth;
+
+  // 一片完整布面
+  const geo = new T3.PlaneGeometry(
+    1.50, 1.05,
+    24, 12
+  );
+
+  geo.rotateX(-Math.PI / 2);
+
+  // 讓毛巾自然產生微小皺褶
+  const p = geo.attributes.position;
+
+  for (let i = 0; i < p.count; i++) {
+
+    const u = p.getX(i) / 1.50 + .5;
+    const v = p.getZ(i) / 1.05 + .5;
+
+    p.setY(
+      i,
+      .07 +
+      .02 * Math.sin(u * Math.PI * 3) +
+      .008 * Math.sin(v * Math.PI * 2)
+    );
+
+  }
+
+  p.needsUpdate = true;
+  geo.computeVertexNormals();
+
+  // 保留原本的米白色布料與條紋貼圖
+  const fabric = new T3.Mesh(
+    geo,
+    new T3.MeshLambertMaterial({
+      map: towelTex,
+      side: T3.DoubleSide
+    })
+  );
+
+  // 稍微偏離水瓶，避免重疊
+  fabric.position.x = -.12;
+  fabric.rotation.y = -.06;
+
+  cloth.add(fabric);
+
+  // 保留點擊毛巾的互動
+  clickZone(
+    o,
+    1.8, .6, 1.2,
+    0, .25, 0,
+    () => o.interact(o)
+  );
+
+}, o => {
+
+  o.time = 1.2;
+
+});
 
   // ===== 第 3 天：排球車 =====
 
@@ -450,7 +505,7 @@
     // 野餐墊放大
     const rug = new T3.Mesh(
       new T3.PlaneGeometry(5.4, 3.9),
-      new T3.MeshBasicMaterial({ map: rugTex, side: T3.DoubleSide })
+      new T3.MeshLambertMaterial({ map: rugTex, side: T3.DoubleSide })
     );
     rug.rotation.x = -Math.PI / 2;
     rug.position.y = .048;
@@ -2035,25 +2090,52 @@ currentDay = n;
         o.time - dt
       );
 
-      // 水壺晃動
-      if (o.id === 'bottle') {
-        o.art.rotation.z = Math.sin(o.time * 17) * o.time * .12;
-        if (o.parts.water) o.parts.water.rotation.z = -Math.sin(o.time * 11) * o.time * .5;
-      }
-      
-      // 毛巾隨風擺動
-      if (
-        o.id === 'towel' &&
-        o.parts.cloth
-      ) {
-        o.parts.cloth.rotation.z =
-          .035 *
-          Math.sin(performance.now() * .0017) +
-          .13 *
-          Math.sin(o.time * 9) *
-          o.time;
-      }
+      // 水瓶晃動：水體始終保持在瓶身內
+if (o.id === 'bottle') {
 
+  const t = Math.min(1, o.time);
+
+  const slosh =
+    Math.sin(o.time * 11) * t;
+
+  // 瓶身左右輕微搖晃
+  o.art.rotation.z =
+    Math.sin(o.time * 17) * t * .11;
+
+  // 水體不再大幅旋轉，只做極小幅度變化
+  if (o.parts.water) {
+
+    o.parts.water.rotation.z = 0;
+
+    o.parts.water.scale.y =
+      1 + slosh * .012;
+  }
+
+  // 水面獨立、小角度晃動
+  if (o.parts.waterSurface) {
+
+    o.parts.waterSurface.rotation.z =
+      -slosh * .055;
+
+    o.parts.waterSurface.position.y =
+      .518 +
+      Math.sin(o.time * 14) * t * .005;
+  }
+
+}
+      
+      // 單條毛巾：輕微擺動，不穿過地板
+if (
+  o.id === 'towel' &&
+  o.parts.cloth
+) {
+
+  o.parts.cloth.rotation.z =
+    .014 * Math.sin(performance.now() * .0017) +
+    .022 * Math.sin(o.time * 9) *
+    Math.min(1.2, o.time);
+
+}
       // 坐墊中央下陷、側邊移動
       if (
         o.id === 'bench' &&
