@@ -205,6 +205,8 @@ button:disabled {
         <option value="7">第 7 天</option>
         <option value="10">第 10 天</option>
         <option value="14">第 14 天</option>
+        <option value="15">第 15 天</option>
+        <option value="30">第 30 天</option>
 
       </select>
 
@@ -324,6 +326,27 @@ document.querySelector('#resetCamera').addEventListener(
 
 // 預覽造訪天數
 visitDay.addEventListener('change', () => {
+
+  const courtWindow = preview.contentWindow;
+
+  if (
+    courtWindow &&
+    typeof courtWindow.setWorldPreviewDay === 'function'
+  ) {
+
+    courtWindow.setWorldPreviewDay(
+      Number(visitDay.value)
+    );
+
+  } else {
+
+    alert(
+      '場邊物件尚未載入，請重新整理開發者頁面。'
+    );
+
+  }
+
+});
 
   send('visitDay', {
     day: Number(visitDay.value)
