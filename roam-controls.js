@@ -70,6 +70,56 @@
       transition: opacity .2s;
     }
     #vbRoamCrosshair.visible { opacity: .8; }
+    /* 控制元件顯示設定：透明白色按鈕，不使用常駐面板 */
+    #vbRoamUiButton {
+      position: fixed;
+      top: calc(16px + env(safe-area-inset-top, 0px));
+      left: calc(16px + env(safe-area-inset-left, 0px));
+      z-index: 18;
+      width: 43px;
+      height: 43px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+      color: rgba(255,255,255,.83);
+      font: 24px system-ui, sans-serif;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      cursor: pointer;
+      text-shadow: 0 1px 4px rgba(10,20,40,.3);
+      transition: opacity .2s, border-color .2s;
+    }
+    #vbRoamUiButton:hover, #vbRoamUiButton[aria-expanded="true"] {
+      border-color: rgba(255,255,255,.8);
+    }
+    #vbRoamUiMenu {
+      position: fixed;
+      left: calc(16px + env(safe-area-inset-left, 0px));
+      top: calc(68px + env(safe-area-inset-top, 0px));
+      z-index: 18;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    #vbRoamUiMenu.open { display: flex; }
+    #vbRoamUiMenu button {
+      min-height: 39px;
+      padding: 7px 11px;
+      color: rgba(255,255,255,.92);
+      font: 13px "PingFang TC", system-ui, sans-serif;
+      border: 1px solid rgba(255,255,255,.48);
+      border-radius: 999px;
+      background: rgba(29,42,80,.2);
+      cursor: pointer;
+      -webkit-backdrop-filter: blur(3px);
+      backdrop-filter: blur(3px);
+    }
+    #vbRoamUiMenu button[aria-pressed="false"] { opacity: .5; }
+    #vbRoamUiMenu button:focus-visible, #vbRoamUiButton:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
     @media (max-width: 700px) {
       .vb-roam-stick { width: 88px; height: 88px; }
       .vb-roam-stick.left { left: calc(16px + env(safe-area-inset-left, 0px)); }
@@ -157,6 +207,77 @@
   crosshair.id = 'vbRoamCrosshair';
   crosshair.setAttribute('aria-hidden', 'true');
   document.body.append(crosshair);
+
+  // 兩個選項互不影響；使用者調整後，下一次造訪仍沿用。
+  // 預設顯示搖桿、隱藏準心；純鍵盤按 E 仍可對準畫面中央互動。
+  const uiPrefKey = 'vb-roam-ui-v1';
+  const uiPrefs = { sticks: true, crosshair: false };
+  try {
+    const raw = typeof vbStore !== 'undefined'
+      ? vbStore.getItem(uiPrefKey)
+      : localStorage.getItem(uiPrefKey);
+    const saved = raw ? JSON.parse(raw) : null;
+    if (saved && typeof saved === 'object') {
+      if (typeof saved.sticks === 'boolean') uiPrefs.sticks = saved.sticks;
+      if (typeof saved.crosshair === 'boolean') uiPrefs.crosshair = saved.crosshair;
+    }
+  } catch (_) { /* 儲存空間受限時仍能操作 */ }
+
+  const uiButton = document.createElement('button');
+  uiButton.type = 'button';
+  uiButton.id = 'vbRoamUiButton';
+  uiButton.textContent = '⋯';
+  uiButton.setAttribute('aria-label', '操作介面顯示設定');
+  uiButton.setAttribute('title', '顯示或隱藏搖桿、準心');
+  uiButton.setAttribute('aria-expanded', 'false');
+
+  const uiMenu = document.createElement('div');
+  uiMenu.id = 'vbRoamUiMenu';
+  const sticksButton = document.createElement('button');
+  sticksButton.type = 'button';
+  const crosshairButton = document.createElement('button');
+  crosshairButton.type = 'button';
+  uiMenu.append(sticksButton, crosshairButton);
+  document.body.append(uiButton, uiMenu);
+
+  function saveUiPrefs() {
+    try {
+      const value = JSON.stringify(uiPrefs);
+      if (typeof vbStore !== 'undefined') vbStore.setItem(uiPrefKey, value);
+      else localStorage.setItem(uiPrefKey, value);
+    } catch (_) { /* 偏好無法儲存也不影響操控 */ }
+  }
+
+  function refreshUiButtons() {
+    sticksButton.textContent = `搖桿 ${uiPrefs.sticks ? '開' : '關'}`;
+    sticksButton.setAttribute('aria-pressed', String(uiPrefs.sticks));
+    crosshairButton.textContent = `準心 ${uiPrefs.crosshair ? '開' : '關'}`;
+    crosshairButton.setAttribute('aria-pressed', String(uiPrefs.crosshair));
+  }
+
+  uiButton.addEventListener('click', () => {
+    const open = uiMenu.classList.toggle('open');
+    uiButton.setAttribute('aria-expanded', String(open));
+  });
+  sticksButton.addEventListener('click', () => {
+    uiPrefs.sticks = !uiPrefs.sticks;
+    if (!uiPrefs.sticks) { leftStick.release(); rightStick.release(); }
+    saveUiPrefs();
+    refreshUiButtons();
+  });
+  crosshairButton.addEventListener('click', () => {
+    uiPrefs.crosshair = !uiPrefs.crosshair;
+    saveUiPrefs();
+    refreshUiButtons();
+  });
+  document.addEventListener('pointerdown', e => {
+    if (e.target !== uiButton && !uiButton.contains(e.target) &&
+        !uiMenu.contains(e.target)) {
+      uiMenu.classList.remove('open');
+      uiButton.setAttribute('aria-expanded', 'false');
+    }
+  });
+  refreshUiButtons();
 
   const held = new Set();
   const velocity = { x: 0, z: 0 };
@@ -324,9 +445,10 @@
       }
     }
 
-    leftStick.base.classList.toggle('hidden', !available);
-    rightStick.base.classList.toggle('hidden', !available);
-    crosshair.classList.toggle('visible', keyboardUsed && !busy() && curMode !== 'boat');
+    leftStick.base.classList.toggle('hidden', !available || !uiPrefs.sticks);
+    rightStick.base.classList.toggle('hidden', !available || !uiPrefs.sticks);
+    crosshair.classList.toggle('visible',
+      uiPrefs.crosshair && keyboardUsed && !busy() && curMode !== 'boat');
 
     // 裁判椅：純鍵盤方向鍵仍能抬頭與環顧；帆船使用舊有操控。
     if (curMode === 'chair' && !busy()) {
