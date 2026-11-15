@@ -1504,23 +1504,70 @@
 
   // ===== 開發者：預覽造訪天數 =====
 
-  window.setWorldPreviewDay = day => {
-    if (!VB_IS_DEV) return;
+  // ===== 開發者：切換天數並對準新物件 =====
 
-    const n = Number(day);
+window.setWorldPreviewDay = day => {
 
-    if (
-      !Number.isInteger(n) ||
-      n < 1 ||
-      n > 365
-    ) return;
+  if (!VB_IS_DEV) return;
 
-    VB_DEV_STATE.visitDay = n;
+  const n = Number(day);
 
-    currentDay = -1;
-    syncDay(n);
-    currentDay = n;
-  };
+  if (
+    !Number.isInteger(n) ||
+    n < 1 ||
+    n > 365
+  ) return;
+
+  // 找出這一天新解鎖的物件
+  const newItems = list.filter(
+    o => o.day === n
+  );
+
+  if (n === 1) {
+
+    // 第 1 天恢復原本球場視角
+    tgtP.set(0, 1, 0);
+
+    ct.th = -0.55;
+    ct.ph = 1.0;
+    ct.d = 27;
+    ct.tilt = 0;
+
+  } else if (newItems.length > 0) {
+
+    // 以當天物件的平均位置作為觀看中心
+    const centerX =
+      newItems.reduce((sum, o) => sum + o.x, 0) /
+      newItems.length;
+
+    const centerZ =
+      newItems.reduce((sum, o) => sum + o.z, 0) /
+      newItems.length;
+
+    tgtP.set(centerX, 1, centerZ);
+
+    ct.th = -0.55;
+    ct.ph = 1.0;
+    ct.d = n === 30 ? 22 : 18;
+    ct.tilt = 0;
+  }
+
+  // 立即更新鏡頭，讓登場起點依照新視角計算
+  cs.th = ct.th;
+  cs.ph = ct.ph;
+  cs.d = ct.d;
+  cs.tilt = ct.tilt;
+
+  camStep();
+
+  // 更新開發者預覽天數
+  VB_DEV_STATE.visitDay = n;
+
+  currentDay = -1;
+  syncDay(n);
+  currentDay = n;
+
+};
 
   // ===== 每幀更新物件 =====
 
