@@ -1,0 +1,335 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>排球場｜開發者預覽</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: system-ui, "PingFang TC", sans-serif;
+  background: #1d2a50;
+  color: white;
+}
+
+/* 左側球場、右側控制台 */
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  height: 100dvh;
+}
+
+#preview {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #52aed4;
+}
+
+aside {
+  overflow: auto;
+  padding: 22px 18px;
+  background: #25375e;
+  border-left: 2px solid #111b37;
+}
+
+h1 {
+  font-size: 19px;
+  margin: 0 0 6px;
+}
+
+h2 {
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+
+.sub, .note {
+  font-size: 12px;
+  color: #b5c4e3;
+  line-height: 1.7;
+}
+
+.sub {
+  margin: 0 0 24px;
+}
+
+.note {
+  margin: 10px 0 0;
+}
+
+#status {
+  color: #f3dc8f;
+}
+
+section {
+  padding: 16px 0;
+  border-top: 1px solid #66749666;
+}
+
+.buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+button, select {
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid #8595b9;
+  background: #355c97;
+  color: white;
+  border-radius: 9px;
+  padding: 10px 8px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #4772b5;
+}
+
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid #f6df92;
+  outline-offset: 2px;
+}
+
+select {
+  width: 100%;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.disabled {
+  opacity: 0.65;
+}
+
+/* 手機：控制台移到球場下方 */
+
+@media (max-width: 700px) {
+
+  .layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #preview {
+    height: 58dvh;
+    flex: none;
+  }
+
+  aside {
+    flex: 1;
+    border-left: 0;
+    border-top: 2px solid #111b37;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="layout">
+
+  <!-- 共用正式版的同一座球場 -->
+  <iframe
+    id="preview"
+    src="./index.html?vbDev=1"
+    title="排球場開發版預覽"
+  ></iframe>
+
+  <aside>
+
+    <h1>排球場 · 開發者</h1>
+
+    <p class="sub">
+      獨立測試，不影響正式版紀錄。
+      <br>
+      <span id="status">正在連接球場…</span>
+    </p>
+
+    <!-- 日夜預覽 -->
+    <section>
+
+      <h2>日夜預覽</h2>
+
+      <div class="buttons">
+        <button data-hour="5.5">黎明</button>
+        <button data-hour="9.5">上午</button>
+        <button data-hour="12.5">正午</button>
+        <button data-hour="16.5">黃昏</button>
+        <button data-hour="18.8">入夜</button>
+        <button data-hour="23">深夜</button>
+      </div>
+
+      <p class="note">
+        切換後，球場時間會繼續自然前進。
+      </p>
+
+    </section>
+
+    <!-- 攝影機 -->
+    <section>
+
+      <h2>攝影機</h2>
+
+      <button id="resetCamera" style="width:100%">
+        恢復初始視角
+      </button>
+
+    </section>
+
+    <!-- 造訪天數 -->
+    <section>
+
+      <h2>造訪天數預覽</h2>
+
+      <select id="visitDay">
+
+        <option value="1">第 1 天</option>
+        <option value="2">第 2 天</option>
+        <option value="3">第 3 天</option>
+        <option value="5">第 5 天</option>
+        <option value="7">第 7 天</option>
+        <option value="10">第 10 天</option>
+        <option value="14">第 14 天</option>
+
+      </select>
+
+      <p class="note">
+        已建立天數測試入口。
+        場邊物件完成後，才會接上實際解鎖效果。
+      </p>
+
+    </section>
+
+    <!-- 未來測試功能 -->
+    <section class="disabled">
+
+      <h2>後續開放</h2>
+
+      <div class="buttons">
+        <button disabled>生日彩蛋</button>
+        <button disabled>小雨／雷雨</button>
+        <button disabled>彩虹</button>
+        <button disabled>球車整理</button>
+      </div>
+
+      <p class="note">
+        這些功能會在後續階段逐一接入。
+      </p>
+
+    </section>
+
+  </aside>
+
+</div>
+
+<script>
+
+/* ===== 開發者控制台 ===== */
+
+const preview = document.querySelector('#preview');
+const status = document.querySelector('#status');
+const visitDay = document.querySelector('#visitDay');
+
+let ready = false;
+
+// 傳送指令給球場
+function send(action, extra = {}) {
+
+  if (!ready) return;
+
+  preview.contentWindow.postMessage(
+    {
+      type: 'VB_DEV_COMMAND',
+      action,
+      ...extra
+    },
+    location.origin === 'null'
+      ? '*'
+      : location.origin
+  );
+}
+
+// 接收球場準備完成的訊息
+window.addEventListener('message', event => {
+
+  if (event.source !== preview.contentWindow) {
+    return;
+  }
+
+  if (
+    !event.data ||
+    event.data.type !== 'VB_DEV_READY'
+  ) {
+    return;
+  }
+
+  ready = true;
+
+  status.textContent = '已連線，可以開始預覽';
+
+  send('visitDay', {
+    day: Number(visitDay.value)
+  });
+});
+
+// 球場重新載入時重新建立連線
+preview.addEventListener('load', () => {
+
+  if (ready) return;
+
+  status.textContent = '等待場景初始化…';
+
+  preview.contentWindow.postMessage({
+    type: 'VB_DEV_COMMAND',
+    action: 'ping'
+  }, '*');
+
+});
+
+// 日夜按鈕
+document.querySelectorAll('[data-hour]').forEach(button => {
+
+  button.addEventListener('click', () => {
+
+    send('time', {
+      hour: Number(button.dataset.hour)
+    });
+
+  });
+
+});
+
+// 重置攝影機
+document.querySelector('#resetCamera').addEventListener(
+  'click',
+  () => send('resetCamera')
+);
+
+// 預覽造訪天數
+visitDay.addEventListener('change', () => {
+
+  send('visitDay', {
+    day: Number(visitDay.value)
+  });
+
+});
+
+</script>
+
+</body>
+</html>
