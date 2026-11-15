@@ -2349,7 +2349,57 @@ if (VB_IS_DEV) {
   }, '*');
 
 }
+/* ===== 開發者控制台通訊 ===== */
 
+if (VB_IS_DEV) {
+
+  window.addEventListener('message', event => {
+
+    if (event.source !== window.parent) return;
+    if (event.origin !== location.origin) return;
+
+    const msg = event.data;
+
+    if (!msg || msg.type !== 'VB_DEV_COMMAND') return;
+
+    if (msg.action === 'ping') {
+      window.parent.postMessage({
+        type: 'VB_DEV_READY'
+      }, location.origin);
+    }
+
+    if (msg.action === 'time') {
+      const hour = Number(msg.hour);
+
+      if (Number.isFinite(hour) && hour >= 0 && hour < 24) {
+        Tm = hour < 4.5 ? hour + 24 : hour;
+        tgt = null;
+        phaseElapsed = 0;
+      }
+    }
+
+    if (msg.action === 'resetCamera') {
+      ct.th = -0.55;
+      ct.ph = 1.0;
+      ct.d = 27;
+      ct.tilt = 0;
+    }
+
+    if (msg.action === 'visitDay') {
+      const day = Number(msg.day);
+
+      if (Number.isInteger(day) && day >= 1 && day <= 365) {
+        VB_DEV_STATE.visitDay = day;
+      }
+    }
+
+  });
+
+  window.parent.postMessage({
+    type: 'VB_DEV_READY'
+  }, location.origin);
+
+}
 setTimeout(()=>$('#tip').style.opacity=0,14000);
 </script>
 </body>
