@@ -333,54 +333,6 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
   pointer-events: none;
 }
 
-/* 生日橫幅 */
-#bdayBanner {
-  position: fixed;
-  left: 50%;
-  top: 20%;
-  z-index: 12;
-
-  transform: translate(-50%, -16px) scale(.9);
-  opacity: 0;
-  pointer-events: none;
-
-  padding: 12px 28px;
-  white-space: nowrap;
-
-  background: linear-gradient(
-    100deg,
-    #d78e9e,
-    #ebbb8f
-  );
-
-  border: 2px solid #fff1cc;
-  border-radius: 12px;
-
-  box-shadow:
-    0 8px 22px rgba(36,30,62,.18);
-
-  color: #fffdf2;
-  font-size: clamp(25px, 5vw, 46px);
-  font-weight: 800;
-  letter-spacing: .23em;
-
-  text-shadow:
-    0 2px 5px rgba(0,0,0,.14);
-
-  transition:
-    opacity .45s,
-    transform .65s cubic-bezier(.2,.8,.2,1);
-}
-
-#bdayBanner.on {
-  opacity: 1;
-  transform: translate(-50%, 0) scale(1);
-}
-
-</style>
-</head>
-<body>
-<canvas id="c"></canvas>
 
 <!-- 星白音符：短按開關、拖曳音量、長按雙滑桿 -->
 
@@ -465,11 +417,6 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
   
 <!-- 生日彩蛋：短暫暗場 -->
 <div id="bdayShade" aria-hidden="true"></div>
-
-<!-- 生日彩蛋：橫幅 -->
-<div id="bdayBanner" aria-hidden="true">
-  生日快樂
-</div>
 
 <div id="tip">拖曳空白處探索球場。連點排球三下拋高，點擊對面場地指定殺球落點。球飛遠時，點擊球場就能叫回來。</div>
 <div id="pad" hidden>
@@ -653,7 +600,7 @@ const leafColors = [
 ];
 
 // 點擊樹木後產生落葉
-function dropLeaves(tree) {
+function dropLeaves(tree, palette = leafColors) {
 
   const origin = new T3.Vector3();
   tree.g.getWorldPosition(origin);
@@ -667,8 +614,8 @@ function dropLeaves(tree) {
   for (let i = 0; i < count; i++) {
 
     const material = new T3.MeshBasicMaterial({
-      color: leafColors[
-        Math.floor(Math.random() * leafColors.length)
+      color: palette[
+        Math.floor(Math.random() * palette.length)
       ],
       side: T3.DoubleSide,
       transparent: true,
@@ -1676,12 +1623,11 @@ const BDAY_WINDOW_MS = 1500;
 const candleBlowAt = [-Infinity, -Infinity];
 
 const bday = {
-  active: false,
-  t: 0,
-  lit: false,
-  glow: 0,
-  fireBurst: 0,
-  starFlash: 0
+  active: false, t: 0, lit: false,
+  glow: 0, fireBurst: 0, starFlash: 0,
+  flash: 0, magic: 0, theme: null, next: 0,
+  heart: false, finale: false, meteors: false,
+  lantern: false, ribbon2: false, ribbon3: false
 };
 
 const bdayShade = $('#bdayShade');
@@ -1849,327 +1795,558 @@ function birthdayRibbonStep(dt) {
   }
 }
 
+/* ===== 生日彩蛋 v2：天燈、煙火、樹開花 ===== */
 
-/* ===== 樹上的小黃花 ===== */
+const BDAY_TEXT = '生日快樂';   // 每盞天燈一個字，最多 6 字
+const BDAY_LENGTH = 30;        // 整段彩蛋長度（秒）
 
-// 製作插畫風的小黃花
+const BDAY_THEMES = [
+  { sky: 0xffb8cb, light: 0xffe0aa, fw: [0xffd36e, 0xffb35a, 0xfff1c9, 0xff8fb0] },
+  { sky: 0xa9d4ff, light: 0xd8f0ff, fw: [0x7fe3ff, 0x9aa8ff, 0xc7a6ff, 0xffffff] },
+  { sky: 0xffa88f, light: 0xffd2a0, fw: [0xff8a5c, 0xffc15e, 0xff6f91, 0xfff0c8] },
+  { sky: 0xffc6e6, light: 0xfff0d0, fw: [0xff9ec7, 0xa6e3c8, 0xfff09a, 0x9fd2ff] }
+];
+
+const MAGIC_SKY = new T3.Color(0x211a52);
+const MAGIC_LIGHT = new T3.Color(0x8d86d8);
+const FW_WARM = new T3.Color(0xffd9a0);
+const FW_WHITE = new T3.Color(0xffffff);
+const bdayTmp = new T3.Color();
+const c01 = x => Math.max(0, Math.min(1, x));
+const sm01 = x => x * x * (3 - 2 * x);
+const easeOutBack = x => {
+  const c1 = 1.70158, c3 = c1 + 1;
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+};
+
+/* ---------- 樹冠表面的小黃花 ---------- */
+
 const flowerTex = (() => {
-
   const canvas = document.createElement('canvas');
-
-  canvas.width = 64;
-  canvas.height = 64;
-
+  canvas.width = 64; canvas.height = 64;
   const g = canvas.getContext('2d');
-
-  // 五片黃色花瓣
   for (let i = 0; i < 5; i++) {
-
     const a = i * PI * 2 / 5;
-
     g.beginPath();
-
-    g.arc(
-      32 + Math.cos(a) * 12,
-      32 + Math.sin(a) * 12,
-      10,
-      0,
-      PI * 2
-    );
-
+    g.arc(32 + Math.cos(a) * 12, 32 + Math.sin(a) * 12, 10, 0, PI * 2);
     g.fillStyle = '#f8dc64';
     g.fill();
   }
-
-  // 淡黃色花心
   g.beginPath();
   g.arc(32, 32, 7, 0, PI * 2);
-
   g.fillStyle = '#fff2bf';
   g.fill();
-
   return new T3.CanvasTexture(canvas);
-
 })();
 
-const flowerMat = new T3.SpriteMaterial({
-  map: flowerTex,
-  transparent: true,
-  opacity: 1,
-  depthWrite: false
-});
+const FLOWERS_PER_TREE = 46;
+const flowerDummy = new T3.Object3D();
 
-// 每棵樹預先配置花朵，平常隱藏
-const flowerGroups = trees.map(tree => {
+const flowerSets = trees.map(tree => {
+  const mesh = new T3.InstancedMesh(
+    new T3.PlaneGeometry(.38, .38),
+    new T3.MeshBasicMaterial({ map: flowerTex, transparent: true, alphaTest: .3, side: T3.DoubleSide }),
+    FLOWERS_PER_TREE
+  );
+  mesh.frustumCulled = false;
+  mesh.visible = false;
 
-  const group = new T3.Group();
-
-  group.visible = false;
-
-  for (let i = 0; i < 9; i++) {
-
-    const a =
-      (i / 9) * PI * 2 +
-      rnd(-0.4, 0.4);
-
-    const u = rnd(-0.6, 0.75);
-
-    const r =
-      Math.sqrt(1 - u * u) * 1.17;
-
-    const flower = new T3.Sprite(flowerMat);
-
-    flower.position.set(
-      Math.cos(a) * r,
-      2.5 + u * 1.17,
-      Math.sin(a) * r
-    );
-
-    flower.scale.set(
-      0.33,
-      0.33,
-      1
-    );
-
-    group.add(flower);
+  const pts = [];
+  for (let i = 0; i < FLOWERS_PER_TREE; i++) {
+    const n = new T3.Vector3();
+    for (let tries = 0; tries < 30; tries++) {
+      n.set(rnd(-1, 1), rnd(-.25, 1), rnd(-1, 1)).normalize();
+      if (pts.every(p => p.n.dot(n) < .93)) break;   // 彼此不要太近
+    }
+    const q = new T3.Quaternion().setFromUnitVectors(new T3.Vector3(0, 0, 1), n);
+    q.premultiply(new T3.Quaternion().setFromAxisAngle(n, rnd(0, PI * 2)));
+    pts.push({
+      n: n.clone(), q,
+      pos: n.clone().multiplyScalar(1.22).add(new T3.Vector3(0, 2.5, 0)),  // 在樹冠表面外側
+      delay: rnd(0, 3.2), size: rnd(.8, 1.25)
+    });
   }
 
-  // 花朵跟著樹木一起晃動
-  tree.g.add(group);
-
-  return group;
+  tree.g.add(mesh);
+  return { mesh, pts };
 });
 
+function flowerStep(t) {
+  const out = c01((BDAY_LENGTH - 2.5 - t) / 3);
+  flowerSets.forEach(set => {
+    set.pts.forEach((p, i) => {
+      const bloom = c01((t - 1.6 - p.delay) / .9);
+      const s = easeOutBack(bloom) * p.size * out;
+      flowerDummy.position.copy(p.pos);
+      flowerDummy.quaternion.copy(p.q);
+      flowerDummy.scale.setScalar(Math.max(.001, s));
+      flowerDummy.updateMatrix();
+      set.mesh.setMatrixAt(i, flowerDummy.matrix);
+    });
+    set.mesh.instanceMatrix.needsUpdate = true;
+  });
+}
 
-/* ===== 生日音效：預留真實音檔 ===== */
+/* ---------- 煙火粒子（也用於火星、亮粉、流星） ---------- */
 
-const birthdayChime = new Audio(
-  'assets/sounds/birthday-chime.mp3'
-);
+const FWN = 6000;
+const fwGeo = new T3.BufferGeometry();
+const fwPos = new Float32Array(FWN * 3);
+const fwCol = new Float32Array(FWN * 3);
+const fwVel = new Float32Array(FWN * 3);
+const fwBase = new Float32Array(FWN * 3);
+const fwLife = new Float32Array(FWN);
+const fwMax = new Float32Array(FWN);
+const fwDrag = new Float32Array(FWN);
+const fwGrav = new Float32Array(FWN);
+const fwTw = new Float32Array(FWN);
+let fwCursor = 0;
 
+fwGeo.setAttribute('position', new T3.BufferAttribute(fwPos, 3));
+fwGeo.setAttribute('color', new T3.BufferAttribute(fwCol, 3));
+
+const fwPoints = new T3.Points(fwGeo, new T3.PointsMaterial({
+  size: 1.8, map: starGlowTexture, vertexColors: true, transparent: true,
+  blending: T3.AdditiveBlending, depthWrite: false, fog: false, sizeAttenuation: true
+}));
+fwPoints.frustumCulled = false;
+sc.add(fwPoints);
+
+function fwEmit(x, y, z, vx, vy, vz, c, life, drag, grav, tw) {
+  const i = fwCursor;
+  fwCursor = (fwCursor + 1) % FWN;
+  fwPos[i * 3] = x; fwPos[i * 3 + 1] = y; fwPos[i * 3 + 2] = z;
+  fwVel[i * 3] = vx; fwVel[i * 3 + 1] = vy; fwVel[i * 3 + 2] = vz;
+  fwBase[i * 3] = c.r; fwBase[i * 3 + 1] = c.g; fwBase[i * 3 + 2] = c.b;
+  fwLife[i] = fwMax[i] = life;
+  fwDrag[i] = drag; fwGrav[i] = grav; fwTw[i] = tw;
+}
+
+function fwStep(dt) {
+  let any = false;
+  for (let i = 0; i < FWN; i++) {
+    if (fwLife[i] <= 0) continue;
+    any = true;
+    fwLife[i] -= dt;
+    const k = Math.pow(fwDrag[i], dt * 60);
+    fwVel[i * 3] *= k;
+    fwVel[i * 3 + 1] = fwVel[i * 3 + 1] * k + fwGrav[i] * dt;
+    fwVel[i * 3 + 2] *= k;
+    fwPos[i * 3] += fwVel[i * 3] * dt;
+    fwPos[i * 3 + 1] += fwVel[i * 3 + 1] * dt;
+    fwPos[i * 3 + 2] += fwVel[i * 3 + 2] * dt;
+    let f = Math.pow(Math.max(0, fwLife[i] / fwMax[i]), 1.4);
+    if (fwTw[i]) f *= .6 + .4 * Math.sin(clk * 30 + i);
+    if (fwLife[i] <= 0) f = 0;
+    fwCol[i * 3] = fwBase[i * 3] * f;
+    fwCol[i * 3 + 1] = fwBase[i * 3 + 1] * f;
+    fwCol[i * 3 + 2] = fwBase[i * 3 + 2] * f;
+  }
+  if (any) {
+    fwGeo.attributes.position.needsUpdate = true;
+    fwGeo.attributes.color.needsUpdate = true;
+  }
+}
+
+// 煙火音效：把檔案放在 assets/sounds/firework.mp3，沒放就是靜音
+let fwSoundBase = null;
+function playFirework() {
+  const v = typeof getSfxVolumeLevel === 'function' ? getSfxVolumeLevel() : .5;
+  if (v <= 0) return;
+  if (!fwSoundBase) {
+    fwSoundBase = new Audio('assets/sounds/firework.mp3');
+    fwSoundBase.preload = 'auto';
+  }
+  const a = fwSoundBase.cloneNode();
+  a.volume = Math.min(1, .35 * v);
+  setTimeout(() => a.play().catch(() => {}), 350 + Math.random() * 200);  // 光先到，聲音晚一點
+}
+
+function fwBurst(x, y, z, type, color) {
+  const c = new T3.Color(color);
+  const c2 = new T3.Color(bday.theme.fw[(Math.random() * bday.theme.fw.length) | 0]);
+
+  // 愛心與圓環面向鏡頭，才會看起來是正的
+  const n = new T3.Vector3().subVectors(cam.position, new T3.Vector3(x, y, z)).normalize();
+  const U = new T3.Vector3().crossVectors(new T3.Vector3(0, 1, 0), n).normalize();
+  const V = new T3.Vector3().crossVectors(n, U).normalize();
+  const v = new T3.Vector3();
+  const emit = (col, life, drag, grav) => fwEmit(x, y, z, v.x, v.y, v.z, col, life, drag, grav, 1);
+  const sph = s => {
+    const u = rnd(-1, 1), a = rnd(0, PI * 2), r = Math.sqrt(1 - u * u);
+    v.set(Math.cos(a) * r * s, u * s, Math.sin(a) * r * s);
+  };
+
+  if (type === 'peony' || type === 'double') {
+    for (let k = 0; k < (type === 'double' ? 120 : 170); k++) { sph(rnd(15, 20)); emit(c, rnd(1.7, 2.5), .96, -2.4); }
+    if (type === 'double') for (let k = 0; k < 70; k++) { sph(rnd(6, 9)); emit(c2, rnd(1.4, 2), .95, -2); }
+  } else if (type === 'ring') {
+    for (let k = 0; k < 100; k++) {
+      const a = k / 100 * PI * 2;
+      v.copy(U).multiplyScalar(Math.cos(a) * 17).addScaledVector(V, Math.sin(a) * 17);
+      emit(c, 2.3, .96, -1.8);
+    }
+  } else if (type === 'heart') {
+    for (let k = 0; k < 130; k++) {
+      const a = k / 130 * PI * 2;
+      const hx = 16 * Math.pow(Math.sin(a), 3);
+      const hy = 13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a);
+      v.copy(U).multiplyScalar(hx * 1.0).addScaledVector(V, hy * 1.0);
+      emit(c, 2.8, .96, -1.6);
+    }
+  } else if (type === 'willow') {
+    for (let k = 0; k < 140; k++) { sph(rnd(10, 17)); emit(FW_WARM, rnd(3.2, 4.4), .972, -1.5); }
+  }
+
+  bday.flash = Math.min(1, bday.flash + .45);
+  playFirework();
+}
+
+const rockets = [];
+
+function launchRocket(type, color, wait = 0) {
+  rockets.push({ kind: 'rocket', x: rnd(-20, 20), z: rnd(-22, 4), y: .4, ty: rnd(20, 31), vy: rnd(27, 33), type, color, wait });
+}
+
+function launchMeteor(wait = 0) {
+  rockets.push({ kind: 'meteor', x: rnd(-30, 10), y: rnd(30, 45), z: rnd(-35, -10), vx: rnd(14, 20), vy: rnd(-9, -6), life: rnd(1, 1.6), wait });
+}
+
+function rocketStep(dt) {
+  for (let i = rockets.length - 1; i >= 0; i--) {
+    const r = rockets[i];
+    if (r.wait > 0) { r.wait -= dt; continue; }
+
+    if (r.kind === 'meteor') {
+      r.x += r.vx * dt; r.y += r.vy * dt; r.life -= dt;
+      for (let k = 0; k < 3; k++) fwEmit(r.x - rnd(0, .8), r.y + rnd(-.2, .2), r.z, 0, 0, 0, FW_WHITE, .7, .9, 0, 0);
+      if (r.life <= 0) rockets.splice(i, 1);
+      continue;
+    }
+
+    r.y += r.vy * dt;
+    r.vy = Math.max(10, r.vy - 6 * dt);
+    for (let k = 0; k < 2; k++) fwEmit(r.x + rnd(-.1, .1), r.y, r.z + rnd(-.1, .1), rnd(-.4, .4), rnd(-1.5, -.5), rnd(-.4, .4), FW_WARM, .55, .94, -2, 0);
+    if (r.y >= r.ty) { fwBurst(r.x, r.y, r.z, r.type, r.color); rockets.splice(i, 1); }
+  }
+}
+
+/* ---------- 天燈 ---------- */
+
+const bdayLanterns = [];
+
+function lanternTex(ch) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 320;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(128, 170, 10, 128, 170, 190);
+  gr.addColorStop(0, '#fff3c4');
+  gr.addColorStop(.6, '#ffc97a');
+  gr.addColorStop(1, '#e98a45');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 256, 320);
+  g.strokeStyle = 'rgba(120,50,20,.55)';
+  g.lineWidth = 6;
+  g.strokeRect(10, 10, 236, 300);
+  g.fillStyle = 'rgba(120,50,20,.35)';
+  g.fillRect(10, 40, 236, 5);
+  g.fillRect(10, 275, 236, 5);
+  if (ch) {
+    g.fillStyle = '#7a2e1a';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.font = '800 170px "PingFang TC","Noto Sans TC","Microsoft JhengHei",serif';
+    g.fillText(ch, 128, 164);
+  }
+  return new T3.CanvasTexture(c);
+}
+
+function makeLantern(ch, scale) {
+  const tex = lanternTex(ch);
+  const side = new T3.MeshBasicMaterial({ map: tex, transparent: true, fog: false });
+  const cap = new T3.MeshBasicMaterial({ color: 0xffd08a, transparent: true, fog: false });
+  const g = new T3.Group();
+  g.add(new T3.Mesh(new T3.BoxGeometry(1.15, 1.5, 1.15), [side, side, cap, cap, side, side]));
+
+  const glow = new T3.Sprite(new T3.SpriteMaterial({
+    map: starGlowTexture, color: 0xffb55a, blending: T3.AdditiveBlending,
+    transparent: true, depthWrite: false, fog: false, opacity: .8
+  }));
+  glow.scale.set(6, 6, 1);
+  g.add(glow);
+
+  const flame = new T3.Mesh(new T3.ConeGeometry(.12, .3, 8), new T3.MeshBasicMaterial({ color: 0xffd36e, fog: false, transparent: true }));
+  flame.position.y = -.85;
+  g.add(flame);
+
+  g.scale.setScalar(scale);
+  return { g, tex, mats: [side, cap, flame.material, glow.material], glow };
+}
+
+function spawnTextLanterns() {
+  const chars = [...BDAY_TEXT].slice(0, 6);
+  const th = cs.th;                              // 排成面向目前鏡頭的一排
+  const rx = Math.cos(th), rz = -Math.sin(th);
+  const gap = 3.6;
+
+  chars.forEach((ch, i) => {
+    const off = (i - (chars.length - 1) / 2) * gap;
+    const L = makeLantern(ch, 2.2);
+    L.g.rotation.y = th;
+    L.g.position.set(rx * off, .4, rz * off - 1);
+    L.g.visible = false;
+    sc.add(L.g);
+    bdayLanterns.push({
+      ...L, text: true, x: rx * off, z: rz * off - 1, th,
+      age: -i * .28, ty: 9.5 + (i % 2) * .6, ph: rnd(0, 6)
+    });
+  });
+}
+
+function spawnSmallLantern() {
+  const L = makeLantern('', rnd(.6, .9));
+  const o = { ...L, text: false, x: rnd(-24, 24), z: rnd(-20, 8), y: .3, age: 0, vy: rnd(1.2, 1.9), ph: rnd(0, 6) };
+  L.g.position.set(o.x, o.y, o.z);
+  sc.add(L.g);
+  bdayLanterns.push(o);
+}
+
+function lanternStep(dt) {
+  for (let i = bdayLanterns.length - 1; i >= 0; i--) {
+    const o = bdayLanterns[i];
+    o.age += dt;
+    if (o.age < 0) continue;
+    o.g.visible = true;
+
+    let alpha = c01(o.age / 1.2);
+
+    if (o.text) {
+      const p = c01(o.age / 9);
+      const y = .4 + (o.ty - .4) * (1 - Math.pow(1 - p, 3)) + (p >= 1 ? (o.age - 9) * .35 : 0);
+      o.g.position.set(o.x + Math.sin(o.age * .8 + o.ph) * .35, y, o.z);
+      o.g.rotation.y = o.th + Math.sin(o.age * .6 + o.ph) * .12;
+      alpha *= c01((BDAY_LENGTH - bday.t) / 4);
+    } else {
+      o.y = (o.y || .3) + o.vy * dt;
+      o.g.position.set(o.x + Math.sin(o.age * .7 + o.ph) * .6, o.y, o.z);
+      o.g.rotation.y += dt * .3;
+      alpha *= c01(1 - (o.y - 18) / 18);
+      if (alpha <= 0 && o.y > 20) { removeLantern(i); continue; }
+    }
+
+    o.mats.forEach(m => { m.opacity = m === o.glow.material ? .8 * alpha : alpha; });
+  }
+}
+
+function removeLantern(i) {
+  const o = bdayLanterns[i];
+  sc.remove(o.g);
+  o.mats.forEach(m => m.dispose());
+  if (o.tex) o.tex.dispose();
+  bdayLanterns.splice(i, 1);
+}
+
+/* ---------- 蠟燭的光：地面光池、十字星芒 ---------- */
+
+const flareTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  for (const [w, h] of [[6, 128], [128, 6]]) {
+    const gr = g.createLinearGradient(64 - w / 2, 64 - h / 2, 64 + w / 2, 64 + h / 2);
+    const rg = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    rg.addColorStop(0, 'rgba(255,240,200,.95)');
+    rg.addColorStop(1, 'rgba(255,240,200,0)');
+    g.fillStyle = rg;
+    g.fillRect(64 - w / 2, 64 - h / 2, w, h);
+  }
+  return new T3.CanvasTexture(c);
+})();
+
+const flares = flames.map(f => {
+  const s = new T3.Sprite(new T3.SpriteMaterial({
+    map: flareTex, color: 0xffe2a0, blending: T3.AdditiveBlending,
+    transparent: true, depthWrite: false, fog: false, opacity: 0
+  }));
+  s.position.y = .28;
+  s.scale.set(.01, .01, 1);
+  f.g.add(s);
+  return s;
+});
+
+const pools = flames.map((f, i) => {
+  const m = new T3.Mesh(
+    new T3.PlaneGeometry(11, 11),
+    new T3.MeshBasicMaterial({ map: glowTex, blending: T3.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0, fog: false })
+  );
+  m.rotation.x = -PI / 2;
+  m.position.set(0, .07, (i === 0 ? -1 : 1) * 5.1);
+  sc.add(m);
+  return m;
+});
+
+/* ---------- 生日音效 ---------- */
+
+const birthdayChime = new Audio('assets/sounds/birthday-chime.mp3');
 birthdayChime.preload = 'none';
 
 function playBirthdayChime() {
-
-  const amount =
-    typeof getSfxVolumeLevel === 'function'
-      ? getSfxVolumeLevel()
-      : 0.5;
-
+  const amount = typeof getSfxVolumeLevel === 'function' ? getSfxVolumeLevel() : .5;
   if (amount <= 0) return;
-
-  birthdayChime.volume = Math.min(
-    1,
-    amount * 0.45
-  );
-
+  birthdayChime.volume = Math.min(1, amount * .45);
   birthdayChime.currentTime = 0;
-
   birthdayChime.play().catch(() => {});
 }
 
+/* ---------- 開始與結束 ---------- */
 
-/* ===== 開始生日彩蛋 ===== */
+let bdayCamSaved = null;
+let bdayCamTouched = false;
+cv.addEventListener('pointerdown', () => { bdayCamTouched = true; }, true);
 
 function startBirthday() {
-
-  // 正在播放時不重複觸發
   if (bday.active) return;
 
-  bday.active = true;
-  bday.t = 0;
-  bday.lit = false;
-
-  bday.glow = 0;
-  bday.fireBurst = 0;
-  bday.starFlash = 0;
-
-  // 清除上一次吹蠟燭的時間
-  candleBlowAt.fill(-Infinity);
-
-  // 兩根蠟燭立即完全熄滅
-  flames.forEach(f => {
-    f.t = 0.6;
+  Object.assign(bday, {
+    active: true, t: 0, lit: false, glow: 0, fireBurst: 0, starFlash: 0, flash: 0, magic: 0,
+    theme: BDAY_THEMES[(Math.random() * BDAY_THEMES.length) | 0],
+    next: 0, heart: false, finale: false, meteors: Math.random() < .35,
+    lantern: false, ribbon2: false, ribbon3: false
   });
 
-  // 整座球場進入暗場
+  candleBlowAt.fill(-Infinity);
+  flames.forEach(f => { f.t = .6; });
+
   bdayShade.style.opacity = '0.87';
-
-  bdayBanner.classList.remove('on');
-
   ribbonMesh.visible = false;
 
-  flowerGroups.forEach(g => {
-    g.visible = false;
-  });
+  // 鏡頭：只有在一般視角時才自動抬頭看天空
+  bdayCamTouched = false;
+  const mode = typeof worldCameraMode === 'function' ? worldCameraMode() : 'orbit';
+  bdayCamSaved = mode === 'orbit' ? { th: ct.th, ph: ct.ph, d: ct.d, tilt: ct.tilt } : null;
 }
 
+function endBirthday() {
+  bday.active = false;
+  bday.glow = bday.fireBurst = bday.starFlash = bday.flash = bday.magic = 0;
+  bdayShade.style.opacity = '0';
+  amb.intensity = .8;
 
-/* ===== 生日彩蛋時間軸 ===== */
+  flowerSets.forEach(s => { s.mesh.visible = false; });
+  pools.forEach(p => { p.material.opacity = 0; });
+  flares.forEach(s => { s.material.opacity = 0; });
+  for (let i = bdayLanterns.length - 1; i >= 0; i--) removeLantern(i);
+
+  if (bdayCamSaved && !bdayCamTouched) Object.assign(ct, bdayCamSaved);
+  bdayCamSaved = null;
+}
+
+/* ---------- 時間軸 ---------- */
 
 function birthdayStep(dt) {
-
+  fwStep(dt);
+  rocketStep(dt);
+  lanternStep(dt);
   if (!bday.active) return;
 
   bday.t += dt;
+  const t = bday.t, th = bday.theme;
 
-  const t = bday.t;
-
-  // 1.2 秒後：所有生日效果同時開始
+  // 1.2 秒：蠟燭重亮、球彈起、樹開花、彩帶
   if (t >= 1.2 && !bday.lit) {
-
     bday.lit = true;
+    flames.forEach(f => { f.t = 7.2; f.pop = .6; });
 
-    // 兩根蠟燭同時重新燃起
-    flames.forEach(f => {
-      f.t = 7.2;
-      f.pop = 0.6;
-    });
+    spikeFlight = null; hover = null;
+    b.drag = false; b.armed = 0; b.combo = 0;
 
-    // 排球自動彈起
-    spikeFlight = null;
-    hover = null;
+    if (Math.abs(ball.position.x) > 9 || Math.abs(ball.position.z) > 4.5) ball.position.set(-3, BR, 2);
+    else ball.position.y = BR;
 
-    b.drag = false;
-    b.armed = 0;
-    b.combo = 0;
+    bv.set(rnd(-.7, .7), 11.5, rnd(-.7, .7));
+    b.sq = .25;
 
-    // 球飛太遠時，先帶回場內
-    if (
-      Math.abs(ball.position.x) > 9 ||
-      Math.abs(ball.position.z) > 4.5
-    ) {
-
-      ball.position.set(-3, BR, 2);
-
-    } else {
-
-      ball.position.y = BR;
-    }
-
-    bv.set(
-      rnd(-0.7, 0.7),
-      11.5,
-      rnd(-0.7, 0.7)
-    );
-
-    b.sq = 0.25;
-
-    // 星星同步閃耀
-    stars.forEach(o => {
-      o.pop = 1;
-    });
-
-    // 樹木開花
-    flowerGroups.forEach(g => {
-      g.visible = true;
-    });
-
-    // 彩帶、橫幅
+    flowerSets.forEach(s => { s.mesh.visible = true; });
+    trees.forEach(tr => dropLeaves(tr, [0xf8dc64, 0xfff2bf, 0xffe58a]));
     burstBirthdayRibbons();
-
-    bdayBanner.classList.add('on');
-
-    // 生日音效
     playBirthdayChime();
+
+    if (bdayCamSaved) { ct.ph = 1.36; ct.tilt = .5; ct.d = Math.max(ct.d, 32); }
   }
 
+  if (t >= 2 && !bday.lantern) { bday.lantern = true; spawnTextLanterns(); }
+  if (t >= 11.5 && !bday.ribbon2) { bday.ribbon2 = true; burstBirthdayRibbons(); }
+  if (t >= 21 && !bday.ribbon3) { bday.ribbon3 = true; burstBirthdayRibbons(); }
+
   if (t >= 1.2) {
+    bdayShade.style.opacity = String(Math.max(0, .87 * (1 - (t - 1.2) / .55)));
 
-    // 黑暗逐漸退去
-    bdayShade.style.opacity = String(
-      Math.max(
-        0,
-        0.87 * (1 - (t - 1.2) / 0.55)
-      )
-    );
+    bday.magic = sm01(Math.min(c01((t - 1.2) / 2.4), c01((BDAY_LENGTH - t) / 5)));
+    bday.glow = c01((t - 1.2) / .5) * c01((BDAY_LENGTH - 2 - t) / 6);
+    bday.fireBurst = Math.max(0, 1 - (t - 1.2) / 3.2);
+    bday.flash = Math.max(0, bday.flash - dt * 2.2);
+    bday.starFlash = bday.magic * .5;
 
-    // 暖色快速出現，約 5 秒後緩緩褪去
-    const up = Math.min(
-      1,
-      (t - 1.2) / 0.5
-    );
-
-    const down = Math.max(
-      0,
-      1 - (t - 6.2) / 3.0
-    );
-
-    bday.glow = up * Math.min(1, down);
-
-    // 燭火重新燃起時最亮
-    bday.fireBurst = Math.max(
-      0,
-      1 - (t - 1.2) / 2.3
-    );
-
-    // 星星一起閃耀約 3 秒
-    bday.starFlash = Math.max(
-      0,
-      1 - (t - 1.2) / 3.2
-    );
-
-    // 天空染上暖粉色
-    sc.background.lerp(
-      bdayPink,
-      bday.glow * 0.48
-    );
-
+    // 天空進入「魔法時刻」，白天也看得到煙火
+    sc.background.lerp(MAGIC_SKY, bday.magic * .9);
+    sc.background.lerp(bdayTmp.set(th.sky), bday.glow * .1);
     sc.fog.color.copy(sc.background);
 
-    // 場景光線染上暖金色
-    amb.color.lerp(
-      bdayGold,
-      bday.glow * 0.65
-    );
+    const dim = bday.magic * (1 - Math.min(1, starV));
+    amb.color.lerp(MAGIC_LIGHT, bday.magic * .6);
+    amb.color.lerp(bdayTmp.set(th.light), bday.glow * .25);
+    amb.intensity = .8 - .3 * dim + bday.flash * .3;
+    sunL.color.lerp(MAGIC_LIGHT, bday.magic * .6);
+    sunL.intensity *= (1 - .65 * dim);
+    if (bday.magic > .35) sun.visible = false;
+    cloudV *= (1 - bday.magic * .85);
 
-    amb.intensity =
-      0.8 + bday.glow * 0.5;
+    // 蠟燭的光：地面光池、星芒、火星
+    const k = Math.max(bday.fireBurst, bday.glow * .5);
+    flames.forEach((f, i) => {
+      const lit = f.t >= 4.5 ? c01((f.t - 4.5) / 2.5) : 0;
+      pools[i].material.opacity = k * .85 * lit;
+      flares[i].material.opacity = (.35 + k * .65) * lit;
+      flares[i].material.rotation = clk * .6;
+      const s = (.5 + 4.5 * k) * lit;
+      flares[i].scale.set(s, s, 1);
+      if (lit > .5 && t < 22 && Math.random() < dt * 45)
+        fwEmit(rnd(-.1, .1), 2.75, (i === 0 ? -5.1 : 5.1) + rnd(-.1, .1), rnd(-.3, .3), rnd(.8, 1.8), rnd(-.3, .3), FW_WARM, rnd(1.6, 2.6), .99, -.05, 1);
+    });
 
-    sunL.color.lerp(
-      bdayGold,
-      bday.glow * 0.7
-    );
+    // 煙火導演
+    if (t >= 2.2 && t <= 25.5) {
+      bday.next -= dt;
+      if (bday.next <= 0) {
+        const finale = t > 20 && t < 24.6;
+        bday.next = finale ? rnd(.2, .4) : t < 9 ? rnd(1, 1.6) : rnd(.65, 1.1);
 
-    sunL.intensity +=
-      bday.glow * 0.6;
+        let type;
+        if (!bday.heart && t > 10.5) { type = 'heart'; bday.heart = true; }
+        else if (t < 3) type = 'peony';
+        else if (finale) type = Math.random() < .5 ? 'double' : 'peony';
+        else type = ['peony', 'ring', 'willow', 'double'][(Math.random() * 4) | 0];
 
-    // 黃花最後慢慢消失
-    flowerMat.opacity = Math.min(
-      1,
-      Math.max(0, (12 - t) / 2)
-    );
-
-    // 橫幅淡出
-    if (t >= 8.5) {
-      bdayBanner.classList.remove('on');
+        launchRocket(type, th.fw[(Math.random() * th.fw.length) | 0]);
+      }
     }
+
+    // 結尾：三發垂柳、流星雨、小天燈、亮粉
+    if (t > 24.2 && !bday.finale) {
+      bday.finale = true;
+      for (let i = 0; i < 3; i++) launchRocket('willow', 0xffd36e, i * .35);
+      if (bday.meteors) for (let i = 0; i < 6; i++) launchMeteor(1 + i * .45);
+      for (let i = 0; i < 34; i++) setTimeout(spawnSmallLantern, i * 220);
+    }
+    if (t > 23 && t < BDAY_LENGTH - 1)
+      for (let i = 0; i < 2; i++)
+        fwEmit(rnd(-18, 18), rnd(10, 16), rnd(-14, 6), rnd(-.3, .3), rnd(-1.2, -.6), rnd(-.3, .3), FW_WARM, 4, .995, -.05, 1);
   }
 
   birthdayRibbonStep(dt);
+  flowerStep(t);
 
-  // 生日動畫完全結束
-  if (t >= 12.5) {
-
-    bday.active = false;
-
-    bday.glow = 0;
-    bday.fireBurst = 0;
-    bday.starFlash = 0;
-
-    bdayShade.style.opacity = '0';
-
-    bdayBanner.classList.remove('on');
-
-    flowerGroups.forEach(g => {
-      g.visible = false;
-    });
-
-    flowerMat.opacity = 1;
-
-    // 恢復原本的環境亮度
-    amb.intensity = 0.8;
-  }
+  if (t >= BDAY_LENGTH) endBirthday();
 }
 
 let ptime=performance.now(),clk=0;
