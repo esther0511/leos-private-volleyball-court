@@ -155,75 +155,170 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
   opacity: 1;
 }
 
-/* ===== 長按後的雙滑桿面板 ===== */
+
+/* ===== 無面板懸浮式雙音量滑桿 ===== */
 
 #musicVolumePanel {
   position: fixed;
+
   top: calc(72px + env(safe-area-inset-top, 0px));
-  right: calc(16px + env(safe-area-inset-right, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
 
   z-index: 10;
-  width: 144px;
-  padding: 14px 12px 12px;
 
-  background: rgba(29,42,80,.76);
-  border: 1px solid rgba(255,255,255,.35);
-  border-radius: 16px;
-  box-shadow: 0 6px 22px rgba(0,0,0,.16);
+  width: 116px;
+  padding: 8px 4px 6px;
 
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  /* 完全取消底板 */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 
-  transform: translateY(-6px);
+  transform: translateY(-8px);
 
   transition:
-    opacity .2s,
-    visibility .2s,
-    transform .2s;
+    opacity 0.25s ease,
+    visibility 0.25s ease,
+    transform 0.25s ease;
 }
 
+/* 長按音符後顯示 */
 #musicVolumePanel.open {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-  transform: none;
+  transform: translateY(0);
 }
 
+/* 兩條滑桿並排 */
 .volumeColumns {
   display: flex;
   justify-content: space-around;
-  gap: 12px;
+  align-items: center;
+  gap: 18px;
 }
 
 .volumeColumn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
+/* ===== 滑桿本體 ===== */
+
 .volumeColumn input {
-  width: 28px;
-  height: 120px;
+  -webkit-appearance: none;
+  appearance: none;
+
+  width: 22px;
+  height: 110px;
   margin: 0;
 
   writing-mode: vertical-lr;
   direction: rtl;
 
-  accent-color: #fff;
   background: transparent;
   cursor: pointer;
   touch-action: none;
 }
 
+/* Chrome、Safari：半透明細滑軌 */
+.volumeColumn input::-webkit-slider-runnable-track {
+  -webkit-appearance: none;
+
+  width: 4px;
+  height: 100%;
+
+  background: rgba(255, 255, 255, 0.3);
+
+  border: none;
+  border-radius: 999px;
+}
+
+/* Chrome、Safari：白色圓形滑塊 */
+.volumeColumn input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+
+  width: 17px;
+  height: 17px;
+
+  margin-left: -6.5px;
+
+  background: rgba(255, 255, 255, 0.85);
+
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 8px rgba(255, 255, 255, 0.22);
+
+  cursor: grab;
+}
+
+/* Firefox：半透明滑軌 */
+.volumeColumn input::-moz-range-track {
+  width: 4px;
+
+  background: rgba(255, 255, 255, 0.3);
+
+  border: none;
+  border-radius: 999px;
+}
+
+/* Firefox：白色滑塊 */
+.volumeColumn input::-moz-range-thumb {
+  width: 17px;
+  height: 17px;
+
+  background: rgba(255, 255, 255, 0.85);
+
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 8px rgba(255, 255, 255, 0.22);
+}
+
+/* ===== 音樂、音效文字 ===== */
+
 .volumeColumn label {
-  color: #fff;
+  color: rgba(255, 255, 255, 0.78);
+
   font-size: 12px;
-  letter-spacing: .08em;
+  font-weight: 500;
+
+  letter-spacing: 0.08em;
+
+  white-space: nowrap;
+
+  text-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* 操作時，滑塊稍微亮一點 */
+.volumeColumn input:hover::-webkit-slider-thumb,
+.volumeColumn input:active::-webkit-slider-thumb {
+  background: #ffffff;
+}
+
+/* ===== 音符永遠不顯示底板 ===== */
+
+#musicToggle,
+#musicToggle:hover,
+#musicToggle.holding,
+#musicToggle:focus-visible {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 </style>
@@ -2275,14 +2370,22 @@ if (Number(musicVolume.value) > 0) {
   lastMusicNonZero = Number(musicVolume.value);
 }
 
+// 超過 50% 後，提供額外音量增益
+function boostVolume(value) {
+  const v = Number(value) / 100;
+
+  if (v <= 0.5) return v;
+
+  return 0.5 + (v - 0.5) * 2;
+}
+
 function getMusicVolumeLevel() {
-  return Number(musicVolume.value) / 100;
+  return boostVolume(musicVolume.value);
 }
 
 function getSfxVolumeLevel() {
-  return Number(sfxVolume.value) / 100;
+  return boostVolume(sfxVolume.value);
 }
-
 function musicAudible() {
   return musicOn && getMusicVolumeLevel() > 0;
 }
@@ -2292,7 +2395,7 @@ function musicAudible() {
 function updateMusicButton() {
 
   const audible = musicAudible();
-  const v = getMusicVolumeLevel();
+  const v = Number(musicVolume.value) / 100;
 
   musicButton.classList.toggle('off', !audible);
 
