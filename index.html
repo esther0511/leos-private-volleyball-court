@@ -210,6 +210,35 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 const T3=THREE,$=s=>document.querySelector(s),rnd=(a,b)=>a+Math.random()*(b-a),PI=Math.PI;
+/* ===== 正式版／開發版資料隔離 ===== */
+
+const VB_IS_DEV =
+  new URLSearchParams(location.search).get('vbDev') === '1';
+
+const VB_DEV_STATE = {
+  visitDay: 1
+};
+
+// 正式版維持原本的儲存名稱。
+// 開發版的儲存名稱自動加上 vb-dev-。
+const vbStore = {
+
+  getItem(key) {
+    const name = (VB_IS_DEV ? 'vb-dev-' : '') + key;
+    return window['localStorage'].getItem(name);
+  },
+
+  setItem(key, value) {
+    const name = (VB_IS_DEV ? 'vb-dev-' : '') + key;
+    window['localStorage'].setItem(name, value);
+  },
+
+  removeItem(key) {
+    const name = (VB_IS_DEV ? 'vb-dev-' : '') + key;
+    window['localStorage'].removeItem(name);
+  }
+
+};
 const R=new T3.WebGLRenderer({canvas:$('#c'),antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));
 const sc=new T3.Scene();sc.fog=new T3.Fog(0x62bfe8,70,230);sc.background=new T3.Color(0x62bfe8);
 const cam=new T3.PerspectiveCamera(45,1,.5,500);
