@@ -905,30 +905,6 @@
   let boatSpeed = 0;
   let boatHeading = 0;
 
-  // 可選擇使用真實的柔和登場音檔
-  const arrivalSound = new Audio(
-    'assets/sounds/item-arrival.mp3'
-  );
-
-  arrivalSound.preload = 'none';
-
-  function soundArrival() {
-    if (typeof getSfxVolumeLevel === 'function') {
-      const v = Math.min(
-        1,
-        .22 * getSfxVolumeLevel()
-      );
-
-      if (v <= 0) return;
-      arrivalSound.volume = v;
-    }
-
-    if (arrivalSound.readyState < 2) return;
-
-    arrivalSound.currentTime = 0;
-    arrivalSound.play().catch(() => {});
-  }
-
   // ===== 從畫面上方之外進入 =====
 
   function startHeight(o) {
@@ -1675,7 +1651,6 @@ let lastInput = 0;
   }
   window.addEventListener('pointerdown', () => {
     interacted = true;
-    if (reveal) skipReveal();
   }, true);
 
   function finishArrival(o) {
@@ -1687,124 +1662,211 @@ let lastInput = 0;
     }
   }
 
-  function landingEffect(o) {
-    const r = new T3.Mesh(
-      new T3.RingGeometry(.4, .6, 32),
-      new T3.MeshBasicMaterial({ color: 0xffffff, transparent: true, side: T3.DoubleSide })
-    );
-    r.rotation.x = -Math.PI / 2;
-    r.position.set(o.x, .06, o.z);
-    sc.add(r);
-    rings.push({ r, t: 0 });
-    shake = Math.max(shake, .2);
-  }
+
+  // ===== 殺球後：鏡頭引導與物件降落 =====
 
   function tryStartReveal(now) {
 
-  // 尚未完成有效殺球，不啟動登場動畫
-  if (!revealArmed) return;
+    if (!revealArmed || reveal) return;
 
-  const pend = list.filter(
-    o => o.unlocked && o.pending && !o.stored
-  );
+    const pend = list.filter(
+      o => o.unlocked && o.pending && !o.stored
+    );
 
-  // 所有待解鎖物件都已處理完畢
-  if (!pend.length) {
-    revealArmed = false;
-    return;
-  }
+    if (!pend.length) {
+      revealArmed = false;
+
+      if (VB_IS_DEV) {
+        devSpikeTestActive = false;
+      }
+
+      return;
+    }
+
     if (document.visibilityState !== 'visible') return;
-    if (!pad.hidden || bday.active || organizing || cameraMode !== 'orbit' || viewMix > .02) return;
+
+    if (
+      !pad.hidden ||
+      bday.active ||
+      organizing ||
+      cameraMode !== 'orbit' ||
+      viewMix > .02
+    ) return;
+
     if (!(interacted || now - openedAt > 5000)) return;
+
+    // 玩家停止操作後，才開始引導鏡頭
     if (now - lastInput < 1500) return;
 
+    // 一次殺球只處理最早的一個解鎖日
     const day = Math.min(...pend.map(o => o.day));
-    const batch = pend.filter(o => o.day === day);
-    const fx = batch.reduce((s, o) => s + o.x, 0) / batch.length;
-    const fz = batch.reduce((s, o) => s + o.z, 0) / batch.length;
+
+    const batch = pend.filter(
+      o => o.day === day
+    );
+
+    const fx =
+      batch.reduce((sum, o) => sum + o.x, 0) /
+      batch.length;
+
+    const fz =
+      batch.reduce((sum, o) => sum + o.z, 0) /
+      batch.length;
 
     reveal = {
-      items: batch, phase: 'glide', t: 0, fx, fz,
-      saved: { th: ct.th, ph: ct.ph, d: ct.d, tilt: ct.tilt, x: tgtP.x, z: tgtP.z }
+      items: batch,
+      phase: 'glide',
+      t: 0,
+      fx,
+      fz,
+
+      saved: {
+        th: ct.th,
+        ph: ct.ph,
+        d: ct.d,
+        tilt: ct.tilt,
+        x: tgtP.x,
+        z: tgtP.z
+      }
     };
 
-    batch.forEach((o, i) => {
-  o.pending = false;
-  o.arrival = { t: -1.3 - i * .5, d: 5, height: 15 };
-  o.root.position.set(o.x, 15, o.z);
-});
+    revealArmed = false;
 
-// 一次有效殺球只解鎖一個日期批次
-revealArmed = false;
-devSpikeTestActive = false;
+    if (VB_IS_DEV) {
+      devSpikeTestActive = false;
+    }
 
-refreshVisibility();
+    // 第一階段：只移動鏡頭
+    // 此時物件仍維持 pending，不會提前出現
 
-    // 鏡頭站在物件外側，朝球場方向看
-    ct.th = cs.th + wrapAngle(Math.atan2(fx, fz) - cs.th);
+    ct.th =
+      cs.th +
+      wrapAngle(Math.atan2(fx, fz) - cs.th);
+
     ct.ph = 1.05;
     ct.tilt = 0;
-    ct.d = batch.some(o => o.id === 'sailboat') ? 24 : 17;
+
+    ct.d = batch.some(
+      o => o.id === 'sailboat'
+    ) ? 24 : 17;
   }
 
+
   function beginReturn() {
+
+    if (!reveal) return;
+
     const r = reveal;
+
     r.phase = 'return';
     r.t = 0;
-    ct.th = cs.th + wrapAngle(r.saved.th - cs.th);
+
+    ct.th =
+      cs.th +
+      wrapAngle(r.saved.th - cs.th);
+
     ct.ph = r.saved.ph;
     ct.d = r.saved.d;
     ct.tilt = r.saved.tilt;
   }
 
-  function skipReveal() {
-    if (!reveal || reveal.phase === 'return') return;
-    reveal.items.forEach(o => { if (o.arrival) finishArrival(o); });
-    beginReturn();
-  }
 
   function revealStep(dt, now) {
-    if (!reveal) { tryStartReveal(now); return; }
+
+    if (!reveal) {
+      tryStartReveal(now);
+      return;
+    }
 
     const r = reveal;
     const k = Math.min(1, dt * 2.4);
+
     r.t += dt;
 
+    // 引導鏡頭朝向新物件位置
     if (r.phase !== 'return') {
+
       tgtP.x += (r.fx - tgtP.x) * k;
       tgtP.z += (r.fz - tgtP.z) * k;
     }
 
-    if (r.phase === 'glide' && r.t > 1) r.phase = 'drop';
-    else if (r.phase === 'drop' && r.items.every(o => !o.arrival)) { r.phase = 'hold'; r.t = 0; }
-    else if (r.phase === 'hold' && r.t > 2.4) beginReturn();
+    // ===== 第一階段：鏡頭先移動 =====
+
+    if (
+      r.phase === 'glide' &&
+      r.t >= 1.4
+    ) {
+
+      r.phase = 'drop';
+      r.t = 0;
+
+      // 鏡頭接近定位後，
+      // 才把物件放到畫面上方並顯示
+
+      r.items.forEach((o, i) => {
+
+        const height = Math.max(
+          18,
+          startHeight(o)
+        );
+
+        o.arrival = {
+          t: -i * .45,
+          d: 6.5,
+          height
+        };
+
+        o.root.position.set(
+          o.x,
+          height,
+          o.z
+        );
+
+        o.pending = false;
+      });
+
+      refreshVisibility();
+
+    }
+
+    // ===== 第二階段：等待物件全部落地 =====
+
+    else if (
+      r.phase === 'drop' &&
+      r.items.every(o => !o.arrival)
+    ) {
+
+      r.phase = 'hold';
+      r.t = 0;
+
+    }
+
+    // ===== 第三階段：停留欣賞 =====
+
+    else if (
+      r.phase === 'hold' &&
+      r.t >= 2
+    ) {
+
+      beginReturn();
+
+    }
+
+    // ===== 第四階段：鏡頭返回 =====
+
     else if (r.phase === 'return') {
+
       tgtP.x += (r.saved.x - tgtP.x) * k;
       tgtP.z += (r.saved.z - tgtP.z) * k;
-      if (r.t > 1.8) reveal = null;
+
+      if (r.t >= 1.8) {
+        reveal = null;
+      }
     }
   }
 
-  function updateSparkle(o) {
-    const want = !o.arrival && !touched[o.id];
-    if (!want) { if (o.sparkle) o.sparkle.visible = false; return; }
 
-    if (!o.sparkle) {
-      o.sparkle = new T3.Sprite(new T3.SpriteMaterial({
-        map: starGlowTexture, color: 0xfff0b8, blending: T3.AdditiveBlending,
-        transparent: true, depthWrite: false, fog: false
-      }));
-      o.root.add(o.sparkle);
-    }
-
-    const t = performance.now() * .003 + o.day;
-    const s = 1.5 + .25 * Math.sin(t * 1.3);
-    o.sparkle.visible = true;
-    o.sparkle.material.opacity = .5 + .3 * Math.sin(t);
-    o.sparkle.scale.set(s, s, 1);
-    o.sparkle.position.y = (TOP[o.id] || 2) + .12 * Math.sin(t * 1.7);
-  }
-
+  
   // 給 index.html 判斷目前是不是一般視角
   window.worldCameraMode = () => cameraMode;
   // ===== 開發者：預覽造訪天數 =====
@@ -1933,9 +1995,9 @@ currentDay = n;
     refreshVisibility();
 
     for (const o of list) {
-      if (!active(o)) { if (o.sparkle) o.sparkle.visible = false; continue; }
-      updateSparkle(o);
-
+      
+      if (!active(o)) continue;
+      
       // 首次解鎖：從天空降落
       if (o.arrival) {
         o.arrival.t += dt;
@@ -1954,12 +2016,9 @@ currentDay = n;
         o.root.position.y =
           o.arrival.height * (1 - smooth);
 
-                if (p >= 1) {
+        if (p >= 1) {
           finishArrival(o);
-          landingEffect(o);
-          soundArrival();
         }
-
         continue;
       }
 
