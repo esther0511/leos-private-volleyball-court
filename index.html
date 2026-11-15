@@ -2177,6 +2177,10 @@ function frame(now){
   const dt=Math.min(.05,(now-ptime)/1000);ptime=now;clk+=dt;
   skyStep(dt);
 birthdayStep(dt);
+if (typeof worldItemsStep === 'function') {
+  worldItemsStep(dt);
+}
+  
 stepBall(dt/2);
 stepBall(dt/2);
   
@@ -2302,7 +2306,18 @@ stars.forEach(o => {
 
   for(let i=rings.length-1;i>=0;i--){const q=rings[i];q.t+=dt*1.8;q.r.scale.setScalar(1+q.t*5);q.r.material.opacity=Math.max(0,1-q.t);if(q.t>=1){sc.remove(q.r);rings.splice(i,1)}}
   
-  camStep();R.render(sc,cam);requestAnimationFrame(frame)}
+  camStep();
+  if (typeof worldSceneCameraStep === 'function') {
+    worldSceneCameraStep(dt);
+}
+  
+  if (typeof worldItemsRenderStep === 'function') {
+    worldItemsRenderStep();
+  }
+  
+  R.render(sc, cam);
+  requestAnimationFrame(frame);
+  }
 requestAnimationFrame(frame);
 
 /* mood faces in flat art style */
@@ -3522,5 +3537,9 @@ if (VB_IS_DEV) {
 }
 setTimeout(()=>$('#tip').style.opacity=0,14000);
 </script>
+
+<!-- 第四階段：場邊物件 -->
+<script src="./world-items.js"></script>
+
 </body>
 </html>
