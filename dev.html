@@ -216,12 +216,14 @@ button:disabled {
     </section>
 
     <!-- 未來測試功能 -->
-    <section class="disabled">
+    <section>
 
       <h2>後續開放</h2>
 
       <div class="buttons">
-        <button disabled>生日彩蛋</button>
+        <button id="testBirthday" type="button">
+          播放生日彩蛋
+        </button>
         <button disabled>小雨／雷雨</button>
         <button disabled>彩虹</button>
         <button disabled>球車整理</button>
@@ -328,7 +330,13 @@ visitDay.addEventListener('change', () => {
   });
 
 });
+// 開發者：直接播放生日彩蛋
+document.querySelector('#testBirthday')
+  .addEventListener('click', () => {
 
+    send('birthday');
+
+  });
 </script>
 
 </body>
