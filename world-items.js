@@ -984,8 +984,7 @@
       hitEnable(o, yes && !o.arrival);
     }
 
-    water.visible =
-      byId.get('sailboat').unlocked;
+    water.visible = active(byId.get('sailboat'));
   }
 
   function syncDay(day) {
@@ -1609,25 +1608,63 @@
     if (!VB_IS_DEV) save('vb-items-touched', touched);
   }
 
-  let reveal = null;
-  let revealArmed = false;
+ 
+let reveal = null;
+let revealArmed = false;
+let devSpikeTestActive = false;
 
-// 正式版：有效殺球落地後才允許新物件登場
+// 有效殺球落地後，由 index.html 呼叫
 window.worldOnValidSpike = () => {
 
-  // 開發者版維持直接預覽
-  if (VB_IS_DEV) return;
+  // 開發者版：只有進入殺球測試模式才啟用
+  if (VB_IS_DEV && !devSpikeTestActive) {
+    return false;
+  }
 
-  // 檢查是否有等待解鎖的物件
   const hasPending = list.some(
     o => o.unlocked && o.pending && !o.stored
   );
 
-  if (!hasPending) return;
+  if (!hasPending) return false;
 
-  // 允許開始登場動畫
   revealArmed = true;
+
+  if (VB_IS_DEV) {
+    popText('殺球成功！新物件即將降落');
+  }
+
+  return true;
 };
+
+// 開發者專用：將指定日期的物件改成等待殺球
+window.worldTestSpikeUnlock = () => {
+
+  if (!VB_IS_DEV || reveal) return false;
+
+  const day = Number(VB_DEV_STATE.visitDay);
+
+  const batch = list.filter(
+    o => o.day === day && o.unlocked && !o.stored
+  );
+
+  if (!batch.length) return false;
+
+  for (const o of batch) {
+    o.pending = true;
+    o.arrival = null;
+    o.root.position.y = 0;
+  }
+
+  revealArmed = false;
+  devSpikeTestActive = true;
+
+  refreshVisibility();
+
+  popText(`第 ${day} 天：完成殺球後才會解鎖`);
+
+  return true;
+};
+
 
 let lastInput = 0;
   let interacted = false;
@@ -1692,11 +1729,16 @@ let lastInput = 0;
     };
 
     batch.forEach((o, i) => {
-      o.pending = false;
-      o.arrival = { t: -1.3 - i * .5, d: 5, height: 15 };
-      o.root.position.set(o.x, 15, o.z);
-    });
-    refreshVisibility();
+  o.pending = false;
+  o.arrival = { t: -1.3 - i * .5, d: 5, height: 15 };
+  o.root.position.set(o.x, 15, o.z);
+});
+
+// 一次有效殺球只解鎖一個日期批次
+revealArmed = false;
+devSpikeTestActive = false;
+
+refreshVisibility();
 
     // 鏡頭站在物件外側，朝球場方向看
     ct.th = cs.th + wrapAngle(Math.atan2(fx, fz) - cs.th);
@@ -1823,12 +1865,33 @@ window.setWorldPreviewDay = day => {
 
   camStep();
 
-  // 更新開發者預覽天數
-  VB_DEV_STATE.visitDay = n;
+  
+// 切換日期時，取消上一個日期的殺球測試
+revealArmed = false;
+devSpikeTestActive = false;
 
-  currentDay = -1;
-  syncDay(n);
-  currentDay = n;
+if (reveal) {
+  reveal.items.forEach(o => {
+    if (o.arrival) finishArrival(o);
+  });
+  reveal = null;
+}
+
+list.forEach(o => {
+  if (o.pending) {
+    o.pending = false;
+    o.arrival = null;
+    o.root.position.y = 0;
+  }
+});
+
+// 更新開發者預覽天數
+VB_DEV_STATE.visitDay = n;
+
+currentDay = -1;
+syncDay(n);
+currentDay = n;
+
 
 };
 
