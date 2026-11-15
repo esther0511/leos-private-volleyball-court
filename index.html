@@ -332,34 +332,6 @@ textarea::placeholder{color:rgba(29,42,80,.6)}
   opacity: 0;
   pointer-events: none;
 }
-
-/* ===== 生日橫幅 ===== */
-
-#bdayBanner {
-  position: fixed;
-  left: 50%;
-  top: 20%;
-  z-index: 12;
-  transform: translate(-50%, -16px) scale(.9);
-  opacity: 0;
-  pointer-events: none;
-  padding: 12px 28px;
-  white-space: nowrap;
-  background: linear-gradient(100deg, #d78e9e, #ebbb8f);
-  border: 2px solid #fff1cc;
-  border-radius: 12px;
-  color: #fffdf2;
-  font-size: clamp(25px, 5vw, 46px);
-  font-weight: 800;
-  letter-spacing: .23em;
-  transition: opacity .45s, transform .65s;
-}
-
-#bdayBanner.on {
-  opacity: 1;
-  transform: translate(-50%, 0) scale(1);
-}
-
 </style>
 </head>
 <body>
@@ -1663,8 +1635,6 @@ const bday = {
 };
 
 const bdayShade = $('#bdayShade');
-const bdayBanner = $('#bdayBanner');
-
 const bdayPink = new T3.Color(0xffb8cb);
 const bdayGold = new T3.Color(0xffe0aa);
 
