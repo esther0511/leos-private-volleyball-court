@@ -1030,7 +1030,7 @@
             o.pending = true;
             o.arrival = null;
           }
-        } else {
+          } else {
           o.arrival = null;
         }
       }
@@ -1610,7 +1610,26 @@
   }
 
   let reveal = null;
-  let lastInput = 0;
+  let revealArmed = false;
+
+// 正式版：有效殺球落地後才允許新物件登場
+window.worldOnValidSpike = () => {
+
+  // 開發者版維持直接預覽
+  if (VB_IS_DEV) return;
+
+  // 檢查是否有等待解鎖的物件
+  const hasPending = list.some(
+    o => o.unlocked && o.pending && !o.stored
+  );
+
+  if (!hasPending) return;
+
+  // 允許開始登場動畫
+  revealArmed = true;
+};
+
+let lastInput = 0;
   let interacted = false;
   const openedAt = performance.now();
 
@@ -1644,8 +1663,19 @@
   }
 
   function tryStartReveal(now) {
-    const pend = list.filter(o => o.unlocked && o.pending && !o.stored);
-    if (!pend.length) return;
+
+  // 尚未完成有效殺球，不啟動登場動畫
+  if (!revealArmed) return;
+
+  const pend = list.filter(
+    o => o.unlocked && o.pending && !o.stored
+  );
+
+  // 所有待解鎖物件都已處理完畢
+  if (!pend.length) {
+    revealArmed = false;
+    return;
+  }
     if (document.visibilityState !== 'visible') return;
     if (!pad.hidden || bday.active || organizing || cameraMode !== 'orbit' || viewMix > .02) return;
     if (!(interacted || now - openedAt > 5000)) return;
