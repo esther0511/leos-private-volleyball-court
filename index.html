@@ -1590,7 +1590,13 @@ p.lerpVectors(
     bv.y-=G*dt*(b.sp?.45:1);p.addScaledVector(bv,dt);b.armed=Math.max(0,b.armed-dt);
     const on=p.y<=BR+.001;
 if(p.y<=BR){p.y=BR;b.armed=0;
-    if(b.sp){b.sp=false;bv.y=-bv.y*.85;b.sq=.6;shake=1.4;netAmp=.35;sfxSpike();const r=new T3.Mesh(new T3.RingGeometry(.4,.6,32),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,side:T3.DoubleSide}));r.rotation.x=-PI/2;r.position.set(p.x,.06,p.z);sc.add(r);rings.push({r,t:0})}
+    if(b.sp){b.sp=false;bv.y=-bv.y*.85;b.sq=.6;shake=1.4;netAmp=.35;sfxSpike();
+
+if (typeof window.worldOnValidSpike === 'function') {
+  window.worldOnValidSpike();
+}
+
+const r=new T3.Mesh(new T3.RingGeometry(.4,.6,32),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,side:T3.DoubleSide}));r.rotation.x=-PI/2;r.position.set(p.x,.06,p.z);sc.add(r);rings.push({r,t:0})}
       else if(bv.y<-2.5)
       {sfxBounce(Math.min(1,-
       bv.y/12));bv.y*=-.72;b.sq=.22}else bv.y=0;
