@@ -209,11 +209,18 @@ button:disabled {
         <option value="30">第 30 天</option>
 
       </select>
-
-      <p class="note">
-        已建立天數測試入口。
-        場邊物件完成後，才會接上實際解鎖效果。
-      </p>
+<button
+  id="testSpikeUnlock"
+  type="button"
+  style="width:100%;margin-top:10px"
+>
+  測試：殺球後解鎖本日物件
+</button>
+<p class="note">
+  選擇天數可直接預覽物件。
+  按下測試按鈕後，當天的新物件會先隱藏，
+  必須完成有效殺球才會降落。
+</p>
 
     </section>
 
@@ -371,6 +378,30 @@ visitDay.addEventListener('change', () => {
     `已切換至第 ${visitDay.value} 天`;
 
 });
+
+// 開發者：測試殺球後解鎖
+
+document.querySelector('#testSpikeUnlock')
+  .addEventListener('click', () => {
+
+    const game = preview.contentWindow;
+
+    if (
+      !game ||
+      typeof game.worldTestSpikeUnlock !== 'function'
+    ) {
+      status.textContent =
+        '測試功能尚未載入，請重新整理開發者頁面';
+      return;
+    }
+
+    const ok = game.worldTestSpikeUnlock();
+
+    status.textContent = ok
+      ? `第 ${visitDay.value} 天物件待命，請完成殺球`
+      : '無法測試：請選擇有新物件的日期，並等待上一段動畫結束';
+
+  });
   
 // 開發者：直接播放生日彩蛋
 document.querySelector('#testBirthday')
