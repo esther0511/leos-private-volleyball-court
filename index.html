@@ -22,9 +22,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--sky);font-family
 .btn{border:0;background:var(--navy);color:#fff;padding:8px 18px;border-radius:999px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:transform .15s}
 .btn:hover{transform:translateY(-2px)}.btn:active{transform:scale(.95)}
 .btn:focus-visible,textarea:focus-visible,.em:focus-visible{outline:3px solid #fff;outline-offset:2px}
-#ems{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
-.em{border:0;background:var(--orange);border-radius:12px;padding:5px;cursor:pointer;display:flex;justify-content:center;transition:transform .15s}
-.em svg,
+#ems{display:grid;grid-template-columns:repeat(auto-fit,minmax(52px,1fr));gap:6px}
+.em{border:0;background:var(--navy);border-radius:12px;padding:6px;cursor:pointer;display:flex;justify-content:center;transition:transform .15s}
 .em img{
   width:100%;
   max-width:44px;
@@ -2582,42 +2581,51 @@ const FACE = [
   `]
 ];
   
-const NAMES=['喜悅','悲傷','憤怒','恐懼','厭惡','驚訝','羞恥','愛'];
-const EMOJI = ['😄','😢','😠','😨','🤢','😲','😳','🥰'];
-/* ===== 自訂表情圖片 ===== */
+/* ===== 心情清單：新增心情，只要在最後面加一行 ===== */
 
-const MOOD_IMAGES = [
-  '', // 喜悅
-  '', // 悲傷
-  '', // 憤怒
-  '', // 恐懼
-  '', // 厭惡
-  '', // 驚訝
-  '', // 羞恥
-  ''  // 愛
+const MOODS = [
+  { name: '喜悅', emoji: '😄', img: 'assets/moods/joy.png' },
+  { name: '悲傷', emoji: '😢', img: 'assets/moods/sad.png' },
+  { name: '憤怒', emoji: '😠', img: 'assets/moods/angry.png' },
+  { name: '焦慮', emoji: '😰', img: 'assets/moods/anxiety.png' },
+  { name: '空虛', emoji: '😶', img: 'assets/moods/emptiness.png' },
+  { name: '無助', emoji: '😞', img: 'assets/moods/helpless.png' },
+  { name: '尷尬', emoji: '😅', img: 'assets/moods/embarrassed.png' },
+  { name: '愛',   emoji: '🥰', img: 'assets/moods/love.png' }
 ];
 
-const face = i => {
+const NAMES = MOODS.map(m => m.name);
+const EMOJI = MOODS.map(m => m.emoji);
 
-  if (MOOD_IMAGES[i]) {
-    return `<img src="${MOOD_IMAGES[i]}" alt="${NAMES[i]}">`;
+const face = i => {
+  const m = MOODS[i];
+  if (!m) return '';
+
+  // 有圖片就用你畫的；路徑錯了或檔案不見時，自動改顯示 emoji
+  if (m.img) {
+    return `<img src="${m.img}" alt="${m.name}" width="40" height="40" decoding="async"
+      onerror="this.replaceWith(document.createTextNode('${m.emoji}'))">`;
   }
 
-  return `
-    <svg viewBox="0 0 40 40" aria-hidden="true">
-      <circle cx="20" cy="20" r="18" fill="${FACE[i][0]}"/>
-      <ellipse cx="14" cy="9" rx="7" ry="3.2" fill="#fff" opacity=".22" transform="rotate(-25 14 9)"/>
-      ${FACE[i][1]}
-    </svg>
-  `;
+  // 沒有圖片時，使用上面 FACE 裡原本畫好的 SVG
+  if (FACE[i]) {
+    return `
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="18" fill="${FACE[i][0]}"/>
+        ${FACE[i][1]}
+      </svg>`;
+  }
+
+  return m.emoji;
 };
+
 
 /* hidden mood pad */
 let notes=[];try{notes=JSON.parse(vbStore.getItem('vb-notes')||'[]').map(n=>typeof n==='string'?{t:n,e:-1,d:0}:n)}catch(e){}
 const save=()=>{try{vbStore.setItem('vb-notes',JSON.stringify(notes))}catch(e){}};
 const pad=$('#pad'),card=$('#card'),tx=$('#tx');let selE=-1;
 function drawEm(){const w=$('#ems');w.textContent='';
-  FACE.forEach((_,i)=>{const e=document.createElement('button');e.className='em'+(i===selE?' sel':'');e.innerHTML=face(i);e.setAttribute('aria-label',NAMES[i]);e.onclick=()=>{selE=selE===i?-1:i;drawEm()};w.append(e)})}
+ MOODS.forEach((_,i)=>{const e=document.createElement('button');e.className='em'+(i===selE?' sel':'');e.innerHTML=face(i);e.setAttribute('aria-label',NAMES[i]);e.onclick=()=>{selE=selE===i?-1:i;drawEm()};w.append(e)})}
 function paint(){const ul=$('#list');ul.textContent='';
   notes.forEach((n,i)=>{const li=document.createElement('li'),d=document.createElement('div'),x=document.createElement('button');
     if(n.e>=0)li.insertAdjacentHTML('afterbegin',face(n.e));
@@ -2750,7 +2758,7 @@ $('#ulFile').addEventListener('change', async e => {
 
         e: Number.isInteger(item.e) &&
            item.e >= -1 &&
-           item.e < 8
+           item.e < MOODS.length
           ? item.e
           : -1,
 
