@@ -334,7 +334,18 @@ visitDay.addEventListener('change', () => {
 document.querySelector('#testBirthday')
   .addEventListener('click', () => {
 
-    send('birthday');
+    const courtWindow =
+      document.querySelector('#preview').contentWindow;
+
+    if (typeof courtWindow.startBirthday === 'function') {
+
+      courtWindow.startBirthday();
+
+    } else {
+
+      alert('生日彩蛋尚未載入，請重新整理開發者頁面。');
+
+    }
 
   });
 </script>
