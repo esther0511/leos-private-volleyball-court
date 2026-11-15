@@ -248,8 +248,7 @@ const flames=[],poles=[];
   const px=new T3.Mesh(new T3.SphereGeometry(.4,8,8),ghost());px.position.y=.3;
   g.add(o,n,gl,pl,px);sc.add(g);
   const f={g,gl,pl,t:99,pop:0,i};flames.push(f);
-  px.userData.act=()=>{if(f.t>7){f.t=0;sfxBlow()}};hitList.push(px);
-  p.userData.act=()=>{p.material.emissive.setHex(0x4466aa);f.pop=.6};sfxPole();hitList.push(p)});
+  px.userData.act=()=>{if(f.t>7){f.t=0;sfxBlow()}};hitList.push(px);p.userData.act=()=>{p.material.emissive.setHex(0x4466aa);f.pop=.6;sfxPole()};hitList.push(p)});p.userData.act=()=>{p.material.emissive.setHex(0x4466aa);f.pop=.6};sfxPole();hitList.push(p)});
 
 /* trees */
 const trees=[];
