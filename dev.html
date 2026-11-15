@@ -268,43 +268,64 @@ function send(action, extra = {}) {
   );
 }
 
-// 接收球場準備完成的訊息
-window.addEventListener('message', event => {
+// ===== 檢查球場與場邊物件是否載入 =====
 
-  if (event.source !== preview.contentWindow) {
-    return;
+let previewInitialized = false;
+
+function connectPreview() {
+
+  const game = preview.contentWindow;
+
+  if (!game) return;
+
+  const sceneReady =
+    typeof game.startBirthday === 'function';
+
+  const itemsReady =
+    typeof game.setWorldPreviewDay === 'function';
+
+  // 原本日夜、攝影機按鈕使用這個狀態
+  ready = sceneReady;
+
+  if (itemsReady) {
+
+    status.textContent =
+      '已連線，場邊物件可以預覽';
+
+    // 第一次載入時同步目前選擇的天數
+    if (!previewInitialized) {
+
+      previewInitialized = true;
+
+      game.setWorldPreviewDay(
+        Number(visitDay.value)
+      );
+    }
+
+  } else if (sceneReady) {
+
+    status.textContent =
+      '球場已載入，但場邊物件尚未載入';
+
+  } else {
+
+    status.textContent =
+      '正在等待球場載入…';
+
   }
+}
 
-  if (
-    !event.data ||
-    event.data.type !== 'VB_DEV_READY'
-  ) {
-    return;
-  }
-
-  ready = true;
-
-  status.textContent = '已連線，可以開始預覽';
-
-  send('visitDay', {
-    day: Number(visitDay.value)
-  });
-});
-
-// 球場重新載入時重新建立連線
+// iframe 完整載入後檢查
 preview.addEventListener('load', () => {
 
-  if (ready) return;
-
-  status.textContent = '等待場景初始化…';
-
-  preview.contentWindow.postMessage({
-    type: 'VB_DEV_COMMAND',
-    action: 'ping'
-  }, '*');
+  previewInitialized = false;
+  connectPreview();
 
 });
 
+// 處理 iframe 比外層程式更早載入的情況
+connectPreview();
+  
 // 日夜按鈕
 document.querySelectorAll('[data-hour]').forEach(button => {
 
