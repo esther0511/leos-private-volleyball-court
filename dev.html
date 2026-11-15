@@ -1,427 +1,331 @@
-
 <!DOCTYPE html>
 <html lang="zh-Hant">
-
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
 <title>排球場｜開發者預覽</title>
-
 <style>
-* {
-  box-sizing: border-box;
-}
-
-html, body {
-  margin: 0;
-  height: 100%;
-  font-family: system-ui, "PingFang TC", sans-serif;
-  background: #1d2a50;
-  color: white;
-}
-
-/* 左側球場、右側控制台 */
-
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 290px;
-  height: 100dvh;
-}
-
-#preview {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: #52aed4;
-}
-
-aside {
-  overflow: auto;
-  padding: 22px 18px;
-  background: #25375e;
-  border-left: 2px solid #111b37;
-}
-
-h1 {
-  font-size: 19px;
-  margin: 0 0 6px;
-}
-
-h2 {
-  font-size: 14px;
-  margin: 0 0 12px;
-}
-
-.sub, .note {
-  font-size: 12px;
-  color: #b5c4e3;
-  line-height: 1.7;
-}
-
-.sub {
-  margin: 0 0 24px;
-}
-
-.note {
-  margin: 10px 0 0;
-}
-
-#status {
-  color: #f3dc8f;
-}
-
-section {
-  padding: 16px 0;
-  border-top: 1px solid #66749666;
-}
-
-.buttons {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-button, select {
-  font: inherit;
-  font-size: 13px;
-  border: 1px solid #8595b9;
-  background: #355c97;
-  color: white;
-  border-radius: 9px;
-  padding: 10px 8px;
-  cursor: pointer;
-}
-
-button:hover:not(:disabled) {
-  background: #4772b5;
-}
-
-button:focus-visible,
-select:focus-visible {
-  outline: 2px solid #f6df92;
-  outline-offset: 2px;
-}
-
-select {
-  width: 100%;
-}
-
-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.disabled {
-  opacity: 0.65;
-}
-
-/* 手機：控制台移到球場下方 */
-
-@media (max-width: 700px) {
-
-  .layout {
-    display: flex;
-    flex-direction: column;
+  :root {
+    --navy: #1d2a50;
+    --aside: #23365d;
+    --panel: #2a416c;
+    --button: #355c97;
+    --button-hover: #4772b5;
+    --stroke: rgba(216,229,255,.22);
+    --text: #f7f9ff;
+    --muted: #b9c9e6;
+    --gold: #f1d895;
+    font-family: system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
   }
-
-  #preview {
-    height: 58dvh;
-    flex: none;
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--navy); color: var(--text); }
+  button, select { font: inherit; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 348px; width: 100%; height: 100dvh; }
+  #preview { display: block; width: 100%; height: 100%; border: 0; background: #52aed4; }
+  aside { min-width: 0; height: 100%; overflow-y: auto; background: var(--aside); border-left: 1px solid #132345; scrollbar-color: #6681ae transparent; }
+  .sidebar { padding: 24px 22px 30px; }
+  .eyebrow { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .22em; color: var(--gold); }
+  h1 { margin: 0; font-size: 23px; letter-spacing: .08em; line-height: 1.35; }
+  .intro { margin: 9px 0 16px; font-size: 12px; line-height: 1.7; color: var(--muted); }
+  .connection { padding: 13px 14px; background: rgba(9,20,47,.22); border: 1px solid var(--stroke); border-radius: 13px; }
+  .connection-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 6px; font-size: 11px; color: var(--muted); }
+  .connection-row:last-of-type { margin-bottom: 0; }
+  .connection-row strong { color: var(--text); font-weight: 600; }
+  #status { margin: 9px 0 0; font-size: 12px; line-height: 1.65; color: var(--gold); }
+  #status[data-kind="error"] { color: #ffc4b7; }
+  #status[data-kind="success"] { color: #d3f2dd; }
+  section { margin-top: 23px; padding-top: 21px; border-top: 1px solid var(--stroke); }
+  .section-label { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  h2 { margin: 0; font-size: 15px; letter-spacing: .04em; }
+  .section-num { font-size: 11px; color: var(--muted); }
+  .button-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  button, select, .link-button {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 100%; min-height: 42px; padding: 10px 12px;
+    border: 1px solid #7a97c2; border-radius: 10px;
+    background: var(--button); color: var(--text); text-decoration: none;
+    cursor: pointer; font-size: 13px; font-weight: 600; line-height: 1.3;
+    transition: background .16s, border-color .16s, transform .16s;
   }
-
-  aside {
-    flex: 1;
-    border-left: 0;
-    border-top: 2px solid #111b37;
+  select { display: block; appearance: auto; font-weight: 500; }
+  button:hover:not(:disabled), .link-button:hover { background: var(--button-hover); border-color: #c4d8f7; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:focus-visible, select:focus-visible, .link-button:focus-visible { outline: 2px solid #f5df92; outline-offset: 3px; }
+  button.active { background: #5c80b3; border-color: var(--gold); }
+  button.primary { background: #486da5; border-color: #abc5e8; }
+  button.secondary { background: rgba(80,116,166,.28); border-color: var(--stroke); }
+  button:disabled { opacity: .37; cursor: not-allowed; transform: none; }
+  .space-top { margin-top: 9px; }
+  .note { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 10px 0 0; }
+  .key-help { margin: 12px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+  .key-help > div { display: flex; gap: 8px; align-items: center; color: #dbe7fb; font-size: 11.5px; }
+  kbd { display: inline-block; flex: none; min-width: 26px; padding: 5px 6px; border: 1px solid var(--stroke); border-radius: 6px; background: rgba(11,25,56,.42); text-align: center; color: #fff; font: 11px ui-monospace, Menlo, Consolas, monospace; }
+  .future { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .footer { margin-top: 20px; color: #a4b9d9; font-size: 11px; line-height: 1.7; }
+  @media (max-width: 760px) {
+    html, body { overflow: auto; }
+    .layout { display: flex; flex-direction: column; min-height: 100dvh; height: auto; }
+    #preview { flex: none; height: 58dvh; min-height: 340px; }
+    aside { flex: 1; height: auto; overflow: visible; border: 0; border-top: 1px solid #132345; }
+    .sidebar { padding: 21px 18px 30px; }
+    .key-help { grid-template-columns: 1fr 1fr; }
   }
-}
+  @media (prefers-reduced-motion: reduce) { button { transition: none; } }
 </style>
 </head>
-
 <body>
-
 <div class="layout">
-
-  <!-- 共用正式版的同一座球場 -->
-  <iframe
-    id="preview"
-    src="./index.html?vbDev=1"
-    title="排球場開發版預覽"
-  ></iframe>
-
+  <iframe id="preview" src="./index.html?vbDev=1" title="排球場開發版預覽"></iframe>
   <aside>
-
-    <h1>排球場 · 開發者</h1>
-
-    <p class="sub">
-      獨立測試，不影響正式版紀錄。
-      <br>
-      <span id="status">正在連接球場…</span>
-    </p>
-
-    <!-- 日夜預覽 -->
-    <section>
-
-      <h2>日夜預覽</h2>
-
-      <div class="buttons">
-        <button data-hour="5.5">黎明</button>
-        <button data-hour="9.5">上午</button>
-        <button data-hour="12.5">正午</button>
-        <button data-hour="16.5">黃昏</button>
-        <button data-hour="18.8">入夜</button>
-        <button data-hour="23">深夜</button>
+    <div class="sidebar">
+      <p class="eyebrow">VOLLEYBALL COURT / DEV</p>
+      <h1>排球場・開發者</h1>
+      <p class="intro">獨立測試環境，不影響正式版的造訪、解鎖與心情紀錄。</p>
+      <div class="connection" aria-label="系統狀態">
+        <div class="connection-row"><span>3D 球場</span><strong id="sceneState">連接中</strong></div>
+        <div class="connection-row"><span>逐日解鎖</span><strong id="itemsState">檢查中</strong></div>
+        <div class="connection-row"><span>自由漫遊／雙搖桿</span><strong id="roamState">檢查中</strong></div>
+        <p id="status" role="status" aria-live="polite">正在連接球場…</p>
       </div>
 
-      <p class="note">
-        切換後，球場時間會繼續自然前進。
-      </p>
+      <section>
+        <div class="section-label"><h2>日夜預覽</h2><span class="section-num">01 / 光線</span></div>
+        <div class="button-grid" id="timeButtons">
+          <button type="button" data-hour="5.5">黎明</button>
+          <button type="button" data-hour="9.5">上午</button>
+          <button type="button" data-hour="12.5">正午</button>
+          <button type="button" data-hour="16.5">黃昏</button>
+          <button type="button" data-hour="18.8">入夜</button>
+          <button type="button" data-hour="23">深夜</button>
+        </div>
+        <p class="note">只切換預覽時段；球場時間仍會自然流動。</p>
+      </section>
 
-    </section>
+      <section>
+        <div class="section-label"><h2>造訪天數與解鎖</h2><span class="section-num">02 / 物件</span></div>
+        <select id="visitDay" aria-label="選擇預覽造訪天數">
+          <option value="1">第 1 天・原始球場</option>
+          <option value="2">第 2 天・水瓶／毛巾</option>
+          <option value="3">第 3 天・排球車</option>
+          <option value="5">第 5 天・裁判椅</option>
+          <option value="7">第 7 天・場邊物件</option>
+          <option value="10">第 10 天・野餐墊／香檳</option>
+          <option value="14">第 14 天・黑貓</option>
+          <option value="15">第 15 天・野餐籃</option>
+          <option value="30">第 30 天・帆船</option>
+        </select>
+        <button id="testSpikeUnlock" class="primary space-top" type="button">測試：殺球後解鎖本日物件</button>
+        <p class="note">選擇天數會直接展示當天內容；按下「測試」後，本日新物件會先隱藏，完成有效殺球才會緩緩降落。</p>
+      </section>
 
-    <!-- 攝影機 -->
-    <section>
+      <section>
+        <div class="section-label"><h2>漫遊與攝影機</h2><span class="section-num">03 / 操作</span></div>
+        <div class="button-grid">
+          <button id="focusCourt" type="button" class="primary">進入球場操作</button>
+          <button id="resetCamera" type="button" class="secondary">恢復初始視角</button>
+        </div>
+        <p class="note">手機拖曳左右白色搖桿；電腦可全程使用鍵盤。進入球場後，按下列按鍵操作：</p>
+        <div class="key-help">
+          <div><kbd>WASD</kbd> 移動</div>
+          <div><kbd>↑↓←→</kbd> 視角</div>
+          <div><kbd>E</kbd> 對準互動</div>
+          <div><kbd>Space</kbd> 擊球</div>
+          <div><kbd>+ / -</kbd> 遠近</div>
+          <div><kbd>R</kbd> 重置</div>
+          <div><kbd>Shift</kbd> 加速</div>
+          <div><kbd>Esc</kbd> 離開特殊視角</div>
+        </div>
+      </section>
 
-      <h2>攝影機</h2>
+      <section>
+        <div class="section-label"><h2>生日彩蛋</h2><span class="section-num">04 / 演出</span></div>
+        <button id="testBirthday" type="button" class="primary">播放生日彩蛋</button>
+        <p class="note">直接觸發雙燭火彩蛋；目前播放球場內已實作的版本。20 秒星光文字演出仍在後續美術調整中。</p>
+      </section>
 
-      <button id="resetCamera" style="width:100%">
-        恢復初始視角
-      </button>
-
-    </section>
-
-    <!-- 造訪天數 -->
-    <section>
-
-      <h2>造訪天數預覽</h2>
-
-      <select id="visitDay">
-
-        <option value="1">第 1 天</option>
-        <option value="2">第 2 天</option>
-        <option value="3">第 3 天</option>
-        <option value="5">第 5 天</option>
-        <option value="7">第 7 天</option>
-        <option value="10">第 10 天</option>
-        <option value="14">第 14 天</option>
-        <option value="15">第 15 天</option>
-        <option value="30">第 30 天</option>
-
-      </select>
-<button
-  id="testSpikeUnlock"
-  type="button"
-  style="width:100%;margin-top:10px"
->
-  測試：殺球後解鎖本日物件
-</button>
-<p class="note">
-  選擇天數可直接預覽物件。
-  按下測試按鈕後，當天的新物件會先隱藏，
-  必須完成有效殺球才會降落。
-</p>
-
-    </section>
-
-    <!-- 未來測試功能 -->
-    <section>
-
-      <h2>後續開放</h2>
-
-      <div class="buttons">
-        <button id="testBirthday" type="button">
-          播放生日彩蛋
-        </button>
-        <button disabled>小雨／雷雨</button>
-        <button disabled>彩虹</button>
-        <button disabled>球車整理</button>
-      </div>
-
-      <p class="note">
-        這些功能會在後續階段逐一接入。
-      </p>
-
-    </section>
-
+      <section>
+        <div class="section-label"><h2>後續製作</h2><span class="section-num">05 / 預留</span></div>
+        <div class="future">
+          <button type="button" disabled>小雨／雷雨</button>
+          <button type="button" disabled>彩虹</button>
+          <button type="button" disabled>發球機遊戲</button>
+          <button type="button" disabled>射手座</button>
+        </div>
+        <p class="note">未完成的功能維持停用，不會影響目前的場景測試。</p>
+      </section>
+      <p class="footer">DEV MODE · 造訪紀錄與正式版分開儲存。</p>
+    </div>
   </aside>
-
 </div>
-
 <script>
+(() => {
+  'use strict';
 
-/* ===== 開發者控制台 ===== */
+  const preview = document.querySelector('#preview');
+  const status = document.querySelector('#status');
+  const visitDay = document.querySelector('#visitDay');
+  const sceneState = document.querySelector('#sceneState');
+  const itemsState = document.querySelector('#itemsState');
+  const roamState = document.querySelector('#roamState');
+  const testSpikeUnlock = document.querySelector('#testSpikeUnlock');
+  const timeButtons = [...document.querySelectorAll('[data-hour]')];
+  let firstDaySynced = false;
+  let previewLoaded = false;
 
-const preview = document.querySelector('#preview');
-const status = document.querySelector('#status');
-const visitDay = document.querySelector('#visitDay');
+  function report(message, kind = '') {
+    status.textContent = message;
+    status.dataset.kind = kind;
+  }
 
-let ready = false;
+  function court() {
+    try {
+      return preview.contentWindow;
+    } catch (e) {
+      return null;
+    }
+  }
 
-// 傳送指令給球場
-function send(action, extra = {}) {
+  function isFn(g, name) { return !!g && typeof g[name] === 'function'; }
 
-  if (!ready) return;
+  function checkConnection() {
+    const g = court();
+    const scene = isFn(g, 'startBirthday');
+    const items = isFn(g, 'setWorldPreviewDay');
+    const roam = isFn(g, 'vbRoamStep');
 
-  preview.contentWindow.postMessage(
-    {
-      type: 'VB_DEV_COMMAND',
-      action,
-      ...extra
-    },
-    location.origin === 'null'
-      ? '*'
-      : location.origin
-  );
-}
+    sceneState.textContent = scene ? '已載入' : '未就緒';
+    itemsState.textContent = items ? '已載入' : '未就緒';
+    roamState.textContent = roam ? '已載入' : '尚未載入';
+    testSpikeUnlock.disabled = !isFn(g, 'worldTestSpikeUnlock');
 
-// ===== 檢查球場與場邊物件是否載入 =====
+    if (!previewLoaded) return;
 
-let previewInitialized = false;
-
-function connectPreview() {
-
-  const game = preview.contentWindow;
-
-  if (!game) return;
-
-  const sceneReady =
-    typeof game.startBirthday === 'function';
-
-  const itemsReady =
-    typeof game.setWorldPreviewDay === 'function';
-
-  // 原本日夜、攝影機按鈕使用這個狀態
-  ready = sceneReady;
-
-  if (itemsReady) {
-
-    status.textContent =
-      '已連線，場邊物件可以預覽';
-
-    // 第一次載入時同步目前選擇的天數
-    if (!previewInitialized) {
-
-      previewInitialized = true;
-
-      game.setWorldPreviewDay(
-        Number(visitDay.value)
-      );
+    if (scene && items && !firstDaySynced) {
+      firstDaySynced = true;
+      try { g.setWorldPreviewDay(Number(visitDay.value)); }
+      catch (e) { report('天數同步失敗，請檢查瀏覽器控制台。', 'error'); }
     }
 
-  } else if (sceneReady) {
-
-    status.textContent =
-      '球場已載入，但場邊物件尚未載入';
-
-  } else {
-
-    status.textContent =
-      '正在等待球場載入…';
-
-  }
-}
-
-// iframe 完整載入後檢查
-preview.addEventListener('load', () => {
-
-  previewInitialized = false;
-  connectPreview();
-
-});
-
-// 處理 iframe 比外層程式更早載入的情況
-connectPreview();
-  
-// 日夜按鈕
-document.querySelectorAll('[data-hour]').forEach(button => {
-
-  button.addEventListener('click', () => {
-
-    send('time', {
-      hour: Number(button.dataset.hour)
-    });
-
-  });
-
-});
-
-// 重置攝影機
-document.querySelector('#resetCamera').addEventListener(
-  'click',
-  () => send('resetCamera')
-);
-
-// 開發者：直接切換造訪天數
-
-visitDay.addEventListener('change', () => {
-
-  const game = preview.contentWindow;
-
-  if (
-    !game ||
-    typeof game.setWorldPreviewDay !== 'function'
-  ) {
-
-    status.textContent =
-      '場邊物件系統尚未載入，請檢查 world-items.js';
-
-    return;
+    if (!scene) report('球場尚未初始化，請檢查 index.html。', 'error');
+    else if (!items) report('球場已載入，但 world-items.js 未就緒。', 'error');
+    else if (!roam) report('球場與物件已連線；請確認已上傳 roam-controls.js。');
+    else if (!status.dataset.kind || status.dataset.kind === 'error')
+      report('三套系統已連線，可以開始預覽。', 'success');
   }
 
-  // 不依賴原本的訊息連線狀態
-  game.setWorldPreviewDay(
-    Number(visitDay.value)
-  );
+  function send(action, extra = {}) {
+    const g = court();
+    if (!isFn(g, 'startBirthday')) {
+      report('球場尚未載入，無法執行指令。', 'error');
+      return false;
+    }
+    g.postMessage({ type: 'VB_DEV_COMMAND', action, ...extra },
+      location.origin === 'null' ? '*' : location.origin);
+    return true;
+  }
 
-  status.textContent =
-    `已切換至第 ${visitDay.value} 天`;
-
-});
-
-// 開發者：測試殺球後解鎖
-
-document.querySelector('#testSpikeUnlock')
-  .addEventListener('click', () => {
-
-    const game = preview.contentWindow;
-
-    if (
-      !game ||
-      typeof game.worldTestSpikeUnlock !== 'function'
-    ) {
-      status.textContent =
-        '測試功能尚未載入，請重新整理開發者頁面';
+  function focusCourt() {
+    const g = court();
+    if (!g || !isFn(g, 'startBirthday')) {
+      report('球場尚未載入。', 'error');
       return;
     }
-
-    const ok = game.worldTestSpikeUnlock();
-
-    status.textContent = ok
-      ? `第 ${visitDay.value} 天物件待命，請完成殺球`
-      : '無法測試：請選擇有新物件的日期，並等待上一段動畫結束';
-
-  });
-  
-// 開發者：直接播放生日彩蛋
-document.querySelector('#testBirthday')
-  .addEventListener('click', () => {
-
-    const courtWindow =
-      document.querySelector('#preview').contentWindow;
-
-    if (typeof courtWindow.startBirthday === 'function') {
-
-      courtWindow.startBirthday();
-
-    } else {
-
-      alert('生日彩蛋尚未載入，請重新整理開發者頁面。');
-
+    try {
+      g.focus();
+      const canvas = g.document.querySelector('#c');
+      if (canvas) {
+        canvas.tabIndex = 0;
+        canvas.focus({ preventScroll: true });
+      }
+      report('已進入球場：使用 WASD 與方向鍵操作。', 'success');
+    } catch (e) {
+      report('無法將焦點移到球場；請直接點一下左側畫面。', 'error');
     }
+  }
 
+  preview.addEventListener('load', () => {
+    previewLoaded = true;
+    firstDaySynced = false;
+    report('場景載入完成，正在檢查功能…');
+    checkConnection();
   });
-</script>
 
+  // 定期更新載入狀態（只在控制台停留期間檢查，不改動球場資料）。
+  setInterval(() => {
+    const g = court();
+    const previous = `${sceneState.textContent}/${itemsState.textContent}/${roamState.textContent}`;
+    const next = `${isFn(g,'startBirthday') ? '已載入' : '未就緒'}/` +
+      `${isFn(g,'setWorldPreviewDay') ? '已載入' : '未就緒'}/` +
+      `${isFn(g,'vbRoamStep') ? '已載入' : '尚未載入'}`;
+    if (previous !== next || !firstDaySynced) checkConnection();
+  }, 900);
+
+  timeButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      if (!send('time', { hour: Number(button.dataset.hour) })) return;
+      timeButtons.forEach(b => b.classList.toggle('active', b === button));
+      report(`已切換至「${button.textContent.trim()}」，球場時間繼續前進。`, 'success');
+    });
+  });
+
+  visitDay.addEventListener('change', () => {
+    const g = court();
+    if (!isFn(g, 'setWorldPreviewDay')) {
+      report('場邊物件尚未載入，請檢查 world-items.js。', 'error');
+      return;
+    }
+    try {
+      g.setWorldPreviewDay(Number(visitDay.value));
+      report(`已切換至第 ${visitDay.value} 天；可直接預覽物件。`, 'success');
+    } catch (e) {
+      report('切換天數失敗，請檢查 JavaScript 錯誤。', 'error');
+    }
+  });
+
+  testSpikeUnlock.addEventListener('click', () => {
+    const g = court();
+    if (!isFn(g, 'worldTestSpikeUnlock')) {
+      report('殺球解鎖測試程式未載入。', 'error');
+      return;
+    }
+    try {
+      const ok = g.worldTestSpikeUnlock();
+      report(ok
+        ? `第 ${visitDay.value} 天物件已待命，完成有效殺球後才會降落。`
+        : '目前無法測試：請選有新物件的日期，並等待前段降落結束。', ok ? 'success' : 'error');
+    } catch (e) {
+      report('測試發生錯誤，請檢查 world-items.js。', 'error');
+    }
+  });
+
+  document.querySelector('#focusCourt').addEventListener('click', focusCourt);
+  document.querySelector('#resetCamera').addEventListener('click', () => {
+    const g = court();
+    if (isFn(g, 'vbRoamReset')) {
+      g.vbRoamReset();
+      report('已恢復球場中央與預設視角。', 'success');
+    } else if (send('resetCamera')) {
+      report('已要求攝影機恢復預設視角。', 'success');
+    }
+  });
+
+  document.querySelector('#testBirthday').addEventListener('click', () => {
+    const g = court();
+    if (!isFn(g, 'startBirthday')) {
+      report('生日彩蛋尚未載入。', 'error');
+      return;
+    }
+    try {
+      g.startBirthday();
+      report('已播放目前版本的生日彩蛋。', 'success');
+    } catch (e) {
+      report('生日彩蛋執行失敗，請檢查 index.html。', 'error');
+    }
+  });
+
+  checkConnection();
+})();
+</script>
 </body>
 </html>
