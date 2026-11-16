@@ -79,7 +79,7 @@
   <iframe id="preview" src="./index.html?vbDev=1" title="排球場開發版預覽"></iframe>
   <aside>
     <div class="sidebar">
-      <p class="eyebrow">VOLLEYBALL COURT / DEV</p>
+    
       <h1>排球場・開發者</h1>
       <p class="intro">獨立測試環境，不影響正式版的造訪、解鎖與心情紀錄。</p>
       <div class="connection" aria-label="系統狀態">
@@ -107,13 +107,7 @@
         >
   測試：射手座人馬射箭
 </button>
-        <button
-          id="testSagittarius"
-          type="button"
-          class="secondary space-top"
-        >
-          預覽射手座・裁判椅夜空
-        </button>
+       
       </section>
 
       <section>
@@ -385,39 +379,7 @@ document.querySelector('#testMachine')
     }
 
   });
-  // ===== 開發者：射手座夜空測試 =====
-
-document.querySelector('#testSagittarius')
-  .addEventListener('click', () => {
-
-    const g = court();
-
-    if (
-      !isFn(g, 'worldPreviewSagittarius')
-    ) {
-
-      report(
-        '射手座尚未載入，請檢查 world-items.js。',
-        'error'
-      );
-
-      return;
-    }
-
-    // 切換到深夜
-    if (!send('time', { hour: 23 })) return;
-
-    // 直接切換至裁判椅視角
-    const ok = g.worldPreviewSagittarius();
-
-    report(
-      ok
-        ? '已切換深夜裁判椅視角。滑鼠移到星群，才會出現緩慢閃爍的連線。'
-        : '目前正在播放其他演出，請先結束後再預覽。',
-      ok ? 'success' : 'error'
-    );
-
-  });
+ 
   // ===== 開發者：射手座人馬射箭測試 =====
 
 document.querySelector('#testSagArrow')
