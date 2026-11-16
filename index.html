@@ -1920,7 +1920,7 @@ const flowerSets = trees.map(tree => {
 });
 
 function flowerStep(t) {
-  const out = c01((BDAY_LENGTH - 2.5 - t) / 3);
+  const out = c01((BDAY_LENGTH - .35 - t) / .65);
   flowerSets.forEach(set => {
     set.pts.forEach((p, i) => {
       const bloom = c01((t - 1.6 - p.delay) / .9);
@@ -2251,65 +2251,75 @@ function playBirthdayChime() {
 let bdayCamSaved = null;
 let bdayCamTouched = false;
 cv.addEventListener('pointerdown', () => { bdayCamTouched = true; }, true);
-// ===== 生日彩蛋：原有星星排列「生日快樂」 =====
+// ===== 生日星座文字：以原有星點排成四字 =====
+
+let birthdayLetterLines = null;
+let birthdayMeteorLines = null;
+let birthdayLinePairs = [];
+let birthdayStarsUsed = [];
 
 function buildBirthdayStars() {
 
   const canvas = document.createElement('canvas');
+  canvas.width = 960;
+  canvas.height = 240;
 
-  canvas.width = 768;
-  canvas.height = 192;
+  const g = canvas.getContext('2d', {
+    willReadFrequently: true
+  });
 
-  const g = canvas.getContext(
-    '2d',
-    { willReadFrequently: true }
-  );
+  g.clearRect(0, 0, 960, 240);
 
-  g.clearRect(0, 0, 768, 192);
-
-  g.fillStyle = '#ffffff';
+  g.strokeStyle = '#fff';
+  g.lineWidth = 10;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
 
   g.font =
-    '700 136px "PingFang TC","Noto Sans CJK TC","Microsoft JhengHei",sans-serif';
+    '700 156px "PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif';
 
   g.textAlign = 'center';
   g.textBaseline = 'middle';
 
-  g.fillText('生日快樂', 384, 98);
+  // 四個字分開描邊，不使用實心發光字
+  [...'生日快樂'].forEach((char, i) => {
+    g.strokeText(char, 120 + i * 240, 122);
+  });
 
-
-  // 從文字筆畫取出星星排列位置
-
-  const data =
-    g.getImageData(0, 0, 768, 192).data;
+  const pixels =
+    g.getImageData(0, 0, 960, 240).data;
 
   const dots = [];
+  const step = 14;
 
-  for (let y = 12; y < 184; y += 7) {
+  for (let ch = 0; ch < 4; ch++) {
 
-    for (let x = 30; x < 738; x += 7) {
+    for (let y = 19; y < 221; y += step) {
 
-      const alpha =
-        data[(y * 768 + x) * 4 + 3];
+      for (
+        let x = ch * 240 + 22;
+        x < (ch + 1) * 240 - 22;
+        x += step
+      ) {
 
-      if (alpha > 140) {
-        dots.push([x, y]);
+        const a =
+          pixels[(y * 960 + x) * 4 + 3];
+
+        if (a > 55) {
+          dots.push({ x, y, ch });
+        }
+
       }
-
     }
-
   }
 
   if (!dots.length) return;
 
-
-  // 以當前鏡頭方向建立空中的文字平面
-
+  // 根據當前攝影機建立空中的文字位置
   cam.updateMatrixWorld(true);
 
-  const fwd = new T3.Vector3();
-
-  cam.getWorldDirection(fwd);
+  const forward = new T3.Vector3();
+  cam.getWorldDirection(forward);
 
   const right =
     new T3.Vector3(1, 0, 0)
@@ -2319,93 +2329,314 @@ function buildBirthdayStars() {
     new T3.Vector3(0, 1, 0)
       .applyQuaternion(cam.quaternion);
 
-  const depth = 122;
+  const depth = 120;
 
-  // 根據手機／電腦螢幕比例調整文字寬度
+  // 手機和電腦都能完整容納四個字
   const width = Math.min(
-    80,
+    84,
     2 * depth *
     Math.tan(cam.fov * PI / 360) *
-    cam.aspect * .86
+    cam.aspect * .83
   );
 
   const center =
     cam.position.clone()
-      .addScaledVector(fwd, depth)
-      .addScaledVector(up, 12);
+      .addScaledVector(forward, depth)
+      .addScaledVector(up, 10);
 
+  birthdayStarsUsed = [];
 
-  // 只移動需要排字的星星
-
-  const count =
-    Math.min(stars.length, dots.length);
-
-  stars.forEach(s => {
+  for (const s of stars) {
     s.birthdayTarget = null;
-  });
+    s.meteorTarget = null;
+  }
 
+  const count = Math.min(
+    stars.length,
+    dots.length
+  );
+
+  // 使用球場原本的星星排列文字
   for (let i = 0; i < count; i++) {
 
     const dot = dots[
-      Math.floor(i * dots.length / count)
+      Math.floor(
+        (i + .5) * dots.length / count
+      )
     ];
 
-    stars[i].birthdayTarget =
-      center.clone()
+    const s = stars[i];
 
+    s.birthdayTarget =
+      center.clone()
         .addScaledVector(
           right,
-          (dot[0] / 768 - .5) * width
+          (dot.x / 960 - .5) * width
         )
-
         .addScaledVector(
           up,
-          (.5 - dot[1] / 192) * width * .25
+          (.5 - dot.y / 240) * width * .25
         );
+
+    // 流星雨最終朝球場附近下降
+    s.meteorTarget = new T3.Vector3(
+      rnd(-17, 17),
+      rnd(1.8, 5.5),
+      rnd(-13, 13)
+    );
+
+    s.meteorDelay = rnd(0, .8);
+
+    birthdayStarsUsed.push({ s, dot });
+  }
+
+  // ===== 星座式連線 =====
+
+  birthdayLinePairs = [];
+
+  const used = birthdayStarsUsed;
+
+  for (let i = 0; i < used.length; i++) {
+
+    const a = used[i].dot;
+    const near = [];
+
+    for (
+      let j = i + 1;
+      j < used.length;
+      j++
+    ) {
+
+      const b = used[j].dot;
+
+      // 不跨字連線
+      if (a.ch !== b.ch) continue;
+
+      const d = Math.hypot(
+        a.x - b.x,
+        a.y - b.y
+      );
+
+      if (d >= 12 && d <= 24) {
+        near.push({ j, d });
+      }
+
+    }
+
+    near.sort((u, v) => u.d - v.d);
+
+    near.slice(0, 2).forEach(n => {
+      birthdayLinePairs.push([i, n.j]);
+    });
+
+  }
+
+  if (birthdayLetterLines) {
+    sc.remove(birthdayLetterLines);
+    birthdayLetterLines.geometry.dispose();
+    birthdayLetterLines.material.dispose();
+  }
+
+  const linePoints =
+    birthdayLinePairs.flatMap(
+      ([a, b]) => [
+        used[a].s.birthdayTarget,
+        used[b].s.birthdayTarget
+      ]
+    );
+
+  birthdayLetterLines =
+    new T3.LineSegments(
+
+      new T3.BufferGeometry()
+        .setFromPoints(linePoints),
+
+      new T3.LineBasicMaterial({
+        color: 0xdceaff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        fog: false
+      })
+
+    );
+
+  birthdayLetterLines.frustumCulled = false;
+  sc.add(birthdayLetterLines);
+
+  // ===== 流星尾痕 =====
+
+  if (birthdayMeteorLines) {
+    sc.remove(birthdayMeteorLines);
+    birthdayMeteorLines.geometry.dispose();
+    birthdayMeteorLines.material.dispose();
+  }
+
+  const meteorGeo = new T3.BufferGeometry();
+
+  meteorGeo.setAttribute(
+    'position',
+    new T3.BufferAttribute(
+      new Float32Array(count * 6),
+      3
+    )
+  );
+
+  birthdayMeteorLines =
+    new T3.LineSegments(
+
+      meteorGeo,
+
+      new T3.LineBasicMaterial({
+        color: 0xe8efff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        fog: false
+      })
+
+    );
+
+  birthdayMeteorLines.frustumCulled = false;
+  sc.add(birthdayMeteorLines);
+
+}
+
+
+// ===== 星字聚集、下落與尾痕 =====
+
+function moveBirthdayStars() {
+
+  if (!bday.active) return;
+
+  const t = bday.t;
+
+  const gather =
+    sm01(c01((t - 2.4) / 3.1));
+
+  const fallStart = 13.8;
+
+  const tails = birthdayMeteorLines
+    ? birthdayMeteorLines.geometry
+        .attributes.position
+    : null;
+
+  birthdayStarsUsed.forEach(
+    ({ s }, i) => {
+
+      const m =
+        sm01(c01(
+          (t - fallStart - s.meteorDelay) / 3.5
+        ));
+
+      // 原本的星空 → 星座文字
+      const word =
+        s.home.clone()
+          .lerp(s.birthdayTarget, gather);
+
+      // 星座文字 → 球場方向
+      s.s.position
+        .copy(word)
+        .lerp(s.meteorTarget, m);
+
+      // 流星尾痕朝飛行反方向延伸
+      if (tails) {
+
+        const head = s.s.position;
+
+        const d =
+          s.birthdayTarget.clone()
+            .sub(s.meteorTarget)
+            .normalize();
+
+        const trail =
+          5.8 * Math.sin(m * PI);
+
+        tails.setXYZ(
+          i * 2,
+          head.x,
+          head.y,
+          head.z
+        );
+
+        tails.setXYZ(
+          i * 2 + 1,
+          head.x + d.x * trail,
+          head.y + d.y * trail,
+          head.z + d.z * trail
+        );
+
+      }
+
+      // 下落時逐漸淡出
+      s.s.material.opacity = Math.min(
+        1,
+        (.20 + .8 * gather) *
+        (1 - .94 * m)
+      );
+
+      s.s.scale.setScalar(
+        (
+          s.baseSize * (1 - gather) +
+          1.05 * gather
+        ) *
+        (1 - .35 * m)
+      );
+
+      if (s.halo) {
+        s.halo.material.opacity = 0;
+      }
+
+    }
+  );
+
+  // 星座文字的半透明連線
+  if (birthdayLetterLines) {
+
+    birthdayLetterLines.material.opacity =
+
+      .24 *
+      sm01(c01((gather - .65) / .35)) *
+
+      (
+        1 -
+        sm01(c01((t - fallStart) / .75))
+      );
+
+  }
+
+  // 流星的短尾痕
+  if (birthdayMeteorLines) {
+
+    tails.needsUpdate = true;
+
+    birthdayMeteorLines.material.opacity =
+
+      .34 *
+      sm01(c01((t - fallStart) / .45)) *
+
+      (
+        1 -
+        sm01(c01((t - 17.7) / 1.3))
+      );
 
   }
 
 }
 
 
-// ===== 星星移動、停留、返回 =====
+// ===== 演出結束：恢復所有原始星點 =====
 
-function moveBirthdayStars() {
-
-  if (!bday.active) return;
-
-  const entrance = sm01(
-    c01((bday.t - 2.4) / 3.3)
-  );
-
-  const departure = sm01(
-    c01((bday.t - 15.0) / 4.6)
-  );
-
-  const morph =
-    entrance * (1 - departure);
-
+function clearBirthdayStars() {
 
   for (const s of stars) {
 
-    if (!s.birthdayTarget) continue;
+    s.s.position.copy(s.home);
+    s.s.scale.setScalar(s.baseSize);
 
-    // 從原本位置移向文字，最後返回原位
-    s.s.position
-      .copy(s.home)
-      .lerp(s.birthdayTarget, morph);
-
-    s.s.material.opacity =
-      Math.max(
-        s.s.material.opacity,
-        .97 * morph
-      );
-
-    // 排字時讓星點尺寸一致、容易辨認
-    s.s.scale.setScalar(
-      s.baseSize * (1 - morph) +
-      1.02 * morph
-    );
+    s.birthdayTarget = null;
+    s.meteorTarget = null;
+    s.meteorDelay = 0;
 
     if (s.halo) {
       s.halo.material.opacity = 0;
@@ -2413,8 +2644,26 @@ function moveBirthdayStars() {
 
   }
 
-}
+  birthdayStarsUsed = [];
+  birthdayLinePairs = [];
 
+  for (const line of [
+    birthdayLetterLines,
+    birthdayMeteorLines
+  ]) {
+
+    if (!line) continue;
+
+    sc.remove(line);
+    line.geometry.dispose();
+    line.material.dispose();
+
+  }
+
+  birthdayLetterLines = null;
+  birthdayMeteorLines = null;
+
+}
 
 // ===== 遠方的小型煙火 =====
 
@@ -2448,48 +2697,19 @@ function distantBirthdayFirework(x, z) {
   }
 
 }
-function startBirthday() {
-  if (bday.active) return;
 
-  Object.assign(bday, {
-    active: true, t: 0, lit: false, glow: 0, fireBurst: 0, starFlash: 0, flash: 0, magic: 0,
-    theme: BDAY_THEMES[(Math.random() * BDAY_THEMES.length) | 0],
-    next: 0, heart: false, finale: false, meteors: Math.random() < .35,
-    lantern: false, ribbon2: false, ribbon3: false
-  });
-
-  candleBlowAt.fill(-Infinity);
-  flames.forEach(f => { f.t = .6; });
-
-  bdayShade.style.opacity = '0.87';
-  ribbonMesh.visible = false;
-
-  // 鏡頭：只有在一般視角時才自動抬頭看天空
-  bdayCamTouched = false;
-  const mode = typeof worldCameraMode === 'function' ? worldCameraMode() : 'orbit';
-  bdayCamSaved = mode === 'orbit' ? { th: ct.th, ph: ct.ph, d: ct.d, tilt: ct.tilt } : null;
-}
-
-function endBirthday() {
-  bday.active = false;
-  bday.glow = bday.fireBurst = bday.starFlash = bday.flash = bday.magic = 0;
-  bdayShade.style.opacity = '0';
-  amb.intensity = .8;
-
-  flowerSets.forEach(s => { s.mesh.visible = false; });
-  pools.forEach(p => { p.material.opacity = 0; });
-  flares.forEach(s => { s.material.opacity = 0; });
-  for (let i = bdayLanterns.length - 1; i >= 0; i--) removeLantern(i);
-
-  if (bdayCamSaved && !bdayCamTouched) Object.assign(ct, bdayCamSaved);
-  bdayCamSaved = null;
-}
-
-// ===== 生日彩蛋：20 秒新版 =====
+// ===== 生日彩蛋：星座文字、流星雨與音樂同步 =====
 
 function startBirthday() {
 
   if (bday.active) return;
+
+  // 特殊視角先返回球場
+  if (
+    typeof window.worldExitSpecialView === 'function'
+  ) {
+    window.worldExitSpecialView();
+  }
 
   Object.assign(bday, {
 
@@ -2507,47 +2727,40 @@ function startBirthday() {
 
     wordBuilt: false,
     sparkOne: false,
-    sparkTwo: false
+    sparkTwo: false,
+
+    groundBounce: false,
+    catReacted: false
 
   });
 
-
   candleBlowAt.fill(-Infinity);
 
-  // 讓兩根燭火進入熄滅狀態
   flames.forEach(f => {
     f.t = .6;
   });
 
-  // 短暫暗場
   bdayShade.style.opacity = '.87';
-
-  // 不再播放彩帶
   ribbonMesh.visible = false;
-
-
-  // 保存原本的攝影機角度
 
   bdayCamTouched = false;
 
-  const mode =
-    typeof worldCameraMode === 'function'
-      ? worldCameraMode()
-      : 'orbit';
+  bdayCamSaved = {
+    th: ct.th,
+    ph: ct.ph,
+    d: ct.d,
+    tilt: ct.tilt,
+    x: tgtP.x,
+    z: tgtP.z
+  };
 
-  bdayCamSaved = mode === 'orbit'
-    ? {
-        th: ct.th,
-        ph: ct.ph,
-        d: ct.d,
-        tilt: ct.tilt
-      }
-    : null;
+  // 原本音樂淡出，生日旋律逐漸進入
+  beginBirthdayMusic();
 
 }
 
 
-// ===== 結束生日演出 =====
+// ===== 結束生日彩蛋 =====
 
 function endBirthday() {
 
@@ -2561,15 +2774,9 @@ function endBirthday() {
 
   bdayShade.style.opacity = '0';
 
-  amb.intensity = .8;
-
-
-  // 黃花消失
-
-  flowerSets.forEach(s => {
-    s.mesh.visible = false;
+  flowerSets.forEach(set => {
+    set.mesh.visible = false;
   });
-
 
   pools.forEach(p => {
     p.material.opacity = 0;
@@ -2579,30 +2786,24 @@ function endBirthday() {
     s.material.opacity = 0;
   });
 
+  clearBirthdayStars();
 
-  // 所有星星回到原本位置
-
-  for (const s of stars) {
-
-    s.s.position.copy(s.home);
-
-    s.birthdayTarget = null;
-
-  }
-
-
-  // 恢復攝影機
-
+  // 最後讓視線停在球場
   if (
     bdayCamSaved &&
     !bdayCamTouched
   ) {
 
-    Object.assign(ct, bdayCamSaved);
+    ct.th = bdayCamSaved.th;
+    ct.ph = 1.03;
+    ct.tilt = 0;
+    ct.d = Math.max(27, bdayCamSaved.d);
 
   }
 
   bdayCamSaved = null;
+
+  endBirthdayMusic();
 
 }
 
@@ -2615,30 +2816,51 @@ function birthdayStep(dt) {
 
   if (!bday.active) return;
 
-  bday.t += dt;
+  // 音樂有播放時，以音訊時鐘同步畫面
+  if (
+    birthdayAudioStart !== null &&
+    musicCtx &&
+    musicCtx.state === 'running'
+  ) {
+
+    bday.t = Math.min(
+      BDAY_LENGTH,
+      Math.max(
+        bday.t,
+        musicCtx.currentTime -
+        birthdayAudioStart
+      )
+    );
+
+  } else {
+
+    // 靜音時仍正常播放動畫
+    bday.t = Math.min(
+      BDAY_LENGTH,
+      bday.t + dt
+    );
+
+  }
 
   const t = bday.t;
 
 
-  // 1.2 秒：燭火重新燃起
+  // ===== 1.2 秒：燭火重新燃起 =====
 
-  if (
-    t >= 1.2 &&
-    !bday.lit
-  ) {
+  if (t >= 1.2 && !bday.lit) {
 
     bday.lit = true;
 
     flames.forEach(f => {
-
       f.t = 7.2;
       f.pop = .3;
-
     });
 
+    flowerSets.forEach(s => {
+      s.mesh.visible = true;
+    });
 
-    // 讓排球輕輕彈起
-
+    // 排球第一次輕彈
     spikeFlight = null;
     hover = null;
 
@@ -2660,31 +2882,19 @@ function birthdayStep(dt) {
     }
 
     bv.set(
-      rnd(-.25, .25),
-      5.5,
-      rnd(-.25, .25)
+      rnd(-.2, .2),
+      5.0,
+      rnd(-.2, .2)
     );
 
     b.sq = .12;
 
 
-    // 樹木開出黃色小花
-
-    flowerSets.forEach(s => {
-      s.mesh.visible = true;
-    });
-
-
-    playBirthdayChime();
-
-
-    // 一般視角：讓攝影機慢慢抬頭
-
-    if (bdayCamSaved) {
+    // 先將視線引導到星空
+    if (!bdayCamTouched) {
 
       ct.ph = 1.38;
       ct.tilt = .58;
-
       ct.d = Math.max(ct.d, 32);
 
     }
@@ -2692,7 +2902,7 @@ function birthdayStep(dt) {
   }
 
 
-  // 暗場逐漸消失
+  // ===== 暗場緩緩消失 =====
 
   bdayShade.style.opacity =
     t < 1.2
@@ -2701,22 +2911,21 @@ function birthdayStep(dt) {
           .87 *
           (
             1 -
-            sm01(c01((t - 1.2) / .65))
+            sm01(c01((t - 1.2) / .7))
           )
         );
 
 
-  // 天空轉入星夜，再恢復原本日夜循環
+  // ===== 進入生日星夜 =====
 
   const nightIn =
     sm01(c01((t - 1.2) / 1.7));
 
   const nightOut =
-    1 - sm01(c01((t - 17) / 3));
+    1 - sm01(c01((t - 18) / 2));
 
   bday.magic =
     nightIn * nightOut;
-
 
   sc.background.lerp(
     MAGIC_SKY,
@@ -2745,9 +2954,6 @@ function birthdayStep(dt) {
     sun.visible = false;
   }
 
-
-  // 保留燭火周圍的小範圍光線
-
   bday.glow =
     .25 * bday.magic;
 
@@ -2760,7 +2966,7 @@ function birthdayStep(dt) {
       : 0;
 
 
-  // 2.4 秒：開始安排星星的位置
+  // ===== 2.4 秒：建立星座文字 =====
 
   if (
     t >= 2.4 &&
@@ -2768,13 +2974,12 @@ function birthdayStep(dt) {
   ) {
 
     bday.wordBuilt = true;
-
     buildBirthdayStars();
 
   }
 
 
-  // 9 秒與 14 秒：兩次遠方小煙火
+  // ===== 遠方兩次小煙火 =====
 
   if (
     t >= 9 &&
@@ -2789,9 +2994,8 @@ function birthdayStep(dt) {
 
   }
 
-
   if (
-    t >= 14 &&
+    t >= 12.3 &&
     !bday.sparkTwo
   ) {
 
@@ -2804,38 +3008,113 @@ function birthdayStep(dt) {
   }
 
 
-  // 柔和的燭火光池
+  // ===== 燭火周圍的柔和光線 =====
 
   if (bday.lit) {
 
-    const k = .25 * bday.magic;
-
     pools.forEach(p => {
-      p.material.opacity = k;
+      p.material.opacity =
+        .25 * bday.magic;
     });
 
     flares.forEach(s => {
-      s.material.opacity = k;
+      s.material.opacity =
+        .25 * bday.magic;
     });
 
   }
 
 
-  // 樹木開花與凋落
+  // ===== 樹木開花 =====
 
   flowerStep(t);
 
 
-  // 20 秒結束
+  // ===== 13.8 秒：流星雨引導鏡頭向下 =====
 
-  if (t >= BDAY_LENGTH) {
+  if (
+    !bdayCamTouched &&
+    t >= 13.8
+  ) {
 
-    endBirthday();
+    const lower =
+      sm01(c01((t - 13.8) / 3.25));
+
+    ct.ph =
+      1.38 + (1.03 - 1.38) * lower;
+
+    ct.tilt =
+      .58 * (1 - lower);
+
+    ct.d =
+      32 +
+      (
+        Math.max(27, bdayCamSaved.d) -
+        32
+      ) * lower;
+
+    // 視線逐漸回到球場中央
+    tgtP.x +=
+      (0 - tgtP.x) *
+      Math.min(1, dt * 1.7);
+
+    tgtP.z +=
+      (0 - tgtP.z) *
+      Math.min(1, dt * 1.7);
 
   }
 
-}
 
+  // ===== 16.1 秒：排球再次彈跳 =====
+
+  if (
+    t >= 16.1 &&
+    !bday.groundBounce
+  ) {
+
+    bday.groundBounce = true;
+
+    ball.position.set(
+      -3, BR, 2
+    );
+
+    bv.set(
+      0, 4.8, 0
+    );
+
+    b.sq = .1;
+
+  }
+
+
+  // ===== 16.1 秒：黑貓的生日反應 =====
+
+  if (
+    t >= 16.1 &&
+    !bday.catReacted
+  ) {
+
+    bday.catReacted = true;
+
+    if (
+      typeof window.worldBirthdayCatReaction
+      === 'function'
+    ) {
+
+      window.worldBirthdayCatReaction();
+
+    }
+
+  }
+
+
+  // ===== 音樂與彩蛋一起結束 =====
+
+  if (t >= BDAY_LENGTH) {
+    endBirthday();
+  }
+
+}
 
 let ptime=performance.now(),clk=0;
 function frame(now){
@@ -3446,7 +3725,249 @@ const MUSIC_CHORDS = [
 
 // 旋律音符的排列
 const MUSIC_PATTERN = [0, 2, 1, 3, 2, 1, 0, 2];
+// ===== 生日音樂：慢速音樂盒旋律 =====
+// 與一般背景音樂分開控制音量
 
+let birthdayMusicBus = null;
+let birthdayAudioStart = null;
+
+// 音高採 MIDI 數字，第二個數字是音符時值
+const BIRTHDAY_MELODY = [
+
+  [60,.35], [60,.35], [62,.72],
+  [60,.72], [65,.72], [64,1.10],
+
+  [60,.35], [60,.35], [62,.72],
+  [60,.72], [67,.72], [65,1.10],
+
+  [60,.35], [60,.35], [72,.72],
+  [69,.72], [65,.72], [64,.72],
+  [62,1.12],
+
+  [70,.35], [70,.35], [69,.72],
+  [65,.72], [67,.72], [65,2.15]
+
+];
+
+
+// ===== 產生柔和的生日音符 =====
+
+function birthdayTone(
+  midi,
+  at,
+  duration,
+  strength
+) {
+
+  if (!musicCtx || !birthdayMusicBus) return;
+
+  const hz =
+    440 * Math.pow(
+      2,
+      (midi - 69) / 12
+    );
+
+  // 主音加上極淡的八度泛音
+  for (const [ratio, volume] of [
+    [1, strength],
+    [2, strength * .14]
+  ]) {
+
+    const osc =
+      musicCtx.createOscillator();
+
+    const gain =
+      musicCtx.createGain();
+
+    osc.type = 'sine';
+
+    osc.frequency.setValueAtTime(
+      hz * ratio,
+      at
+    );
+
+    gain.gain.setValueAtTime(
+      .0001,
+      at
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+      Math.max(.0002, volume),
+      at + .045
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+      .0001,
+      at + duration
+    );
+
+    osc.connect(gain);
+    gain.connect(birthdayMusicBus);
+
+    osc.start(at);
+    osc.stop(at + duration + .025);
+
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
+
+  }
+
+}
+
+
+// ===== 開始生日音樂 =====
+
+function beginBirthdayMusic() {
+
+  birthdayAudioStart = null;
+
+  // 玩家原本關閉音樂，就保持靜音
+  if (
+    !musicAudible() ||
+    !AudioContextClass
+  ) return;
+
+  prepareMusicAudio();
+
+  if (!musicCtx || !musicMaster) return;
+
+  const now = musicCtx.currentTime;
+
+  birthdayAudioStart = now;
+
+
+  // 停止一般背景音樂繼續排入新音符
+  if (musicTimer !== null) {
+
+    clearInterval(musicTimer);
+    musicTimer = null;
+
+  }
+
+
+  // 原本音樂漸弱
+  musicMaster.gain.cancelScheduledValues(now);
+
+  musicMaster.gain.setValueAtTime(
+    musicMaster.gain.value,
+    now
+  );
+
+  musicMaster.gain.linearRampToValueAtTime(
+    .0001,
+    now + 1.15
+  );
+
+
+  // 建立生日旋律專屬音量
+  birthdayMusicBus =
+    musicCtx.createGain();
+
+  birthdayMusicBus.gain.setValueAtTime(
+    .0001,
+    now
+  );
+
+  birthdayMusicBus.gain.linearRampToValueAtTime(
+    getMusicVolumeLevel() * .82,
+    now + 2
+  );
+
+  birthdayMusicBus.gain.setValueAtTime(
+    getMusicVolumeLevel() * .82,
+    now + 18.5
+  );
+
+  birthdayMusicBus.gain.linearRampToValueAtTime(
+    .0001,
+    now + 20
+  );
+
+  birthdayMusicBus.connect(
+    musicCtx.destination
+  );
+
+
+  // 生日旋律從 1.55 秒開始
+  let at = now + 1.55;
+
+  BIRTHDAY_MELODY.forEach(
+    ([midi, length], i) => {
+
+      birthdayTone(
+        midi,
+        at,
+
+        // 最後一個音延長到約第 20 秒
+        i === BIRTHDAY_MELODY.length - 1
+          ? length + .78
+          : length * .91,
+
+        .095
+      );
+
+      // 每句開頭加一個極輕的低音
+      if ([0, 6, 12, 19].includes(i)) {
+
+        const bass =
+          i === 6
+            ? 48
+            : i === 19
+              ? 46
+              : 53;
+
+        birthdayTone(
+          bass,
+          at,
+          2.15,
+          .018
+        );
+
+      }
+
+      at += length;
+
+    }
+  );
+
+}
+
+
+// ===== 生日音樂結束，恢復原本背景音樂 =====
+
+function endBirthdayMusic() {
+
+  birthdayAudioStart = null;
+
+  if (birthdayMusicBus && musicCtx) {
+
+    const bus = birthdayMusicBus;
+    const now = musicCtx.currentTime;
+
+    bus.gain.cancelScheduledValues(now);
+
+    bus.gain.setTargetAtTime(
+      .0001,
+      now,
+      .05
+    );
+
+    birthdayMusicBus = null;
+
+    setTimeout(() => {
+      bus.disconnect();
+    }, 500);
+
+  }
+
+  // 不改變玩家原本的音樂設定
+  if (musicAudible()) {
+    startMusic();
+  }
+
+}
 // 產生一個柔和的音符
 function playMusicNote(
   midi,
@@ -3533,6 +4054,12 @@ function scheduleMusic() {
 // 開始播放音樂
 async function startMusic() {
 
+  // 生日彩蛋播放時，不啟動一般背景旋律
+  if (bday.active) {
+    applyMusicVolume();
+    return;
+  }
+
   if (!musicOn || !AudioContextClass || musicTimer) {
     return;
   }
@@ -3553,7 +4080,7 @@ async function startMusic() {
     return;
   }
 
-  if (!musicOn || musicTimer) return;
+  if (!musicOn || musicTimer || bday.active) return;
 
   const now = musicCtx.currentTime;
 
@@ -3597,6 +4124,18 @@ function stopMusic() {
     now,
     0.15
   );
+  // 使用者在生日演出中關閉音樂，也立即淡出生日歌
+if (birthdayMusicBus) {
+
+  birthdayMusicBus.gain.cancelScheduledValues(now);
+
+  birthdayMusicBus.gain.setTargetAtTime(
+    .0001,
+    now,
+    .12
+  );
+
+}
 }
 
 /* ===== 音樂與音效：獨立音量 ===== */
@@ -3689,6 +4228,47 @@ function updateMusicButton() {
 // ===== 平滑調整音樂音量 =====
 
 function applyMusicVolume() {
+
+  if (!musicCtx || !musicMaster) return;
+
+  const now = musicCtx.currentTime;
+
+  musicMaster.gain.cancelScheduledValues(now);
+
+  // 生日進行中，一般背景旋律保持靜音
+  musicMaster.gain.setTargetAtTime(
+
+    bday.active
+      ? .0001
+      : (
+          musicAudible()
+            ? getMusicVolumeLevel()
+            : .0001
+        ),
+
+    now,
+    .08
+  );
+
+
+  // 生日歌直接沿用音樂音量滑桿
+  if (birthdayMusicBus) {
+
+    birthdayMusicBus.gain.cancelScheduledValues(now);
+
+    birthdayMusicBus.gain.setTargetAtTime(
+
+      musicAudible()
+        ? getMusicVolumeLevel() * .82
+        : .0001,
+
+      now,
+      .12
+    );
+
+  }
+
+}
 
   if (!musicCtx || !musicMaster) return;
 
