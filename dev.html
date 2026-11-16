@@ -169,7 +169,45 @@
           <button type="button" disabled>小雨／雷雨</button>
           <button type="button" disabled>彩虹</button>
         
-        </div>
+        </div><section>
+  <div class="section-label">
+    <h2>天氣與彩虹</h2>
+    <span class="section-num">05 / 天氣</span>
+  </div>
+
+  <div class="button-grid">
+    <button id="testRainLight" type="button">
+      測試：小雨
+    </button>
+
+    <button id="testRainMedium" type="button">
+      測試：中雨
+    </button>
+
+    <button id="testRainStorm" type="button">
+      測試：雷雨
+    </button>
+
+    <button id="testRainbow" type="button">
+      測試：雨後彩虹
+    </button>
+  </div>
+
+  <button
+    id="testWeatherClear"
+    type="button"
+    class="secondary space-top"
+  >
+    停止天氣
+  </button>
+
+  <p class="note">
+    正式版點擊不同雲朵：
+    1～2 朵小雨、3～5 朵中雨、
+    6～9 朵雷雨；降雨約 25～45 秒。
+    白天雷雨結束後，會出現可點擊的彩虹。
+  </p>
+</section>
         <p class="note">未完成的功能維持停用，不會影響目前的場景測試。</p>
       </section>
       <p class="footer">DEV MODE · 造訪紀錄與正式版分開儲存。</p>
@@ -218,7 +256,18 @@
     roamState.textContent = roam ? '已載入' : '尚未載入';
     testSpikeUnlock.disabled = !isFn(g, 'worldTestSpikeUnlock');
     testMachine.disabled = !isFn(g, 'worldOpenMachinePanel');
+for (const id of [
+  'testRainLight',
+  'testRainMedium',
+  'testRainStorm',
+  'testRainbow',
+  'testWeatherClear'
+]) {
 
+  document.querySelector('#' + id).disabled =
+    !isFn(g, 'worldTestWeather');
+
+}
     if (!previewLoaded) return;
 
     if (scene && items && !firstDaySynced) {
@@ -411,6 +460,50 @@ document.querySelector('#testSagArrow')
     );
 
   });
+  // ===== 開發者：天氣系統預覽 =====
+
+const weatherTests = [
+  ['testRainLight', 'light', '小雨'],
+  ['testRainMedium', 'medium', '中雨'],
+  ['testRainStorm', 'storm', '雷雨'],
+  ['testRainbow', 'rainbow', '雨後彩虹'],
+  ['testWeatherClear', 'clear', '停止天氣']
+];
+
+weatherTests.forEach(([id, kind, label]) => {
+
+  document.querySelector('#' + id)
+    .addEventListener('click', () => {
+
+      const g = court();
+
+      if (!isFn(g, 'worldTestWeather')) {
+
+        report(
+          '天氣系統尚未載入，請檢查 index.html。',
+          'error'
+        );
+
+        return;
+      }
+
+      // 彩虹需要白天，因此自動切換正午
+      if (kind === 'rainbow') {
+        send('time', { hour: 12.5 });
+      }
+
+      const ok = g.worldTestWeather(kind);
+
+      report(
+        ok
+          ? `已啟動：${label}。`
+          : '目前無法啟動天氣測試。',
+        ok ? 'success' : 'error'
+      );
+
+    });
+
+});
   document.querySelector('#testBirthday').addEventListener('click', () => {
     const g = court();
     if (!isFn(g, 'startBirthday')) {
