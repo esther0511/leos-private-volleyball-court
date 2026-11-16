@@ -2233,24 +2233,45 @@ const sagData = [
 const sagIdle = sagData.map(
   a => new T3.Vector3(a[1], a[2], 0)
 );
+// 射手座專用圓形星點：沒有放射狀光暈
+const sagRoundTex = (() => {
 
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 64;
+
+  const ctx = canvas.getContext('2d');
+
+  const edge = ctx.createRadialGradient(
+    32, 32, 0,
+    32, 32, 30
+  );
+
+  edge.addColorStop(0, 'rgba(255,255,255,1)');
+  edge.addColorStop(.83, 'rgba(255,255,255,1)');
+  edge.addColorStop(1, 'rgba(255,255,255,0)');
+
+  ctx.fillStyle = edge;
+  ctx.fillRect(0, 0, 64, 64);
+
+  return new T3.CanvasTexture(canvas);
+
+})();
 const sagStars = sagData.map(
   ([name, x, y, size, brightness], i) => {
 
     const dot = new T3.Sprite(
       new T3.SpriteMaterial({
-        map: starGlowTexture,
-        color: i === 6 ? 0xfff0d9 : 0xe4edff,
+        map: sagRoundTex,
+        color: 0xffffff,
         transparent: true,
         opacity: 0,
-        blending: T3.AdditiveBlending,
         depthWrite: false,
         fog: false
-      })
+       })
     );
 
     dot.position.copy(sagIdle[i]);
-    dot.scale.set(size, size, 1);
+    dot.scale.set(size * .62, size * .62, 1);
 
     sagSky.add(dot);
 
@@ -2740,11 +2761,14 @@ function updateSky(dt) {
 
   // ===== 弓弦 =====
 
-  sagString.array.set([
-    25, 24, 0,
-    sagPose[21].x, sagPose[21].y, 0,
-    25, 4, 0
-  ]);
+  // 弓弦：平常筆直，拉弓時才逐漸向後彎曲
+const stringCenterX = 25 - 12 * pull;
+
+sagString.array.set([
+  25, 24, 0,
+  stringCenterX, 14, 0,
+  25, 4, 0
+]);
 
   sagString.geometry.attributes
     .position.needsUpdate = true;
@@ -2756,8 +2780,7 @@ function updateSky(dt) {
     .55 * gearOpacity;
 
   sagString.material.opacity =
-    .42 * gearOpacity;
-
+    .25 * gearOpacity;
   sagBow.object.visible =
     sagBow.material.opacity > .002;
 
