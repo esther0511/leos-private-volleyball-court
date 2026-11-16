@@ -4229,7 +4229,30 @@ function updateMusicButton() {
 
 function applyMusicVolume() {
 
-  // 生日歌直接沿用音樂音量滑桿
+  if (!musicCtx || !musicMaster) return;
+
+  const now = musicCtx.currentTime;
+
+  // 一般背景音樂
+  musicMaster.gain.cancelScheduledValues(now);
+
+  musicMaster.gain.setTargetAtTime(
+
+    bday.active
+      ? .0001
+      : (
+          musicAudible()
+            ? getMusicVolumeLevel()
+            : .0001
+        ),
+
+    now,
+    .08
+
+  );
+
+
+  // 生日旋律沿用音樂音量設定
   if (birthdayMusicBus) {
 
     birthdayMusicBus.gain.cancelScheduledValues(now);
@@ -4242,23 +4265,11 @@ function applyMusicVolume() {
 
       now,
       .12
+
     );
 
   }
 
-}
-
-  if (!musicCtx || !musicMaster) return;
-
-  const now = musicCtx.currentTime;
-
-  musicMaster.gain.cancelScheduledValues(now);
-
-  musicMaster.gain.setTargetAtTime(
-    musicAudible() ? getMusicVolumeLevel() : .0001,
-    now,
-    .08
-  );
 }
 
 // 手機瀏覽器需要在使用者按下時啟用音訊
