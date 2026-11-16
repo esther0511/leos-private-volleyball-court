@@ -764,7 +764,27 @@ const clouds=[];
 for(let i=0;i<9;i++){const g=new T3.Group(),a=rnd(0,PI*2),r=rnd(100,140),parts=[];
   for(let k=0;k<4;k++){const m=new T3.Mesh(new T3.SphereGeometry(rnd(5,8),12,10),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,fog:false}));m.position.set(k*6-9,rnd(-1,2),rnd(-2,2));m.scale.y=.6;g.add(m);parts.push({m,v:new T3.Vector3(rnd(-1,1)*20,rnd(0,8),rnd(-1,1)*20),s:m.scale.clone()})}
   g.position.set(Math.cos(a)*r,rnd(34,52),Math.sin(a)*r);sc.add(g);
-  const o={g,parts,a,r,p:99};clouds.push(o);g.userData.act=()=>{if(o.p>12){o.p=0;sfxCloud()}};hitList.push(g)}
+ const o = { g, parts, a, r, p: 99 };
+
+clouds.push(o);
+
+g.userData.act = () => {
+
+  if (o.p <= 12) return;
+
+  // 保留原本雲朵點擊後的動畫
+  o.p = 0;
+  sfxCloud();
+
+  // 新增：通知天氣系統
+  if (typeof window.vbWeatherTapCloud === 'function') {
+    window.vbWeatherTapCloud(i);
+  }
+
+};
+
+hitList.push(g);
+}
 
 /* ===== 星星與光暈 ===== */
 
@@ -3208,6 +3228,11 @@ function frame(now){
   const dt=Math.min(.05,(now-ptime)/1000);ptime=now;clk+=dt;
 skyStep(dt);
 birthdayStep(dt);
+
+// 第五階段：天氣動畫
+if (typeof window.vbWeatherStep === 'function') {
+  window.vbWeatherStep(dt);
+}
 if (typeof worldItemsStep === 'function') {
   worldItemsStep(dt);
 }
@@ -4879,5 +4904,6 @@ setTimeout(()=>$('#tip').style.opacity=0,14000);
 <!-- 第四階段：場邊物件 -->
 <script src="./world-items.js"></script>
 <script src="./roam-controls.js"></script>
+<script src="./weather-system.js"></script>
 </body>
 </html>
