@@ -1008,41 +1008,160 @@ window.worldOpenMachinePanel = openMachinePanel;
     flute.position.set(gx, .97, gz);
     o.art.add(flute);
 
-    o.parts.wine = cyl(o.art, .095, .05, .5, gx, .83, gz, 0xf1de9a, 16);
-    o.parts.wine.material.transparent = true;
-    o.parts.wine.material.opacity = .65;
+    
+    // ===== 香檳杯：初始少量酒液 =====
 
-    o.parts.bubbles = [];
-    for (let i = 0; i < 7; i++) {
-      const m = orb(o.art, .022, gx, .6, gz, 0xffffff, 8, 6);
-      m.visible = false;
-      o.parts.bubbles.push(m);
-    }
+    o.parts.wine = cyl(
+      o.art,
+      .062, .045, .16,
+      gx, .66, gz,
+      0xf1de9a, 18
+    );
+
+    o.parts.wine.material.transparent = true;
+    o.parts.wine.material.opacity = .70;
+    o.parts.wine.material.depthWrite = false;
+
     o.parts.gx = gx;
     o.parts.gz = gz;
 
-    // --- 香檳酒瓶：深綠玻璃、金色錫箔、軟木塞，一個 ---
-    const bx = 1.7, bz = .35, green = 0x2f5b45;
-    cyl(o.art, .2, .2, .62, bx, .34, bz, green, 18);
-    cyl(o.art, .2, .08, .22, bx, .76, bz, green, 18);
-    cyl(o.art, .08, .075, .38, bx, 1.06, bz, green, 14);
-    cyl(o.art, .095, .095, .17, bx, 1.2, bz, 0xe9c46a, 14);
-    cub(o.art, .22, .26, .015, bx, .4, bz + .2, 0xfff3d6);
-    cub(o.art, .13, .04, .017, bx, .43, bz + .2, 0xcc5a38);
 
-    o.parts.cork = cyl(o.art, .062, .062, .13, bx, 1.35, bz, 0xd9b384, 10);
-    o.parts.foam = orb(o.art, .09, bx, 1.33, bz, 0xffffff, 10, 8);
-    o.parts.foam.visible = false;
+    // ===== 香檳酒瓶：常見的深綠色瓶型 =====
+
+    const bx = 1.7;
+    const bz = .35;
+    const green = 0x244a3c;
+
+    // 瓶身獨立成群組，方便整支拿起來傾斜
+    const bottle = new T3.Group();
+
+    bottle.position.set(bx, 0, bz);
+    o.art.add(bottle);
+
+    o.parts.bottle = bottle;
     o.parts.bx = bx;
     o.parts.bz = bz;
 
-    // 點酒杯：冒氣泡；點酒瓶：砰！軟木塞彈出
-    clickZone(o, .6, 1.5, .6, gx, .75, gz, () => o.interact(o));
-    clickZone(o, .6, 1.6, .6, bx, .8, bz, () => { markTouched(o.id); o.pop = 1.5; });
+    // 寬瓶底與圓柱瓶身
+    cyl(
+      bottle,
+      .215, .225, .68,
+      0, .40, 0,
+      green, 24
+    );
+
+    // 收窄的瓶肩
+    cyl(
+      bottle,
+      .085, .215, .24,
+      0, .86, 0,
+      green, 24
+    );
+
+    // 細長瓶頸
+    cyl(
+      bottle,
+      .078, .085, .30,
+      0, 1.13, 0,
+      green, 18
+    );
+
+    // 金色瓶口包裝
+    cyl(
+      bottle,
+      .088, .095, .15,
+      0, 1.31, 0,
+      0xdab66e, 18
+    );
+
+    // 奶油白色酒標
+    cub(
+      bottle,
+      .30, .26, .018,
+      0, .45, .22,
+      0xfff0d5
+    );
+
+    // 酒標上的簡單金色橫條
+    cub(
+      bottle,
+      .19, .042, .02,
+      0, .48, .231,
+      0xc79c6b
+    );
+
+
+    // ===== 可飛出的軟木塞 =====
+
+    o.parts.cork = cyl(
+      o.art,
+      .062, .058, .14,
+      bx, 1.45, bz,
+      0xd9b384, 12
+    );
+
+
+    // ===== 細緻的香檳酒液 =====
+
+    o.parts.stream = new T3.Mesh(
+
+      new T3.CylinderGeometry(
+        .014, .023, 1, 9
+      ),
+
+      new T3.MeshLambertMaterial({
+        color: 0xf6db92,
+        transparent: true,
+        opacity: .8,
+        depthWrite: false
+      })
+
+    );
+
+    o.parts.stream.visible = false;
+
+    o.art.add(o.parts.stream);
+
+
+    // -1 代表目前沒有播放倒酒動畫
+    o.parts.pourTime = -1;
+
+
+    // 點酒瓶或酒杯，都能觸發倒酒
+    clickZone(
+      o,
+      .62, 1.45, .62,
+      gx, .75, gz,
+      () => o.interact(o)
+    );
+
+    clickZone(
+      o,
+      .72, 1.70, .72,
+      bx, .83, bz,
+      () => o.interact(o)
+    );
 
   }, o => {
-    o.time = 1.8;
+
+    const P = o.parts;
+
+    // 動畫播放期間不重複觸發
+    if (P.pourTime >= 0) return;
+
+    P.pourTime = 0;
+
+    // 每次重新播放時，準備軟木塞
+    P.cork.visible = true;
+
+    P.cork.position.set(
+      P.bx, 1.45, P.bz
+    );
+
+    P.cork.rotation.set(0, 0, 0);
+
   });
+
 
   // ===== 第 14 天：睡覺的黑貓 =====
 
@@ -2682,39 +2801,194 @@ if (
 
 }
 
-      // 香檳氣泡
-            if (o.id === 'picnic' && o.parts.bubbles) {
+  
+      // ===== 香檳倒酒動畫 =====
+
+      if (o.id === 'picnic' && o.parts.bottle) {
+
         const P = o.parts;
 
-        P.bubbles.forEach((m, i) => {
-          const p = (1.8 - o.time) * .9 + i * .18;
-          m.visible = o.time > 0 && p >= 0 && p < 1;
-          m.position.set(
-            P.gx + Math.sin(i * 5 + p * 6) * .045,
-            .62 + Math.max(0, p) * .46,
-            P.gz + Math.cos(i * 3) * .04
-          );
-        });
+        if (P.pourTime >= 0) {
 
-        // 開香檳：軟木塞彈出，落回瓶口
-        o.pop = Math.max(0, (o.pop || 0) - dt);
-        if (o.pop > 0) {
-          const q = 1 - o.pop / 1.5;
-          const back = Math.max(0, (q - .7) / .3);
-          P.cork.position.set(
-            P.bx + q * .5 * (1 - back),
-            1.35 + Math.sin(q * Math.PI) * 2.4 * (1 - back),
-            P.bz - q * .3 * (1 - back)
+          P.pourTime += dt;
+
+          const t = P.pourTime;
+
+          // 平滑加速、平滑減速
+          const ease = v => {
+
+            const x = Math.max(
+              0,
+              Math.min(1, v)
+            );
+
+            return x * x * (3 - 2 * x);
+
+          };
+
+
+          // ===== 1. 軟木塞飛出 =====
+
+          if (t < 1.8) {
+
+            const u = t / 1.8;
+
+            P.cork.visible = true;
+
+            P.cork.position.set(
+
+              P.bx + .45 * u,
+
+              1.45 +
+              1.45 * Math.sin(u * Math.PI) -
+              .55 * u,
+
+              P.bz - .25 * u
+
+            );
+
+            P.cork.rotation.z = u * 7.5;
+
+          } else {
+
+            P.cork.visible = false;
+
+          }
+
+
+          // ===== 2. 酒瓶升起與傾斜 =====
+
+          const lifted =
+            ease((t - 1) / 1.3);
+
+          const returned =
+            ease((t - 5.4) / 1.4);
+
+          const move =
+            lifted * (1 - returned);
+
+          const tilt =
+            ease((t - 2.4) / 1.1) *
+            (1 - ease((t - 5.2) / 1.1));
+
+
+          P.bottle.position.set(
+
+            P.bx - .08 * move,
+
+            .58 * move,
+
+            P.bz + .34 * move
+
           );
-          P.cork.rotation.z = q * 9 * (1 - back);
-          P.foam.visible = q < .6;
-          P.foam.scale.setScalar(.6 + Math.sin(Math.min(1, q / .6) * Math.PI) * 1.2);
-        } else {
-          P.cork.position.set(P.bx, 1.35, P.bz);
-          P.cork.rotation.z = 0;
-          P.foam.visible = false;
+
+          P.bottle.rotation.z = .55 * tilt;
+
+
+          // ===== 3. 從瓶口倒入酒杯 =====
+
+          const flow =
+            ease((t - 3.5) / .35) *
+            (1 - ease((t - 5) / .35));
+
+          P.stream.visible = flow > .02;
+
+          if (P.stream.visible) {
+
+            const angle =
+              P.bottle.rotation.z;
+
+            // 瓶口位置
+            const mouth = new T3.Vector3(
+
+              P.bottle.position.x -
+              Math.sin(angle) * 1.40,
+
+              P.bottle.position.y +
+              Math.cos(angle) * 1.40,
+
+              P.bottle.position.z
+
+            );
+
+            // 酒杯開口位置
+            const glassTop =
+              new T3.Vector3(
+                P.gx, 1.15, P.gz
+              );
+
+            const direction =
+              glassTop.clone().sub(mouth);
+
+            const length =
+              direction.length();
+
+            // 酒液位於瓶口與杯口之間
+            P.stream.position
+              .copy(mouth)
+              .addScaledVector(direction, .5);
+
+            P.stream.quaternion
+              .setFromUnitVectors(
+
+                new T3.Vector3(0, 1, 0),
+
+                direction.normalize()
+
+              );
+
+            P.stream.scale.set(
+              1,
+              length * flow,
+              1
+            );
+
+          }
+
+
+          // ===== 4. 酒杯液面逐漸上升 =====
+
+          // 倒酒結束後約 10 秒，
+          // 液面才逐漸恢復初始高度。
+
+          const fill =
+
+            ease((t - 3.7) / 1.3) *
+
+            (1 - ease((t - 15) / 1.1));
+
+
+          P.wine.scale.y =
+            1 + .85 * fill;
+
+          P.wine.position.y =
+            .66 + .068 * fill;
+
+
+          // ===== 5. 完成並恢復初始狀態 =====
+
+          if (t >= 16.2) {
+
+            P.pourTime = -1;
+
+            P.stream.visible = false;
+
+            P.bottle.position.set(
+              P.bx, 0, P.bz
+            );
+
+            P.bottle.rotation.z = 0;
+
+            P.wine.scale.y = 1;
+            P.wine.position.y = .66;
+
+          }
+
         }
+
       }
+
+    
 
       // 黑貓
       if (o.id === 'cat' && o.parts.body) updateCat(o, dt);
