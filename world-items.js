@@ -2147,10 +2147,33 @@ window.worldOpenMachinePanel = openMachinePanel;
     chairLook.drag = null;
 
     // 沒有拖曳，當作點擊
-    if (!d.moved && e.type === 'pointerup') {
-      const o = pick(e);
-      if (o) { if (o.userData.ball) hit(); else o.userData.act(); }
+if (!d.moved && e.type === 'pointerup') {
+
+  // 優先判斷是否點擊射手座
+  if (
+    pointerOnSagittarius(
+      e.clientX,
+      e.clientY
+    ) &&
+    startSagittarius()
+  ) {
+    return;
+  }
+
+  // 其他物件維持原本的互動
+  const o = pick(e);
+
+  if (o) {
+
+    if (o.userData.ball) {
+      hit();
+    } else {
+      o.userData.act();
     }
+
+  }
+
+}
   }
   cv.addEventListener('pointerup', chairRelease, true);
   cv.addEventListener('pointercancel', chairRelease, true);
@@ -2162,373 +2185,684 @@ window.worldOpenMachinePanel = openMachinePanel;
     chairLook.fov = Math.max(20, Math.min(70, chairLook.fov * Math.exp(e.deltaY * .001)));
   }, { capture: true, passive: false });
 
-  
-  // ===== 夜空：射手座的「茶壺星群」 =====
-  // 平常只有星點，互動時才會浮現連線。
+  // ===== 射手座：茶壺星群 → 星光人馬 → 射箭 =====
+// 夜晚可見；坐上裁判椅，懸停顯示連線，點擊播放 12 秒動畫。
 
-  const sagChair = byId.get('chair');
-  const sagSky = new T3.Group();
+const sagChair = byId.get('chair');
+const sagSky = new T3.Group();
 
-  sagSky.position.set(
-    sagChair.x,
-    84,
-    sagChair.z - 160
-  );
+sagSky.position.set(
+  sagChair.x,
+  84,
+  sagChair.z - 160
+);
 
-  sc.add(sagSky);
-
-
-  // 八顆主星：名稱、位置、大小、亮度
-  // 使用插畫化的茶壺星群構圖
-
-  const sagData = [
-    ['τ Sgr',         -4.0,  0.0, 2.1, .75],
-    ['Nunki',         -3.0,  0.9, 2.9, .98],
-    ['φ Sgr',         -1.6,  0.7, 2.2, .75],
-    ['Kaus Borealis',   .35, 2.3, 2.5, .85],
-    ['Kaus Media',     1.3,  0.4, 2.6, .90],
-    ['Alnasl',         3.6,  0.1, 2.2, .80],
-    ['Kaus Australis', 1.0, -1.8, 3.2, 1.00],
-    ['Ascella',       -2.8, -1.1, 2.6, .87]
-  ];
+sc.add(sagSky);
 
 
-  // 建立不同大小、亮度的星星
+// ===== 星點 =====
+// 前八顆構成茶壺星群，其餘為附近的微弱星點。
+// 共 22 顆，全部會參與人馬變形。
 
-  const sagPoints = [];
+const sagData = [
+  ['τ Sgr', -24.8, 0, 2.1, .75],
+  ['Nunki', -18.6, 5.6, 2.9, .98],
+  ['φ Sgr', -9.9, 4.3, 2.2, .75],
+  ['Kaus Borealis', 2.2, 14.3, 2.5, .85],
+  ['Kaus Media', 8.1, 2.5, 2.6, .90],
+  ['Alnasl', 22.3, .6, 2.2, .80],
+  ['Kaus Australis', 6.2, -11.2, 3.2, 1],
+  ['Ascella', -17.4, -6.8, 2.6, .87],
 
-  const sagStars = sagData.map(
-    ([name, x, y, size, brightness], i) => {
+  ['', -27, 13, 1.1, .40],
+  ['', -21, -14, 1.0, .36],
+  ['', -11, -15, 1.2, .45],
+  ['', -7, 13, 1.1, .39],
+  ['', 13, 17, 1.2, .42],
+  ['', 26, -8, 1.0, .40],
+  ['', -29, -7, 1.1, .34],
+  ['', 17, -14, 1.2, .38],
+  ['', -3, -19, 1.1, .46],
+  ['', 5, 20, 1.3, .40],
+  ['', 25, 15, 1.0, .35],
+  ['', -15, 17, 1.1, .42],
+  ['', 29, 8, 1.1, .37],
+  ['', -22, 19, 1.2, .37]
+];
 
-      const dot = new T3.Sprite(
-        new T3.SpriteMaterial({
-          map: starGlowTexture,
-          color: i === 6 ? 0xfff0d9 : 0xe4edff,
-          transparent: true,
-          opacity: 0,
-          blending: T3.AdditiveBlending,
-          depthWrite: false,
-          fog: false
-        })
-      );
+const sagIdle = sagData.map(
+  a => new T3.Vector3(a[1], a[2], 0)
+);
 
-      dot.position.set(
-        x * 6.2,
-        y * 6.2,
-        0
-      );
+const sagStars = sagData.map(
+  ([name, x, y, size, brightness], i) => {
 
-      dot.scale.set(size, size, 1);
-
-      sagSky.add(dot);
-      sagPoints.push(dot.position.clone());
-
-      return {
-        dot,
-        name,
-        brightness,
-        phase: i * 1.71
-      };
-
-    }
-  );
-
-
-  // ===== 射手座連線 =====
-  // 壺柄、壺身、壺蓋及壺嘴
-
-  const sagEdges = [
-    [0, 1], [0, 7],
-    [1, 2], [2, 7],
-    [2, 3], [3, 4],
-    [2, 4], [4, 5],
-    [5, 6], [4, 6],
-    [6, 7]
-  ];
-
-  const sagLineVertices = [];
-
-  sagEdges.forEach(([a, b]) => {
-    sagLineVertices.push(
-      sagPoints[a],
-      sagPoints[b]
+    const dot = new T3.Sprite(
+      new T3.SpriteMaterial({
+        map: starGlowTexture,
+        color: i === 6 ? 0xfff0d9 : 0xe4edff,
+        transparent: true,
+        opacity: 0,
+        blending: T3.AdditiveBlending,
+        depthWrite: false,
+        fog: false
+      })
     );
-  });
 
+    dot.position.copy(sagIdle[i]);
+    dot.scale.set(size, size, 1);
 
-  const sagLines = new T3.LineSegments(
+    sagSky.add(dot);
 
-    new T3.BufferGeometry()
-      .setFromPoints(sagLineVertices),
-
-    new T3.LineBasicMaterial({
-      color: 0xdbe9ff,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      fog: false
-    })
-
-  );
-
-  sagLines.visible = false;
-
-  sagSky.add(sagLines);
-
-
-  // ===== 射手座互動狀態 =====
-
-  let sagNight = 0;
-  let sagHovered = false;
-  let sagTouchUntil = 0;
-  let sagLineFade = 0;
-
-
-  // 檢查滑鼠是否位於射手座星群範圍內
-
-  function pointerOnSagittarius(x, y) {
-
-    if (
-      cameraMode !== 'chair' ||
-      sagNight < .35
-    ) return false;
-
-    cam.updateMatrixWorld();
-
-    const rect = cv.getBoundingClientRect();
-
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
-
-    let visibleDots = 0;
-
-    for (const p of sagPoints) {
-
-      const projected = p.clone()
-        .add(sagSky.position)
-        .project(cam);
-
-      if (
-        projected.z < -1 ||
-        projected.z > 1
-      ) continue;
-
-      const sx =
-        rect.left +
-        (projected.x + 1) * rect.width / 2;
-
-      const sy =
-        rect.top +
-        (1 - projected.y) * rect.height / 2;
-
-      if (
-        sx < rect.left - 30 ||
-        sx > rect.right + 30 ||
-        sy < rect.top - 30 ||
-        sy > rect.bottom + 30
-      ) continue;
-
-      minX = Math.min(minX, sx);
-      maxX = Math.max(maxX, sx);
-
-      minY = Math.min(minY, sy);
-      maxY = Math.max(maxY, sy);
-
-      visibleDots++;
-    }
-
-    if (visibleDots < 4) return false;
-
-    const margin = 24;
-
-    return (
-      x >= minX - margin &&
-      x <= maxX + margin &&
-      y >= minY - margin &&
-      y <= maxY + margin
-    );
+    return {
+      dot,
+      brightness,
+      phase: i * 1.71
+    };
   }
+);
 
 
-  // ===== 電腦：滑鼠移入星群 =====
+// ===== 原始茶壺星群連線 =====
 
-  cv.addEventListener('pointermove', e => {
+const sagEdges = [
+  [0, 1], [0, 7],
+  [1, 2], [2, 7],
+  [2, 3], [3, 4],
+  [2, 4], [4, 5],
+  [5, 6], [4, 6],
+  [6, 7]
+];
 
-    if (e.pointerType === 'touch') return;
+const sagLines = new T3.LineSegments(
 
-    sagHovered =
-      !e.buttons &&
-      pointerOnSagittarius(
-        e.clientX,
-        e.clientY
-      );
+  new T3.BufferGeometry().setFromPoints(
+    sagEdges.flatMap(
+      ([a, b]) => [sagIdle[a], sagIdle[b]]
+    )
+  ),
 
+  new T3.LineBasicMaterial({
+    color: 0xdbe9ff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    fog: false
+  })
+
+);
+
+sagSky.add(sagLines);
+
+
+// ===== 人馬的 22 個關節 =====
+// 使用火柴人骨架概念。
+// 星點會從原始位置移動到這些關節位置。
+
+const sagPose = [
+  [-16, -5],   // 馬身後部
+  [-7, 0],     // 背部
+  [6, -1],     // 馬身前部
+  [10, -7],
+  [-5, -10],
+  [-13, -9],
+
+  [-17, -18],  // 後腿
+  [-21, -25],
+  [-10, -12],
+  [-10, -21],
+  [-12, -26],
+
+  [7, -9],     // 前腿
+  [5, -19],
+  [2, -26],
+  [12, -18],
+  [15, -25],
+
+  [6, 0],      // 人的腰部
+  [7, 12],     // 肩膀
+  [7, 20],     // 頭
+  [14, 13],    // 手臂
+  [22, 14],    // 持弓的手
+  [19, 13]     // 拉弦的手
+].map(
+  ([x, y]) => new T3.Vector3(x, y, 0)
+);
+
+
+// ===== 人馬骨架連接關係 =====
+
+const sagBones = [
+  [0, 1], [1, 2], [2, 3],
+  [3, 4], [4, 5], [5, 0],
+
+  [5, 6], [6, 7],
+  [4, 8], [8, 9], [9, 10],
+  [3, 11], [11, 12], [12, 13],
+  [2, 14], [14, 15],
+
+  [2, 16], [16, 17],
+  [17, 18],
+  [17, 19], [19, 20],
+  [17, 21]
+];
+
+
+// ===== 動態線條工具 =====
+
+function makeSagLine(vertexCount, segments) {
+
+  const array = new Float32Array(vertexCount * 3);
+
+  const geometry = new T3.BufferGeometry();
+
+  geometry.setAttribute(
+    'position',
+    new T3.BufferAttribute(array, 3)
+  );
+
+  const material = new T3.LineBasicMaterial({
+    color: 0xe4edff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    fog: false
   });
 
-  cv.addEventListener('pointerleave', () => {
-    sagHovered = false;
-  });
+  const object = segments
+    ? new T3.LineSegments(geometry, material)
+    : new T3.Line(geometry, material);
 
+  object.frustumCulled = false;
 
-  // ===== 手機：點一下星群 =====
-  // 連線短暫出現，之後自然消失。
+  sagSky.add(object);
 
-  window.addEventListener('pointerup', e => {
-
-    if (
-      e.target === cv &&
-      e.pointerType === 'touch' &&
-      pointerOnSagittarius(
-        e.clientX,
-        e.clientY
-      )
-    ) {
-
-      sagTouchUntil =
-        performance.now() + 6500;
-
-    }
-
-  }, true);
-
-
-  // ===== 純鍵盤：對準星群按 E =====
-
-  window.addEventListener('keydown', e => {
-
-    if (
-      e.key.toLowerCase() !== 'e' ||
-      e.repeat ||
-      ['INPUT', 'TEXTAREA', 'SELECT'].includes(
-        document.activeElement.tagName
-      )
-    ) return;
-
-    const r = cv.getBoundingClientRect();
-
-    if (
-      pointerOnSagittarius(
-        r.left + r.width / 2,
-        r.top + r.height / 2
-      )
-    ) {
-
-      sagTouchUntil =
-        performance.now() + 6500;
-
-    }
-
-  }, true);
-
-
-  // ===== 日夜變化與連線動畫 =====
-
-  function updateSky(dt) {
-
-    // 隨著原本日夜循環改變亮度
-    // 白天不顯示射手座
-
-    sagNight = Math.max(
-      0,
-      Math.min(1, (starV - .12) / .58)
-    );
-
-    sagSky.visible = sagNight > .015;
-
-
-    // 每顆星星自然、輕微地閃爍
-
-    const now = performance.now();
-
-    sagStars.forEach(s => {
-
-      const twinkle =
-        .87 +
-        .13 * Math.sin(
-          now * .0014 + s.phase
-        );
-
-      s.dot.material.opacity =
-        sagNight *
-        s.brightness *
-        twinkle;
-
-    });
-
-
-    // 必須坐在裁判椅，而且正在互動
-    // 才能看見星座連線
-
-    const showLines =
-      cameraMode === 'chair' &&
-      sagNight > .35 &&
-      (
-        sagHovered ||
-        now < sagTouchUntil
-      );
-
-
-    // 緩緩淡入、淡出
-
-    sagLineFade +=
-      (
-        (showLines ? 1 : 0) -
-        sagLineFade
-      ) *
-      Math.min(
-        1,
-        dt * (showLines ? 2.0 : 1.5)
-      );
-
-
-    // 約 5.2 秒完成一次明暗循環
-    // 不會快速閃爍
-
-    const breathe =
-      .5 +
-      .5 * Math.sin(
-        now * Math.PI * 2 / 5200
-      );
-
-
-    // 最高不透明度約 28%
-
-    sagLines.material.opacity =
-      .28 *
-      sagLineFade *
-      sagNight *
-      breathe;
-
-    sagLines.visible =
-      sagLines.material.opacity > .002;
-
-  }
-
-
-  // ===== 開發者專用射手座預覽 =====
-
-  window.worldPreviewSagittarius = () => {
-
-    if (
-      !VB_IS_DEV ||
-      reveal ||
-      organizing ||
-      bday.active
-    ) return false;
-
-    cameraMode = 'chair';
-
-    chairLook.yaw = 0;
-    chairLook.pitch = .46;
-    chairLook.fov = 45;
-
-    updateBoatControls();
-
-    return true;
+  return {
+    object,
+    array,
+    geometry,
+    material
   };
+}
 
+const sagSkeleton = makeSagLine(
+  sagBones.length * 2,
+  true
+);
+
+const sagBow = makeSagLine(9, false);
+const sagString = makeSagLine(3, false);
+const sagArrow = makeSagLine(6, true);
+
+
+// ===== 動畫狀態 =====
+
+const sagState = {
+  active: false,
+  time: 0,
+  hover: false,
+  fade: 0,
+  cooldown: 0,
+  devPending: false,
+  night: 0
+};
+
+const sagEase = value => {
+
+  const x = Math.max(
+    0,
+    Math.min(1, value)
+  );
+
+  return x * x * (3 - 2 * x);
+};
+
+
+// ===== 判斷是否點到射手座 =====
+
+function pointerOnSagittarius(clientX, clientY) {
+
+  if (
+    cameraMode !== 'chair' ||
+    sagState.night < .35 ||
+    sagState.active
+  ) return false;
+
+  cam.updateMatrixWorld(true);
+
+  const rect = cv.getBoundingClientRect();
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  let count = 0;
+
+  for (const idle of sagIdle) {
+
+    const p = idle.clone()
+      .add(sagSky.position)
+      .project(cam);
+
+    if (p.z < -1 || p.z > 1) continue;
+
+    const x =
+      rect.left +
+      (p.x + 1) * rect.width / 2;
+
+    const y =
+      rect.top +
+      (1 - p.y) * rect.height / 2;
+
+    if (
+      x < rect.left - 30 ||
+      x > rect.right + 30 ||
+      y < rect.top - 30 ||
+      y > rect.bottom + 30
+    ) continue;
+
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+
+    count++;
+  }
+
+  return (
+    count >= 6 &&
+    clientX >= minX - 22 &&
+    clientX <= maxX + 22 &&
+    clientY >= minY - 22 &&
+    clientY <= maxY + 22
+  );
+}
+
+
+// ===== 開始人馬射箭 =====
+
+function startSagittarius() {
+
+  if (
+    sagState.active ||
+    cameraMode !== 'chair' ||
+    sagState.night < .35 ||
+    bday.active ||
+    reveal ||
+    organizing
+  ) return false;
+
+  sagState.active = true;
+  sagState.time = 0;
+  sagState.hover = false;
+
+  return true;
+}
+
+
+// ===== 電腦：滑鼠懸停 =====
+
+cv.addEventListener('pointermove', e => {
+
+  if (e.pointerType === 'touch') return;
+
+  sagState.hover =
+    !e.buttons &&
+    pointerOnSagittarius(
+      e.clientX,
+      e.clientY
+    );
+
+});
+
+cv.addEventListener('pointerleave', () => {
+  sagState.hover = false;
+});
+
+
+// ===== 鍵盤：對準星群按 E =====
+
+window.addEventListener('keydown', e => {
+
+  if (
+    e.key.toLowerCase() !== 'e' ||
+    e.repeat ||
+    ['INPUT', 'TEXTAREA', 'SELECT'].includes(
+      document.activeElement.tagName
+    )
+  ) return;
+
+  const rect = cv.getBoundingClientRect();
+
+  if (
+    pointerOnSagittarius(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2
+    ) &&
+    startSagittarius()
+  ) {
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+  }
+
+}, true);
+
+
+// ===== 每幀更新射手座 =====
+
+function updateSky(dt) {
+
+  sagState.night = sagEase(
+    (starV - .12) / .58
+  );
+
+  sagSky.visible =
+    sagState.night > .015;
+
+
+  // 開發者測試：等鏡頭就位後開始
+
+  if (
+    sagState.devPending &&
+    cameraMode === 'chair' &&
+    viewMix > .9 &&
+    sagState.night > .35
+  ) {
+
+    sagState.devPending = false;
+    startSagittarius();
+
+  }
+
+
+  // 離開裁判椅時中止動畫
+
+  if (
+    sagState.active &&
+    (
+      cameraMode !== 'chair' ||
+      bday.active
+    )
+  ) {
+    sagState.active = false;
+  }
+
+
+  if (sagState.active) {
+    sagState.time += dt;
+  }
+
+  const t = sagState.time;
+
+
+  // 1.1 秒後開始變形
+  // 9.1 秒後開始恢復原狀
+
+  const morph = sagState.active
+    ? sagEase((t - 1.1) / 2.5) *
+      (1 - sagEase((t - 9.1) / 2.9))
+    : 0;
+
+
+  // 拉弓動作
+
+  const release =
+    sagEase((t - 8.0) / .18);
+
+  const pull =
+    sagEase((t - 5.1) / 2.3) *
+    (1 - release);
+
+  // 拉弦的手向後移動
+  sagPose[21].x = 19 - 7 * pull;
+
+
+  // ===== 星星移動到人馬關節 =====
+
+  const now = performance.now();
+
+  sagStars.forEach((s, i) => {
+
+    s.dot.position
+      .copy(sagIdle[i])
+      .lerp(sagPose[i], morph);
+
+    const twinkle =
+      .87 +
+      .13 * Math.sin(
+        now * .0014 + s.phase
+      );
+
+    s.dot.material.opacity =
+      sagState.night *
+      (
+        s.brightness * (1 - morph) +
+        .85 * morph
+      ) *
+      twinkle;
+
+  });
+
+
+  // ===== 原始星座連線 =====
+
+  const showHover =
+    cameraMode === 'chair' &&
+    !sagState.active &&
+    now > sagState.cooldown &&
+    sagState.hover;
+
+  sagState.fade +=
+    (
+      (showHover ? 1 : 0) -
+      sagState.fade
+    ) *
+    Math.min(
+      1,
+      dt * (showHover ? 2 : 1.5)
+    );
+
+  const breathe =
+    .65 +
+    .35 * Math.sin(
+      now * Math.PI * 2 / 5200
+    );
+
+  const awaken =
+    sagEase(t / .7) *
+    (
+      .72 +
+      .28 * Math.sin(
+        now * Math.PI * 2 / 4200
+      )
+    );
+
+  sagLines.material.opacity =
+    sagState.night *
+    (1 - morph) *
+    (
+      sagState.active
+        ? .30 * awaken
+        : .28 * sagState.fade * breathe
+    );
+
+  sagLines.visible =
+    sagLines.material.opacity > .002;
+
+
+  // ===== 人馬骨架跟著星點移動 =====
+
+  const bp = sagSkeleton.array;
+
+  sagBones.forEach(([a, b], i) => {
+
+    const u = sagStars[a].dot.position;
+    const v = sagStars[b].dot.position;
+
+    bp.set([
+      u.x, u.y, u.z,
+      v.x, v.y, v.z
+    ], i * 6);
+
+  });
+
+  sagSkeleton.geometry.attributes
+    .position.needsUpdate = true;
+
+  sagSkeleton.material.opacity =
+    .43 * morph * sagState.night;
+
+  sagSkeleton.object.visible =
+    sagSkeleton.material.opacity > .002;
+
+
+  // ===== 星光弓 =====
+
+  const bow = sagBow.array;
+
+  for (let i = 0; i < 9; i++) {
+
+    const u = i / 8;
+
+    bow.set([
+      25 + 2.6 * Math.sin(u * Math.PI),
+      24 - 20 * u,
+      0
+    ], i * 3);
+
+  }
+
+  sagBow.geometry.attributes
+    .position.needsUpdate = true;
+
+
+  // ===== 弓弦 =====
+
+  sagString.array.set([
+    25, 24, 0,
+    sagPose[21].x, sagPose[21].y, 0,
+    25, 4, 0
+  ]);
+
+  sagString.geometry.attributes
+    .position.needsUpdate = true;
+
+  const gearOpacity =
+    morph * sagState.night;
+
+  sagBow.material.opacity =
+    .55 * gearOpacity;
+
+  sagString.material.opacity =
+    .42 * gearOpacity;
+
+  sagBow.object.visible =
+    sagBow.material.opacity > .002;
+
+  sagString.object.visible =
+    sagString.material.opacity > .002;
+
+
+  // ===== 射出星光箭 =====
+
+  const fly =
+    sagEase((t - 8.0) / 1.15);
+
+  const arrowX =
+    28 + 62 * fly;
+
+  const tailX =
+    sagPose[21].x + 62 * fly;
+
+  sagArrow.array.set([
+    tailX, 14, 0,
+    arrowX, 14, 0,
+
+    arrowX - 3, 16, 0,
+    arrowX, 14, 0,
+
+    arrowX - 3, 12, 0,
+    arrowX, 14, 0
+  ]);
+
+  sagArrow.geometry.attributes
+    .position.needsUpdate = true;
+
+  const arrowUp =
+    sagEase((t - 5.5) / .4);
+
+  const arrowOut =
+    1 - sagEase((t - 8.55) / .65);
+
+  sagArrow.material.opacity =
+    .82 *
+    gearOpacity *
+    arrowUp *
+    arrowOut;
+
+  sagArrow.object.visible =
+    sagArrow.material.opacity > .002;
+
+
+  // ===== 12 秒後恢復星群 =====
+
+  if (
+    sagState.active &&
+    t >= 12
+  ) {
+
+    sagState.active = false;
+    sagState.time = 0;
+
+    sagState.cooldown =
+      now + 1600;
+
+    sagState.hover = false;
+
+  }
+
+}
+
+
+// ===== 開發者：預覽裁判椅夜空 =====
+
+window.worldPreviewSagittarius = () => {
+
+  if (
+    !VB_IS_DEV ||
+    reveal ||
+    organizing ||
+    bday.active
+  ) return false;
+
+  cameraMode = 'chair';
+
+  chairLook.yaw = 0;
+  chairLook.pitch = .46;
+  chairLook.fov = 45;
+
+  updateBoatControls();
+
+  return true;
+};
+
+
+// ===== 開發者：播放人馬射箭 =====
+
+window.worldPlaySagittarius = () => {
+
+  if (
+    !window.worldPreviewSagittarius() ||
+    sagState.active
+  ) return false;
+
+  sagState.devPending = true;
+
+  return true;
+};
+  
   // 裁判椅或帆船視角：雙擊返回
   cv.addEventListener('dblclick', e => {
     if (cameraMode === 'orbit') return;
