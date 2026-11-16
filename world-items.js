@@ -2392,7 +2392,7 @@ const sagSkeleton = makeSagLine(
 
 const sagBow = makeSagLine(9, false);
 const sagString = makeSagLine(3, false);
-const sagArrow = makeSagLine(6, true);
+const sagArrow = makeSagLine(28, true);
 
 
 // ===== 動畫狀態 =====
@@ -2770,22 +2770,99 @@ function updateSky(dt) {
   const fly =
     sagEase((t - 8.0) / 1.15);
 
-  const arrowX =
-    28 + 62 * fly;
+  // ===== 星光箭矢：細長箭桿、箭鏃與尾羽 =====
 
-  const tailX =
-    sagPose[21].x + 62 * fly;
+// 箭尾跟隨拉弦的手移動
+const tailX =
+  sagPose[21].x + 62 * fly;
 
-  sagArrow.array.set([
-    tailX, 14, 0,
-    arrowX, 14, 0,
+// 箭矢維持固定長度，不因拉弓而伸長
+const arrowX = tailX + 16;
 
-    arrowX - 3, 16, 0,
-    arrowX, 14, 0,
+const arrowY = 14;
 
-    arrowX - 3, 12, 0,
-    arrowX, 14, 0
-  ]);
+// 每一組座標代表一條線段
+const arrowSegments = [
+
+  // 1. 細長的箭桿
+  [
+    tailX + .4, arrowY,
+    arrowX - .9, arrowY
+  ],
+
+  // 2～4. 小型箭鏃（不要太大的箭頭）
+  [
+    arrowX - .9, arrowY + .2,
+    arrowX, arrowY
+  ],
+  [
+    arrowX - .9, arrowY - .2,
+    arrowX, arrowY
+  ],
+  [
+    arrowX - .9, arrowY - .2,
+    arrowX - .9, arrowY + .2
+  ],
+
+  // 5～7. 箭尾上方的羽毛
+  [
+    tailX + 1, arrowY + .08,
+    tailX + 3.5, arrowY + .8
+  ],
+  [
+    tailX + 3.5, arrowY + .8,
+    tailX + 3.2, arrowY + .16
+  ],
+  [
+    tailX + 3.2, arrowY + .16,
+    tailX + 1, arrowY + .08
+  ],
+
+  // 8～10. 箭尾下方的羽毛
+  [
+    tailX + 1, arrowY - .08,
+    tailX + 3.5, arrowY - .8
+  ],
+  [
+    tailX + 3.5, arrowY - .8,
+    tailX + 3.2, arrowY - .16
+  ],
+  [
+    tailX + 3.2, arrowY - .16,
+    tailX + 1, arrowY - .08
+  ],
+
+  // 11～12. 羽毛內側的細紋
+  [
+    tailX + 1.5, arrowY + .22,
+    tailX + 3.1, arrowY + .55
+  ],
+  [
+    tailX + 1.5, arrowY - .22,
+    tailX + 3.1, arrowY - .55
+  ],
+
+  // 13～14. 尾端扣住弓弦的箭尾凹口
+  [
+    tailX + .4, arrowY,
+    tailX, arrowY + .26
+  ],
+  [
+    tailX + .4, arrowY,
+    tailX, arrowY - .26
+  ]
+
+];
+
+// 將二維線段轉成 Three.js 三維座標
+sagArrow.array.set(
+  arrowSegments.flatMap(
+    ([x1, y1, x2, y2]) => [
+      x1, y1, 0,
+      x2, y2, 0
+    ]
+  )
+);
 
   sagArrow.geometry.attributes
     .position.needsUpdate = true;
