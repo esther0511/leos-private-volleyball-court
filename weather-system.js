@@ -1,0 +1,509 @@
+/* ===== 第五階段：雲朵、降雨、濕地與雨後彩虹 ===== */
+
+(() => {
+'use strict';
+
+const weather = {
+  touched: new Set(),
+  kind: 'none',
+  remaining: 0,
+  strength: 0,
+  wet: 0,
+  lightning: 0,
+  lightningIn: 5,
+  rainbowTime: 0,
+  rainbowPulse: 0
+};
+
+const weatherSky = new T3.Color(0x536a86);
+const weatherFlashColor = new T3.Color(0xb8cae5);
+const weatherWhite = new T3.Color(0xffffff);
+const weatherCloudGray = new T3.Color(0xa6b3c7);
+
+
+// ===== 雨滴 =====
+
+const WEATHER_DROP_COUNT = 480;
+const weatherDrops = [];
+const weatherCoords = new Float32Array(
+  WEATHER_DROP_COUNT * 6
+);
+
+const weatherRainGeo = new T3.BufferGeometry();
+
+weatherRainGeo.setAttribute(
+  'position',
+  new T3.BufferAttribute(weatherCoords, 3)
+);
+
+const weatherRain = new T3.LineSegments(
+  weatherRainGeo,
+  new T3.LineBasicMaterial({
+    color: 0xd5eaff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    fog: false
+  })
+);
+
+weatherRain.frustumCulled = false;
+weatherRain.visible = false;
+sc.add(weatherRain);
+
+
+function resetWeatherDrop(d) {
+  const a = rnd(0, PI * 2);
+  const r = Math.sqrt(Math.random()) * 18;
+
+  d.x = Math.cos(a) * r;
+  d.z = Math.sin(a) * r;
+  d.y = rnd(8, 28);
+  d.v = rnd(14, 22);
+}
+
+for (let i = 0; i < WEATHER_DROP_COUNT; i++) {
+  const drop = {};
+  resetWeatherDrop(drop);
+  weatherDrops.push(drop);
+}
+
+
+// ===== 濕地效果 =====
+// 放在球場地板下面，避免蓋住白線。
+
+const weatherWetGround = new T3.Mesh(
+  new T3.CircleGeometry(18, 64),
+  new T3.MeshBasicMaterial({
+    color: 0x264b74,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    side: T3.DoubleSide
+  })
+);
+
+weatherWetGround.rotation.x = -PI / 2;
+weatherWetGround.position.y = .012;
+sc.add(weatherWetGround);
+
+const courtWeatherBase = [
+  court.children[0].material.color.clone(),
+  court.children[1].material.color.clone()
+];
+
+const courtWeatherWet = [
+  new T3.Color(0x27486e),
+  new T3.Color(0xb78662)
+];
+
+
+// ===== 七色彩虹 =====
+
+const weatherRainbow = new T3.Group();
+
+const rainbowColors = [
+  0xffb2af,
+  0xffd2ab,
+  0xffedbd,
+  0xc6ecc8,
+  0xb8e4f2,
+  0xc3d6fa,
+  0xdacaf1
+];
+
+const rainbowBands = [];
+
+for (let i = 0; i < rainbowColors.length; i++) {
+
+  const radius = 20 - i * .24;
+  const points = [];
+
+  for (let j = 0; j <= 48; j++) {
+    const a = Math.PI * j / 48;
+
+    points.push(new T3.Vector3(
+      Math.cos(a) * radius,
+      Math.sin(a) * radius,
+      -37
+    ));
+  }
+
+  const curve = new T3.CatmullRomCurve3(points);
+
+  const band = new T3.Mesh(
+    new T3.TubeGeometry(curve, 64, .115, 5, false),
+    new T3.MeshBasicMaterial({
+      color: rainbowColors[i],
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      fog: false
+    })
+  );
+
+  rainbowBands.push(band);
+  weatherRainbow.add(band);
+}
+
+weatherRainbow.visible = false;
+sc.add(weatherRainbow);
+
+
+// ===== 彩虹點擊區 =====
+
+const rainbowHit = new T3.Mesh(
+  new T3.TubeGeometry(
+    new T3.CatmullRomCurve3(
+      Array.from({ length: 33 }, (_, j) => {
+        const a = Math.PI * j / 32;
+
+        return new T3.Vector3(
+          Math.cos(a) * 19.4,
+          Math.sin(a) * 19.4,
+          -37
+        );
+      })
+    ),
+    48, 1.3, 5, false
+  ),
+  ghost()
+);
+
+// 隱藏時不接受點擊
+rainbowHit.layers.set(1);
+
+rainbowHit.userData.act = () => {
+
+  if (
+    weather.rainbowTime <= 0 ||
+    bday.active
+  ) return;
+
+  weather.rainbowPulse = 1;
+
+  weather.rainbowTime = Math.max(
+    weather.rainbowTime, 12
+  );
+
+  popText('雨後的彩虹輕輕亮起。');
+};
+
+sc.add(rainbowHit);
+hitList.push(rainbowHit);
+
+
+// ===== 判斷是否白天 =====
+
+function weatherDaylight() {
+  const hour = ((Tm % 24) + 24) % 24;
+  return hour >= 7 && hour <= 17.5;
+}
+
+
+// ===== 玩家點擊雲朵 =====
+
+function weatherTapCloud(i) {
+
+  if (
+    bday.active ||
+    weather.touched.has(i)
+  ) return;
+
+  weather.touched.add(i);
+
+  const count = weather.touched.size;
+
+  weather.kind =
+    count >= 6 ? 'storm' :
+    count >= 3 ? 'medium' : 'light';
+
+  weather.remaining = rnd(25, 45);
+  weather.rainbowTime = 0;
+
+  if (count === 6) {
+    weather.lightningIn = 1.5;
+  }
+
+  const name =
+    count >= 6 ? '雷雨' :
+    count >= 3 ? '中雨' : '小雨';
+
+  popText(`${count} 朵雲：${name}`);
+}
+
+
+// ===== 開發者專用天氣測試 =====
+
+window.worldTestWeather = kind => {
+
+  if (!VB_IS_DEV) return false;
+
+  if (kind === 'rainbow') {
+
+    weather.kind = 'none';
+    weather.remaining = 0;
+    weather.rainbowTime = 25;
+    weather.rainbowPulse = 1;
+
+  } else if (kind === 'clear') {
+
+    weather.kind = 'none';
+    weather.remaining = 0;
+    weather.rainbowTime = 0;
+
+  } else if (
+    ['light', 'medium', 'storm'].includes(kind)
+  ) {
+
+    weather.kind = kind;
+    weather.remaining = 32;
+    weather.rainbowTime = 0;
+
+    if (kind === 'storm') {
+      weather.lightningIn = 1.5;
+    }
+
+  } else {
+    return false;
+  }
+
+  weather.touched.clear();
+  return true;
+};
+
+
+// ===== 每幀更新天氣 =====
+
+function weatherStep(dt) {
+
+  // 生日演出期間暫停天氣
+  if (bday.active) {
+
+    weatherRain.visible = false;
+    weatherRainbow.visible = false;
+    rainbowHit.layers.set(1);
+    weatherWetGround.material.opacity = 0;
+
+    return;
+  }
+
+
+  // ===== 降雨倒數 =====
+
+  if (weather.remaining > 0) {
+
+    weather.remaining = Math.max(
+      0,
+      weather.remaining - dt
+    );
+
+    if (weather.remaining === 0) {
+
+      // 白天雷雨結束，才會出現彩虹
+      if (
+        weather.kind === 'storm' &&
+        weatherDaylight()
+      ) {
+        weather.rainbowTime = 25;
+      }
+
+      weather.kind = 'none';
+      weather.touched.clear();
+    }
+  }
+
+
+  // ===== 雨勢漸變 =====
+
+  const target =
+    weather.kind === 'storm' ? 1 :
+    weather.kind === 'medium' ? .70 :
+    weather.kind === 'light' ? .43 : 0;
+
+  weather.strength +=
+    (target - weather.strength) *
+    Math.min(1, dt * 1.9);
+
+  weatherRain.visible =
+    weather.strength > .015;
+
+  weatherRain.material.opacity =
+    .50 * weather.strength;
+
+
+  // ===== 雨滴降落 =====
+
+  if (weatherRain.visible) {
+
+    for (let i = 0; i < WEATHER_DROP_COUNT; i++) {
+
+      const d = weatherDrops[i];
+
+      d.y -= d.v *
+        (0.7 + .4 * weather.strength) * dt;
+
+      d.x += dt * .65;
+
+      if (
+        d.y < .15 ||
+        Math.hypot(d.x, d.z) > 18
+      ) {
+
+        resetWeatherDrop(d);
+        d.y = rnd(18, 28);
+      }
+
+      const k = i * 6;
+
+      weatherCoords[k] = d.x;
+      weatherCoords[k + 1] = d.y;
+      weatherCoords[k + 2] = d.z;
+
+      weatherCoords[k + 3] = d.x - .14;
+      weatherCoords[k + 4] = d.y + .65;
+      weatherCoords[k + 5] = d.z;
+    }
+
+    weatherRainGeo.attributes
+      .position.needsUpdate = true;
+  }
+
+
+  // ===== 地面逐漸濕潤 =====
+
+  if (weather.strength > .04) {
+
+    weather.wet = Math.min(
+      1,
+      weather.wet +
+      dt * weather.strength * .075
+    );
+
+  } else {
+
+    weather.wet = Math.max(
+      0,
+      weather.wet - dt / 26
+    );
+  }
+
+  weatherWetGround.material.opacity =
+    weather.wet * .085;
+
+  for (let i = 0; i < 2; i++) {
+
+    court.children[i].material.color
+      .copy(courtWeatherBase[i])
+      .lerp(
+        courtWeatherWet[i],
+        weather.wet * .18
+      );
+  }
+
+
+  // ===== 雨天雲朵稍微變暗 =====
+
+  for (const cloud of clouds) {
+
+    for (const q of cloud.parts) {
+
+      q.m.material.color
+        .copy(weatherWhite)
+        .lerp(
+          weatherCloudGray,
+          weather.strength * .72
+        );
+    }
+  }
+
+
+  // ===== 雷雨與閃電 =====
+
+  amb.intensity = .8;
+
+  weather.lightning = Math.max(
+    0,
+    weather.lightning - dt * 4
+  );
+
+  if (weather.kind === 'storm') {
+
+    weather.lightningIn -= dt;
+
+    if (weather.lightningIn <= 0) {
+
+      weather.lightning = 1;
+      weather.lightningIn = rnd(5, 9);
+    }
+  }
+
+  if (weather.strength > .04) {
+
+    sc.background.lerp(
+      weatherSky,
+      weather.strength * .26
+    );
+  }
+
+  if (weather.lightning > 0) {
+
+    sc.background.lerp(
+      weatherFlashColor,
+      weather.lightning * .3
+    );
+
+    amb.intensity =
+      .8 + weather.lightning * .16;
+  }
+
+  sc.fog.color.copy(sc.background);
+
+
+  // ===== 雨後彩虹 =====
+
+  weather.rainbowTime = Math.max(
+    0,
+    weather.rainbowTime - dt
+  );
+
+  weather.rainbowPulse = Math.max(
+    0,
+    weather.rainbowPulse - dt * .55
+  );
+
+  const showRainbow =
+    weather.rainbowTime > 0 &&
+    weatherDaylight();
+
+  const rainbowFade = showRainbow
+    ? Math.min(1, weather.rainbowTime / 3)
+    : 0;
+
+  weatherRainbow.visible =
+    rainbowFade > .01;
+
+  rainbowHit.layers.set(
+    showRainbow ? 0 : 1
+  );
+
+  rainbowBands.forEach((band, i) => {
+
+    band.material.opacity =
+      rainbowFade *
+      (
+        .24 +
+        .17 * weather.rainbowPulse +
+        .02 * Math.sin(clk * 1.3 + i)
+      );
+
+  });
+
+}
+
+
+// 提供原本球場呼叫
+window.vbWeatherTapCloud = weatherTapCloud;
+window.vbWeatherStep = weatherStep;
+
+})();
