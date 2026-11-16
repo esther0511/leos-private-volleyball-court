@@ -809,10 +809,32 @@ const starGlowTexture = (() => {
   return new T3.CanvasTexture(c);
 
 })();
+// 夜空共用的圓形星點貼圖
+const skyTinyDotTex = (() => {
 
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+
+  const g = c.getContext('2d');
+
+  const f = g.createRadialGradient(
+    32, 32, 0,
+    32, 32, 30
+  );
+
+  f.addColorStop(0, 'rgba(255,255,255,1)');
+  f.addColorStop(.83, 'rgba(255,255,255,1)');
+  f.addColorStop(1, 'rgba(255,255,255,0)');
+
+  g.fillStyle = f;
+  g.fillRect(0, 0, 64, 64);
+
+  return new T3.CanvasTexture(c);
+
+})();
 const stars = [];
 
-for (let i = 0; i < 70; i++) {
+for (let i = 0; i < 530; i++) {
 
   const d = new T3.Vector3(
     rnd(-1, 1),
@@ -824,6 +846,7 @@ for (let i = 0; i < 70; i++) {
   const s = new T3.Sprite(
     new T3.SpriteMaterial({
       color: 0xffffff,
+      map: skyTinyDotTex,
       transparent: true,
       fog: false,
       depthWrite: false
@@ -831,14 +854,22 @@ for (let i = 0; i < 70; i++) {
   );
 
   s.position.copy(d);
-  s.scale.set(2.2, 2.2, 1);
+  const baseSize =
+  i < 70 ? 2.2 : rnd(.65, 1.25);
+
+s.scale.set(baseSize, baseSize, 1);
 
   const o = {
-    s,
-    pop: 0,
-    ph: rnd(0, 6),
-    halo: null
-  };
+  s,
+  pop: 0,
+  ph: rnd(0, 6),
+  halo: null,
+
+  // 記住星星的原始大小和位置
+  baseSize,
+  home: d.clone(),
+  birthdayTarget: null
+};
 
   // 點擊星星時
   s.userData.act = () => {
@@ -869,7 +900,8 @@ for (let i = 0; i < 70; i++) {
 
   sc.add(s);
   stars.push(o);
-  hitList.push(s);
+  // 只保留原本 70 顆星星的點擊互動
+if (i < 70) hitList.push(s);
 }
 
 /* real-style volleyball: 18 panels = 6 groups of 3 strips, groups alternate direction */
@@ -1814,7 +1846,7 @@ function birthdayRibbonStep(dt) {
 /* ===== 生日彩蛋 v2：天燈、煙火、樹開花 ===== */
 
 const BDAY_TEXT = '生日快樂';   // 每盞天燈一個字，最多 6 字
-const BDAY_LENGTH = 30;        // 整段彩蛋長度（秒）
+const BDAY_LENGTH = 20;        // 整段彩蛋長度（秒）
 
 const BDAY_THEMES = [
   { sky: 0xffb8cb, light: 0xffe0aa, fw: [0xffd36e, 0xffb35a, 0xfff1c9, 0xff8fb0] },
@@ -2219,7 +2251,203 @@ function playBirthdayChime() {
 let bdayCamSaved = null;
 let bdayCamTouched = false;
 cv.addEventListener('pointerdown', () => { bdayCamTouched = true; }, true);
+// ===== 生日彩蛋：原有星星排列「生日快樂」 =====
 
+function buildBirthdayStars() {
+
+  const canvas = document.createElement('canvas');
+
+  canvas.width = 768;
+  canvas.height = 192;
+
+  const g = canvas.getContext(
+    '2d',
+    { willReadFrequently: true }
+  );
+
+  g.clearRect(0, 0, 768, 192);
+
+  g.fillStyle = '#ffffff';
+
+  g.font =
+    '700 136px "PingFang TC","Noto Sans CJK TC","Microsoft JhengHei",sans-serif';
+
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+
+  g.fillText('生日快樂', 384, 98);
+
+
+  // 從文字筆畫取出星星排列位置
+
+  const data =
+    g.getImageData(0, 0, 768, 192).data;
+
+  const dots = [];
+
+  for (let y = 12; y < 184; y += 7) {
+
+    for (let x = 30; x < 738; x += 7) {
+
+      const alpha =
+        data[(y * 768 + x) * 4 + 3];
+
+      if (alpha > 140) {
+        dots.push([x, y]);
+      }
+
+    }
+
+  }
+
+  if (!dots.length) return;
+
+
+  // 以當前鏡頭方向建立空中的文字平面
+
+  cam.updateMatrixWorld(true);
+
+  const fwd = new T3.Vector3();
+
+  cam.getWorldDirection(fwd);
+
+  const right =
+    new T3.Vector3(1, 0, 0)
+      .applyQuaternion(cam.quaternion);
+
+  const up =
+    new T3.Vector3(0, 1, 0)
+      .applyQuaternion(cam.quaternion);
+
+  const depth = 122;
+
+  // 根據手機／電腦螢幕比例調整文字寬度
+  const width = Math.min(
+    80,
+    2 * depth *
+    Math.tan(cam.fov * PI / 360) *
+    cam.aspect * .86
+  );
+
+  const center =
+    cam.position.clone()
+      .addScaledVector(fwd, depth)
+      .addScaledVector(up, 12);
+
+
+  // 只移動需要排字的星星
+
+  const count =
+    Math.min(stars.length, dots.length);
+
+  stars.forEach(s => {
+    s.birthdayTarget = null;
+  });
+
+  for (let i = 0; i < count; i++) {
+
+    const dot = dots[
+      Math.floor(i * dots.length / count)
+    ];
+
+    stars[i].birthdayTarget =
+      center.clone()
+
+        .addScaledVector(
+          right,
+          (dot[0] / 768 - .5) * width
+        )
+
+        .addScaledVector(
+          up,
+          (.5 - dot[1] / 192) * width * .25
+        );
+
+  }
+
+}
+
+
+// ===== 星星移動、停留、返回 =====
+
+function moveBirthdayStars() {
+
+  if (!bday.active) return;
+
+  const entrance = sm01(
+    c01((bday.t - 2.4) / 3.3)
+  );
+
+  const departure = sm01(
+    c01((bday.t - 15.0) / 4.6)
+  );
+
+  const morph =
+    entrance * (1 - departure);
+
+
+  for (const s of stars) {
+
+    if (!s.birthdayTarget) continue;
+
+    // 從原本位置移向文字，最後返回原位
+    s.s.position
+      .copy(s.home)
+      .lerp(s.birthdayTarget, morph);
+
+    s.s.material.opacity =
+      Math.max(
+        s.s.material.opacity,
+        .97 * morph
+      );
+
+    // 排字時讓星點尺寸一致、容易辨認
+    s.s.scale.setScalar(
+      s.baseSize * (1 - morph) +
+      1.02 * morph
+    );
+
+    if (s.halo) {
+      s.halo.material.opacity = 0;
+    }
+
+  }
+
+}
+
+
+// ===== 遠方的小型煙火 =====
+
+function distantBirthdayFirework(x, z) {
+
+  // 不使用原本的大型煙火演出
+  // 只讓少量星點在遠處散開
+
+  for (let i = 0; i < 28; i++) {
+
+    const a = i * PI * 2 / 28;
+    const v = rnd(2.3, 4.5);
+
+    fwEmit(
+      x,
+      rnd(38, 43),
+      z,
+
+      Math.cos(a) * v,
+      Math.sin(a) * v,
+      rnd(-.6, .6),
+
+      FW_WARM,
+
+      1.9,
+      .97,
+      -.55,
+      0
+    );
+
+  }
+
+}
 function startBirthday() {
   if (bday.active) return;
 
@@ -2257,113 +2485,357 @@ function endBirthday() {
   bdayCamSaved = null;
 }
 
-/* ---------- 時間軸 ---------- */
+// ===== 生日彩蛋：20 秒新版 =====
+
+function startBirthday() {
+
+  if (bday.active) return;
+
+  Object.assign(bday, {
+
+    active: true,
+    t: 0,
+    lit: false,
+
+    glow: 0,
+    fireBurst: 0,
+    starFlash: 0,
+    flash: 0,
+    magic: 0,
+
+    theme: BDAY_THEMES[0],
+
+    wordBuilt: false,
+    sparkOne: false,
+    sparkTwo: false
+
+  });
+
+
+  candleBlowAt.fill(-Infinity);
+
+  // 讓兩根燭火進入熄滅狀態
+  flames.forEach(f => {
+    f.t = .6;
+  });
+
+  // 短暫暗場
+  bdayShade.style.opacity = '.87';
+
+  // 不再播放彩帶
+  ribbonMesh.visible = false;
+
+
+  // 保存原本的攝影機角度
+
+  bdayCamTouched = false;
+
+  const mode =
+    typeof worldCameraMode === 'function'
+      ? worldCameraMode()
+      : 'orbit';
+
+  bdayCamSaved = mode === 'orbit'
+    ? {
+        th: ct.th,
+        ph: ct.ph,
+        d: ct.d,
+        tilt: ct.tilt
+      }
+    : null;
+
+}
+
+
+// ===== 結束生日演出 =====
+
+function endBirthday() {
+
+  bday.active = false;
+
+  bday.glow =
+    bday.fireBurst =
+    bday.starFlash =
+    bday.flash =
+    bday.magic = 0;
+
+  bdayShade.style.opacity = '0';
+
+  amb.intensity = .8;
+
+
+  // 黃花消失
+
+  flowerSets.forEach(s => {
+    s.mesh.visible = false;
+  });
+
+
+  pools.forEach(p => {
+    p.material.opacity = 0;
+  });
+
+  flares.forEach(s => {
+    s.material.opacity = 0;
+  });
+
+
+  // 所有星星回到原本位置
+
+  for (const s of stars) {
+
+    s.s.position.copy(s.home);
+
+    s.birthdayTarget = null;
+
+  }
+
+
+  // 恢復攝影機
+
+  if (
+    bdayCamSaved &&
+    !bdayCamTouched
+  ) {
+
+    Object.assign(ct, bdayCamSaved);
+
+  }
+
+  bdayCamSaved = null;
+
+}
+
+
+// ===== 20 秒生日時間軸 =====
 
 function birthdayStep(dt) {
+
   fwStep(dt);
-  rocketStep(dt);
-  lanternStep(dt);
+
   if (!bday.active) return;
 
   bday.t += dt;
-  const t = bday.t, th = bday.theme;
 
-  // 1.2 秒：蠟燭重亮、球彈起、樹開花、彩帶
-  if (t >= 1.2 && !bday.lit) {
+  const t = bday.t;
+
+
+  // 1.2 秒：燭火重新燃起
+
+  if (
+    t >= 1.2 &&
+    !bday.lit
+  ) {
+
     bday.lit = true;
-    flames.forEach(f => { f.t = 7.2; f.pop = .6; });
 
-    spikeFlight = null; hover = null;
-    b.drag = false; b.armed = 0; b.combo = 0;
+    flames.forEach(f => {
 
-    if (Math.abs(ball.position.x) > 9 || Math.abs(ball.position.z) > 4.5) ball.position.set(-3, BR, 2);
-    else ball.position.y = BR;
+      f.t = 7.2;
+      f.pop = .3;
 
-    bv.set(rnd(-.7, .7), 11.5, rnd(-.7, .7));
-    b.sq = .25;
-
-    flowerSets.forEach(s => { s.mesh.visible = true; });
-    trees.forEach(tr => dropLeaves(tr, [0xf8dc64, 0xfff2bf, 0xffe58a]));
-    burstBirthdayRibbons();
-    playBirthdayChime();
-
-    if (bdayCamSaved) { ct.ph = 1.36; ct.tilt = .5; ct.d = Math.max(ct.d, 32); }
-  }
-
-  if (t >= 2 && !bday.lantern) { bday.lantern = true; spawnTextLanterns(); }
-  if (t >= 11.5 && !bday.ribbon2) { bday.ribbon2 = true; burstBirthdayRibbons(); }
-  if (t >= 21 && !bday.ribbon3) { bday.ribbon3 = true; burstBirthdayRibbons(); }
-
-  if (t >= 1.2) {
-    bdayShade.style.opacity = String(Math.max(0, .87 * (1 - (t - 1.2) / .55)));
-
-    bday.magic = sm01(Math.min(c01((t - 1.2) / 2.4), c01((BDAY_LENGTH - t) / 5)));
-    bday.glow = c01((t - 1.2) / .5) * c01((BDAY_LENGTH - 2 - t) / 6);
-    bday.fireBurst = Math.max(0, 1 - (t - 1.2) / 3.2);
-    bday.flash = Math.max(0, bday.flash - dt * 2.2);
-    bday.starFlash = bday.magic * .5;
-
-    // 天空進入「魔法時刻」，白天也看得到煙火
-    sc.background.lerp(MAGIC_SKY, bday.magic * .9);
-    sc.background.lerp(bdayTmp.set(th.sky), bday.glow * .1);
-    sc.fog.color.copy(sc.background);
-
-    const dim = bday.magic * (1 - Math.min(1, starV));
-    amb.color.lerp(MAGIC_LIGHT, bday.magic * .6);
-    amb.color.lerp(bdayTmp.set(th.light), bday.glow * .25);
-    amb.intensity = .8 - .3 * dim + bday.flash * .3;
-    sunL.color.lerp(MAGIC_LIGHT, bday.magic * .6);
-    sunL.intensity *= (1 - .65 * dim);
-    if (bday.magic > .35) sun.visible = false;
-    cloudV *= (1 - bday.magic * .85);
-
-    // 蠟燭的光：地面光池、星芒、火星
-    const k = Math.max(bday.fireBurst, bday.glow * .5);
-    flames.forEach((f, i) => {
-      const lit = f.t >= 4.5 ? c01((f.t - 4.5) / 2.5) : 0;
-      pools[i].material.opacity = k * .85 * lit;
-      flares[i].material.opacity = (.35 + k * .65) * lit;
-      flares[i].material.rotation = clk * .6;
-      const s = (.5 + 4.5 * k) * lit;
-      flares[i].scale.set(s, s, 1);
-      if (lit > .5 && t < 22 && Math.random() < dt * 45)
-        fwEmit(rnd(-.1, .1), 2.75, (i === 0 ? -5.1 : 5.1) + rnd(-.1, .1), rnd(-.3, .3), rnd(.8, 1.8), rnd(-.3, .3), FW_WARM, rnd(1.6, 2.6), .99, -.05, 1);
     });
 
-    // 煙火導演
-    if (t >= 2.2 && t <= 25.5) {
-      bday.next -= dt;
-      if (bday.next <= 0) {
-        const finale = t > 20 && t < 24.6;
-        bday.next = finale ? rnd(.2, .4) : t < 9 ? rnd(1, 1.6) : rnd(.65, 1.1);
 
-        let type;
-        if (!bday.heart && t > 10.5) { type = 'heart'; bday.heart = true; }
-        else if (t < 3) type = 'peony';
-        else if (finale) type = Math.random() < .5 ? 'double' : 'peony';
-        else type = ['peony', 'ring', 'willow', 'double'][(Math.random() * 4) | 0];
+    // 讓排球輕輕彈起
 
-        launchRocket(type, th.fw[(Math.random() * th.fw.length) | 0]);
-      }
+    spikeFlight = null;
+    hover = null;
+
+    b.drag = false;
+    b.armed = 0;
+    b.combo = 0;
+
+    if (
+      Math.abs(ball.position.x) > 9 ||
+      Math.abs(ball.position.z) > 4.5
+    ) {
+
+      ball.position.set(-3, BR, 2);
+
+    } else {
+
+      ball.position.y = BR;
+
     }
 
-    // 結尾：三發垂柳、流星雨、小天燈、亮粉
-    if (t > 24.2 && !bday.finale) {
-      bday.finale = true;
-      for (let i = 0; i < 3; i++) launchRocket('willow', 0xffd36e, i * .35);
-      if (bday.meteors) for (let i = 0; i < 6; i++) launchMeteor(1 + i * .45);
-      for (let i = 0; i < 34; i++) setTimeout(spawnSmallLantern, i * 220);
+    bv.set(
+      rnd(-.25, .25),
+      5.5,
+      rnd(-.25, .25)
+    );
+
+    b.sq = .12;
+
+
+    // 樹木開出黃色小花
+
+    flowerSets.forEach(s => {
+      s.mesh.visible = true;
+    });
+
+
+    playBirthdayChime();
+
+
+    // 一般視角：讓攝影機慢慢抬頭
+
+    if (bdayCamSaved) {
+
+      ct.ph = 1.38;
+      ct.tilt = .58;
+
+      ct.d = Math.max(ct.d, 32);
+
     }
-    if (t > 23 && t < BDAY_LENGTH - 1)
-      for (let i = 0; i < 2; i++)
-        fwEmit(rnd(-18, 18), rnd(10, 16), rnd(-14, 6), rnd(-.3, .3), rnd(-1.2, -.6), rnd(-.3, .3), FW_WARM, 4, .995, -.05, 1);
+
   }
 
-  birthdayRibbonStep(dt);
+
+  // 暗場逐漸消失
+
+  bdayShade.style.opacity =
+    t < 1.2
+      ? '.87'
+      : String(
+          .87 *
+          (
+            1 -
+            sm01(c01((t - 1.2) / .65))
+          )
+        );
+
+
+  // 天空轉入星夜，再恢復原本日夜循環
+
+  const nightIn =
+    sm01(c01((t - 1.2) / 1.7));
+
+  const nightOut =
+    1 - sm01(c01((t - 17) / 3));
+
+  bday.magic =
+    nightIn * nightOut;
+
+
+  sc.background.lerp(
+    MAGIC_SKY,
+    bday.magic * .94
+  );
+
+  sc.fog.color.copy(sc.background);
+
+  amb.color.lerp(
+    MAGIC_LIGHT,
+    bday.magic * .55
+  );
+
+  sunL.intensity *=
+    (1 - bday.magic * .7);
+
+  starV = Math.max(
+    starV,
+    bday.magic * .95
+  );
+
+  cloudV *=
+    (1 - bday.magic * .85);
+
+  if (bday.magic > .4) {
+    sun.visible = false;
+  }
+
+
+  // 保留燭火周圍的小範圍光線
+
+  bday.glow =
+    .25 * bday.magic;
+
+  bday.fireBurst =
+    t >= 1.2
+      ? Math.max(
+          0,
+          1 - (t - 1.2) / 1.6
+        )
+      : 0;
+
+
+  // 2.4 秒：開始安排星星的位置
+
+  if (
+    t >= 2.4 &&
+    !bday.wordBuilt
+  ) {
+
+    bday.wordBuilt = true;
+
+    buildBirthdayStars();
+
+  }
+
+
+  // 9 秒與 14 秒：兩次遠方小煙火
+
+  if (
+    t >= 9 &&
+    !bday.sparkOne
+  ) {
+
+    bday.sparkOne = true;
+
+    distantBirthdayFirework(
+      -20, -65
+    );
+
+  }
+
+
+  if (
+    t >= 14 &&
+    !bday.sparkTwo
+  ) {
+
+    bday.sparkTwo = true;
+
+    distantBirthdayFirework(
+      25, -72
+    );
+
+  }
+
+
+  // 柔和的燭火光池
+
+  if (bday.lit) {
+
+    const k = .25 * bday.magic;
+
+    pools.forEach(p => {
+      p.material.opacity = k;
+    });
+
+    flares.forEach(s => {
+      s.material.opacity = k;
+    });
+
+  }
+
+
+  // 樹木開花與凋落
+
   flowerStep(t);
 
-  if (t >= BDAY_LENGTH) endBirthday();
+
+  // 20 秒結束
+
+  if (t >= BDAY_LENGTH) {
+
+    endBirthday();
+
+  }
+
 }
+
 
 let ptime=performance.now(),clk=0;
 function frame(now){
@@ -2479,9 +2951,9 @@ stars.forEach(o => {
   const pulse = Math.sin(o.pop * PI);
 
   // 星星最多放大 30%
-  o.s.scale.setScalar(
-    2.2 * (1 + 0.3 * pulse)
-  );
+ o.s.scale.setScalar(
+  o.baseSize * (1 + 0.3 * pulse)
+);
 
   // 額外的柔和光暈
   if (o.halo) {
@@ -2497,6 +2969,9 @@ stars.forEach(o => {
   }
 });
 
+  // 生日當下：讓原有星星移動成文字
+// 結束後返回夜空原本的位置
+moveBirthdayStars();
   for(let i=rings.length-1;i>=0;i--){const q=rings[i];q.t+=dt*1.8;q.r.scale.setScalar(1+q.t*5);q.r.material.opacity=Math.max(0,1-q.t);if(q.t>=1){sc.remove(q.r);rings.splice(i,1)}}
 
   
