@@ -2162,61 +2162,373 @@ window.worldOpenMachinePanel = openMachinePanel;
     chairLook.fov = Math.max(20, Math.min(70, chairLook.fov * Math.exp(e.deltaY * .001)));
   }, { capture: true, passive: false });
 
-  // ===== 銀河（夜晚才看得見） =====
+  
+  // ===== 夜空：射手座的「茶壺星群」 =====
+  // 平常只有星點，互動時才會浮現連線。
 
-  const milkyTex = (() => {
-    const W2 = 2048, H2 = 1024;
-    const c = document.createElement('canvas');
-    c.width = W2; c.height = H2;
-    const g = c.getContext('2d');
-    const gauss = () => { let s = 0; for (let i = 0; i < 4; i++) s += Math.random(); return (s - 2) / .58; };
+  const sagChair = byId.get('chair');
+  const sagSky = new T3.Group();
 
-    // 柔和光暈（中央偏暖）
-    for (let i = 0; i < 260; i++) {
-      const x = Math.random() * W2, y = H2 / 2 + gauss() * H2 * .035, r = rnd(50, 150);
-      const warm = Math.abs(x / W2 - .5) < .18;
-      const gr = g.createRadialGradient(x, y, 0, x, y, r);
-      gr.addColorStop(0, warm ? 'rgba(255,226,200,.05)' : 'rgba(190,205,255,.045)');
-      gr.addColorStop(1, 'rgba(190,205,255,0)');
-      g.fillStyle = gr;
-      g.fillRect(x - r, y - r, r * 2, r * 2);
-    }
-
-    // 暗色塵埃帶
-    for (let i = 0; i < 40; i++) {
-      const x = Math.random() * W2, y = H2 / 2 + gauss() * H2 * .02, r = rnd(30, 90);
-      const gr = g.createRadialGradient(x, y, 0, x, y, r);
-      gr.addColorStop(0, 'rgba(4,8,28,.12)');
-      gr.addColorStop(1, 'rgba(4,8,28,0)');
-      g.fillStyle = gr;
-      g.fillRect(x - r, y - r, r * 2, r * 2);
-    }
-
-    // 細小星點
-    for (let i = 0; i < 16000; i++) {
-      g.globalAlpha = rnd(.12, .8);
-      g.fillStyle = Math.random() < .2 ? '#ffe9d0' : '#dbe6ff';
-      g.fillRect(Math.random() * W2, H2 / 2 + gauss() * H2 * .07, rnd(.6, 1.6), rnd(.6, 1.6));
-    }
-    return new T3.CanvasTexture(c);
-  })();
-
-  const milky = new T3.Mesh(
-    new T3.SphereGeometry(300, 48, 24),
-    new T3.MeshBasicMaterial({ map: milkyTex, transparent: true, opacity: 0, side: T3.BackSide, depthWrite: false, fog: false })
+  sagSky.position.set(
+    sagChair.x,
+    84,
+    sagChair.z - 160
   );
-  milky.rotation.set(.9, 0, .5);
-  milky.renderOrder = -10;
-  sc.add(milky);
+
+  sc.add(sagSky);
+
+
+  // 八顆主星：名稱、位置、大小、亮度
+  // 使用插畫化的茶壺星群構圖
+
+  const sagData = [
+    ['τ Sgr',         -4.0,  0.0, 2.1, .75],
+    ['Nunki',         -3.0,  0.9, 2.9, .98],
+    ['φ Sgr',         -1.6,  0.7, 2.2, .75],
+    ['Kaus Borealis',   .35, 2.3, 2.5, .85],
+    ['Kaus Media',     1.3,  0.4, 2.6, .90],
+    ['Alnasl',         3.6,  0.1, 2.2, .80],
+    ['Kaus Australis', 1.0, -1.8, 3.2, 1.00],
+    ['Ascella',       -2.8, -1.1, 2.6, .87]
+  ];
+
+
+  // 建立不同大小、亮度的星星
+
+  const sagPoints = [];
+
+  const sagStars = sagData.map(
+    ([name, x, y, size, brightness], i) => {
+
+      const dot = new T3.Sprite(
+        new T3.SpriteMaterial({
+          map: starGlowTexture,
+          color: i === 6 ? 0xfff0d9 : 0xe4edff,
+          transparent: true,
+          opacity: 0,
+          blending: T3.AdditiveBlending,
+          depthWrite: false,
+          fog: false
+        })
+      );
+
+      dot.position.set(
+        x * 6.2,
+        y * 6.2,
+        0
+      );
+
+      dot.scale.set(size, size, 1);
+
+      sagSky.add(dot);
+      sagPoints.push(dot.position.clone());
+
+      return {
+        dot,
+        name,
+        brightness,
+        phase: i * 1.71
+      };
+
+    }
+  );
+
+
+  // ===== 射手座連線 =====
+  // 壺柄、壺身、壺蓋及壺嘴
+
+  const sagEdges = [
+    [0, 1], [0, 7],
+    [1, 2], [2, 7],
+    [2, 3], [3, 4],
+    [2, 4], [4, 5],
+    [5, 6], [4, 6],
+    [6, 7]
+  ];
+
+  const sagLineVertices = [];
+
+  sagEdges.forEach(([a, b]) => {
+    sagLineVertices.push(
+      sagPoints[a],
+      sagPoints[b]
+    );
+  });
+
+
+  const sagLines = new T3.LineSegments(
+
+    new T3.BufferGeometry()
+      .setFromPoints(sagLineVertices),
+
+    new T3.LineBasicMaterial({
+      color: 0xdbe9ff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      fog: false
+    })
+
+  );
+
+  sagLines.visible = false;
+
+  sagSky.add(sagLines);
+
+
+  // ===== 射手座互動狀態 =====
+
+  let sagNight = 0;
+  let sagHovered = false;
+  let sagTouchUntil = 0;
+  let sagLineFade = 0;
+
+
+  // 檢查滑鼠是否位於射手座星群範圍內
+
+  function pointerOnSagittarius(x, y) {
+
+    if (
+      cameraMode !== 'chair' ||
+      sagNight < .35
+    ) return false;
+
+    cam.updateMatrixWorld();
+
+    const rect = cv.getBoundingClientRect();
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    let visibleDots = 0;
+
+    for (const p of sagPoints) {
+
+      const projected = p.clone()
+        .add(sagSky.position)
+        .project(cam);
+
+      if (
+        projected.z < -1 ||
+        projected.z > 1
+      ) continue;
+
+      const sx =
+        rect.left +
+        (projected.x + 1) * rect.width / 2;
+
+      const sy =
+        rect.top +
+        (1 - projected.y) * rect.height / 2;
+
+      if (
+        sx < rect.left - 30 ||
+        sx > rect.right + 30 ||
+        sy < rect.top - 30 ||
+        sy > rect.bottom + 30
+      ) continue;
+
+      minX = Math.min(minX, sx);
+      maxX = Math.max(maxX, sx);
+
+      minY = Math.min(minY, sy);
+      maxY = Math.max(maxY, sy);
+
+      visibleDots++;
+    }
+
+    if (visibleDots < 4) return false;
+
+    const margin = 24;
+
+    return (
+      x >= minX - margin &&
+      x <= maxX + margin &&
+      y >= minY - margin &&
+      y <= maxY + margin
+    );
+  }
+
+
+  // ===== 電腦：滑鼠移入星群 =====
+
+  cv.addEventListener('pointermove', e => {
+
+    if (e.pointerType === 'touch') return;
+
+    sagHovered =
+      !e.buttons &&
+      pointerOnSagittarius(
+        e.clientX,
+        e.clientY
+      );
+
+  });
+
+  cv.addEventListener('pointerleave', () => {
+    sagHovered = false;
+  });
+
+
+  // ===== 手機：點一下星群 =====
+  // 連線短暫出現，之後自然消失。
+
+  window.addEventListener('pointerup', e => {
+
+    if (
+      e.target === cv &&
+      e.pointerType === 'touch' &&
+      pointerOnSagittarius(
+        e.clientX,
+        e.clientY
+      )
+    ) {
+
+      sagTouchUntil =
+        performance.now() + 6500;
+
+    }
+
+  }, true);
+
+
+  // ===== 純鍵盤：對準星群按 E =====
+
+  window.addEventListener('keydown', e => {
+
+    if (
+      e.key.toLowerCase() !== 'e' ||
+      e.repeat ||
+      ['INPUT', 'TEXTAREA', 'SELECT'].includes(
+        document.activeElement.tagName
+      )
+    ) return;
+
+    const r = cv.getBoundingClientRect();
+
+    if (
+      pointerOnSagittarius(
+        r.left + r.width / 2,
+        r.top + r.height / 2
+      )
+    ) {
+
+      sagTouchUntil =
+        performance.now() + 6500;
+
+    }
+
+  }, true);
+
+
+  // ===== 日夜變化與連線動畫 =====
 
   function updateSky(dt) {
-    const sv = Math.max(starV, bday.magic * .7);
-    const k = Math.max(0, Math.min(1, (sv - .15) / .6));
-    milky.material.opacity = k * .9;
-    milky.visible = k > .01;
-    milky.rotation.y += dt * .003;
+
+    // 隨著原本日夜循環改變亮度
+    // 白天不顯示射手座
+
+    sagNight = Math.max(
+      0,
+      Math.min(1, (starV - .12) / .58)
+    );
+
+    sagSky.visible = sagNight > .015;
+
+
+    // 每顆星星自然、輕微地閃爍
+
+    const now = performance.now();
+
+    sagStars.forEach(s => {
+
+      const twinkle =
+        .87 +
+        .13 * Math.sin(
+          now * .0014 + s.phase
+        );
+
+      s.dot.material.opacity =
+        sagNight *
+        s.brightness *
+        twinkle;
+
+    });
+
+
+    // 必須坐在裁判椅，而且正在互動
+    // 才能看見星座連線
+
+    const showLines =
+      cameraMode === 'chair' &&
+      sagNight > .35 &&
+      (
+        sagHovered ||
+        now < sagTouchUntil
+      );
+
+
+    // 緩緩淡入、淡出
+
+    sagLineFade +=
+      (
+        (showLines ? 1 : 0) -
+        sagLineFade
+      ) *
+      Math.min(
+        1,
+        dt * (showLines ? 2.0 : 1.5)
+      );
+
+
+    // 約 5.2 秒完成一次明暗循環
+    // 不會快速閃爍
+
+    const breathe =
+      .5 +
+      .5 * Math.sin(
+        now * Math.PI * 2 / 5200
+      );
+
+
+    // 最高不透明度約 28%
+
+    sagLines.material.opacity =
+      .28 *
+      sagLineFade *
+      sagNight *
+      breathe;
+
+    sagLines.visible =
+      sagLines.material.opacity > .002;
+
   }
-    
+
+
+  // ===== 開發者專用射手座預覽 =====
+
+  window.worldPreviewSagittarius = () => {
+
+    if (
+      !VB_IS_DEV ||
+      reveal ||
+      organizing ||
+      bday.active
+    ) return false;
+
+    cameraMode = 'chair';
+
+    chairLook.yaw = 0;
+    chairLook.pitch = .46;
+    chairLook.fov = 45;
+
+    updateBoatControls();
+
+    return true;
+  };
+
   // 裁判椅或帆船視角：雙擊返回
   cv.addEventListener('dblclick', e => {
     if (cameraMode === 'orbit') return;
