@@ -2392,7 +2392,7 @@ const sagSkeleton = makeSagLine(
 
 const sagBow = makeSagLine(9, false);
 const sagString = makeSagLine(3, false);
-const sagArrow = makeSagLine(28, true);
+const sagArrow = makeSagLine(8, true);
 
 
 // ===== 動畫狀態 =====
@@ -2784,72 +2784,24 @@ const arrowY = 14;
 // 每一組座標代表一條線段
 const arrowSegments = [
 
-  // 1. 細長的箭桿
+  // 1. 細長箭桿
   [
     tailX + .4, arrowY,
     arrowX - .9, arrowY
   ],
 
-  // 2～4. 小型箭鏃（不要太大的箭頭）
+  // 2～4. 小型箭頭
   [
-    arrowX - .9, arrowY + .2,
+    arrowX - .9, arrowY + .22,
     arrowX, arrowY
   ],
   [
-    arrowX - .9, arrowY - .2,
+    arrowX - .9, arrowY - .22,
     arrowX, arrowY
   ],
   [
-    arrowX - .9, arrowY - .2,
-    arrowX - .9, arrowY + .2
-  ],
-
-  // 5～7. 箭尾上方的羽毛
-  [
-    tailX + 1, arrowY + .08,
-    tailX + 3.5, arrowY + .8
-  ],
-  [
-    tailX + 3.5, arrowY + .8,
-    tailX + 3.2, arrowY + .16
-  ],
-  [
-    tailX + 3.2, arrowY + .16,
-    tailX + 1, arrowY + .08
-  ],
-
-  // 8～10. 箭尾下方的羽毛
-  [
-    tailX + 1, arrowY - .08,
-    tailX + 3.5, arrowY - .8
-  ],
-  [
-    tailX + 3.5, arrowY - .8,
-    tailX + 3.2, arrowY - .16
-  ],
-  [
-    tailX + 3.2, arrowY - .16,
-    tailX + 1, arrowY - .08
-  ],
-
-  // 11～12. 羽毛內側的細紋
-  [
-    tailX + 1.5, arrowY + .22,
-    tailX + 3.1, arrowY + .55
-  ],
-  [
-    tailX + 1.5, arrowY - .22,
-    tailX + 3.1, arrowY - .55
-  ],
-
-  // 13～14. 尾端扣住弓弦的箭尾凹口
-  [
-    tailX + .4, arrowY,
-    tailX, arrowY + .26
-  ],
-  [
-    tailX + .4, arrowY,
-    tailX, arrowY - .26
+    arrowX - .9, arrowY - .22,
+    arrowX - .9, arrowY + .22
   ]
 
 ];
