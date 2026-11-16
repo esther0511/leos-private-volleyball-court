@@ -4229,28 +4229,6 @@ function updateMusicButton() {
 
 function applyMusicVolume() {
 
-  if (!musicCtx || !musicMaster) return;
-
-  const now = musicCtx.currentTime;
-
-  musicMaster.gain.cancelScheduledValues(now);
-
-  // 生日進行中，一般背景旋律保持靜音
-  musicMaster.gain.setTargetAtTime(
-
-    bday.active
-      ? .0001
-      : (
-          musicAudible()
-            ? getMusicVolumeLevel()
-            : .0001
-        ),
-
-    now,
-    .08
-  );
-
-
   // 生日歌直接沿用音樂音量滑桿
   if (birthdayMusicBus) {
 
