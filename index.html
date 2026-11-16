@@ -2251,15 +2251,287 @@ function playBirthdayChime() {
 let bdayCamSaved = null;
 let bdayCamTouched = false;
 cv.addEventListener('pointerdown', () => { bdayCamTouched = true; }, true);
-// ===== 生日星座文字：以原有星點排成四字 =====
+
+// ===== 生日星座文字：改為星座式字形，而不是描邊點陣字 =====
 
 let birthdayLetterLines = null;
 let birthdayMeteorLines = null;
 let birthdayLinePairs = [];
 let birthdayStarsUsed = [];
 
+const BDAY_CONSTELLATION_GLYPHS = {
+  '生': [
+    [[0.50, 0.92], [0.50, 0.08]],
+    [[0.18, 0.72], [0.82, 0.72]],
+    [[0.14, 0.32], [0.86, 0.32]]
+  ],
+
+  '日': [
+    [[0.25, 0.86], [0.75, 0.86], [0.75, 0.14], [0.25, 0.14], [0.25, 0.86]],
+    [[0.30, 0.50], [0.70, 0.50]]
+  ],
+
+  '快': [
+    [[0.14, 0.76], [0.14, 0.62]],
+    [[0.14, 0.42], [0.14, 0.28]],
+    [[0.08, 0.54], [0.22, 0.50]],
+    [[0.42, 0.88], [0.42, 0.14]],
+    [[0.42, 0.62], [0.80, 0.62]],
+    [[0.58, 0.82], [0.80, 0.82]],
+    [[0.58, 0.54], [0.80, 0.20]],
+    [[0.58, 0.54], [0.34, 0.18]]
+  ],
+
+  '樂': [
+    [[0.18, 0.80], [0.28, 0.92], [0.40, 0.80]],
+    [[0.60, 0.80], [0.72, 0.92], [0.82, 0.80]],
+    [[0.22, 0.60], [0.78, 0.60]],
+    [[0.50, 0.76], [0.50, 0.24]],
+    [[0.34, 0.46], [0.18, 0.18]],
+    [[0.66, 0.46], [0.82, 0.18]],
+    [[0.32, 0.34], [0.68, 0.34]]
+  ]
+};
+
+function sampleBirthdayStroke(
+  registerDot,
+  linePairs,
+  ch,
+  stroke,
+  charWidth,
+  charHeight,
+  charOffsetX
+) {
+  let prev = -1;
+
+  for (let i = 0; i < stroke.length - 1; i++) {
+
+    const a = stroke[i];
+    const b = stroke[i + 1];
+
+    const segLen = Math.hypot(
+      b[0] - a[0],
+      b[1] - a[1]
+    );
+
+    const steps = Math.max(
+      2,
+      Math.round(segLen / 0.22)
+    );
+
+    for (let k = 0; k <= steps; k++) {
+
+      if (i > 0 && k === 0) continue;
+
+      const t = k / steps;
+
+      const x =
+        charOffsetX +
+        (a[0] + (b[0] - a[0]) * t) * charWidth;
+
+      const y =
+        (a[1] + (b[1] - a[1]) * t) * charHeight;
+
+      const idx = registerDot(x, y, ch);
+
+      if (prev !== -1 && prev !== idx) {
+        linePairs.push([prev, idx]);
+      }
+
+      prev = idx;
+    }
+  }
+}
+
 function buildBirthdayStars() {
 
+  const chars = [...'生日快樂'];
+
+  const charWidth = 160;
+  const charHeight = 168;
+  const charGap = 76;
+
+  const totalWidth =
+    chars.length * charWidth +
+    (chars.length - 1) * charGap;
+
+  const dots = [];
+  const rawPairs = [];
+  const dotMap = new Map();
+
+  const registerDot = (x, y, ch) => {
+    const key =
+      `${ch}:${x.toFixed(2)}:${y.toFixed(2)}`;
+
+    if (dotMap.has(key)) {
+      return dotMap.get(key);
+    }
+
+    const idx = dots.length;
+
+    dots.push({ x, y, ch });
+    dotMap.set(key, idx);
+
+    return idx;
+  };
+
+  chars.forEach((char, ch) => {
+
+    const strokes = BDAY_CONSTELLATION_GLYPHS[char];
+    const charOffsetX =
+      ch * (charWidth + charGap);
+
+    strokes.forEach(stroke => {
+      sampleBirthdayStroke(
+        registerDot,
+        rawPairs,
+        ch,
+        stroke,
+        charWidth,
+        charHeight,
+        charOffsetX
+      );
+    });
+
+  });
+
+  if (!dots.length) return;
+
+  cam.updateMatrixWorld(true);
+
+  const forward = new T3.Vector3();
+  cam.getWorldDirection(forward);
+
+  const right =
+    new T3.Vector3(1, 0, 0)
+      .applyQuaternion(cam.quaternion)
+      .normalize();
+
+  const up =
+    new T3.Vector3(0, 1, 0)
+      .applyQuaternion(cam.quaternion)
+      .normalize();
+
+  const depth = 118;
+
+  const width = Math.min(
+    64,
+    2 * depth *
+    Math.tan(cam.fov * PI / 360) *
+    cam.aspect * .72
+  );
+
+  const scale = width / totalWidth;
+
+  const center =
+    cam.position.clone()
+      .addScaledVector(forward, depth)
+      .addScaledVector(up, 9.5);
+
+  birthdayStarsUsed = [];
+
+  for (const s of stars) {
+    s.birthdayTarget = null;
+    s.meteorTarget = null;
+  }
+
+  const count = Math.min(
+    stars.length,
+    dots.length
+  );
+
+  for (let i = 0; i < count; i++) {
+
+    const dot = dots[i];
+    const s = stars[i];
+
+    s.birthdayTarget =
+      center.clone()
+        .addScaledVector(
+          right,
+          (dot.x - totalWidth / 2) * scale
+        )
+        .addScaledVector(
+          up,
+          (charHeight * .52 - dot.y) * scale
+        );
+
+    // 結尾像流星一樣往球場附近落下
+    s.meteorTarget = new T3.Vector3(
+      rnd(-11, 11),
+      rnd(2.0, 4.6),
+      rnd(-4.5, 4.5)
+    );
+
+    s.meteorDelay = rnd(0, .7);
+
+    birthdayStarsUsed.push({ s, dot });
+  }
+
+  birthdayLinePairs = rawPairs.filter(
+    ([a, b]) => a < count && b < count
+  );
+
+  if (birthdayLetterLines) {
+    sc.remove(birthdayLetterLines);
+    birthdayLetterLines.geometry.dispose();
+    birthdayLetterLines.material.dispose();
+  }
+
+  const linePoints =
+    birthdayLinePairs.flatMap(
+      ([a, b]) => [
+        birthdayStarsUsed[a].s.birthdayTarget,
+        birthdayStarsUsed[b].s.birthdayTarget
+      ]
+    );
+
+  birthdayLetterLines =
+    new T3.LineSegments(
+      new T3.BufferGeometry().setFromPoints(linePoints),
+      new T3.LineBasicMaterial({
+        color: 0xdceaff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        fog: false
+      })
+    );
+
+  birthdayLetterLines.frustumCulled = false;
+  sc.add(birthdayLetterLines);
+
+  if (birthdayMeteorLines) {
+    sc.remove(birthdayMeteorLines);
+    birthdayMeteorLines.geometry.dispose();
+    birthdayMeteorLines.material.dispose();
+  }
+
+  const meteorGeo = new T3.BufferGeometry();
+
+  meteorGeo.setAttribute(
+    'position',
+    new T3.BufferAttribute(
+      new Float32Array(count * 6),
+      3
+    )
+  );
+
+  birthdayMeteorLines =
+    new T3.LineSegments(
+      meteorGeo,
+      new T3.LineBasicMaterial({
+        color: 0xe8efff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        fog: false
+      })
+    );
+
+  birthdayMeteorLines.frustumCulled = false;
+  sc.add(birthdayMeteorLines);
+}
   const canvas = document.createElement('canvas');
   canvas.width = 960;
   canvas.height = 240;
@@ -2575,14 +2847,16 @@ function moveBirthdayStars() {
         (1 - .94 * m)
       );
 
-      s.s.scale.setScalar(
-        (
-          s.baseSize * (1 - gather) +
-          1.05 * gather
-        ) *
-        (1 - .35 * m)
-      );
+      const gatheredSize =
+  (0.52 + (i % 3) * 0.06) * gather;
 
+s.s.scale.setScalar(
+  (
+    s.baseSize * (1 - gather) +
+    gatheredSize
+  ) *
+  (1 - .25 * m)
+);
       if (s.halo) {
         s.halo.material.opacity = 0;
       }
@@ -2668,6 +2942,91 @@ function clearBirthdayStars() {
 // ===== 遠方的小型煙火 =====
 
 function distantBirthdayFirework(x, z) {
+
+  const y = rnd(34, 39);
+
+  const colors = [
+    new T3.Color(0xfff7ea),
+    new T3.Color(0xffe6b9),
+    new T3.Color(0xffcf8a)
+  ];
+
+  const ringBurst = (
+    count,
+    speed,
+    lift,
+    twist = 0
+  ) => {
+
+    for (let i = 0; i < count; i++) {
+
+      const a =
+        twist + i * PI * 2 / count;
+
+      fwEmit(
+        x,
+        y,
+        z,
+
+        Math.cos(a) * speed,
+        Math.sin(a) * speed + lift,
+        rnd(-.15, .15),
+
+        colors[i % colors.length],
+
+        rnd(1.5, 2.1),
+        .985,
+        -.18,
+        1
+      );
+
+    }
+  };
+
+  // 外圈
+  ringBurst(10, 2.8, .2);
+
+  // 內圈
+  ringBurst(6, 1.7, .1, PI / 6);
+
+  // 四向小亮點，讓它更像一般煙火
+  for (let i = 0; i < 4; i++) {
+
+    const a = PI / 4 + i * PI / 2;
+
+    fwEmit(
+      x,
+      y,
+      z,
+
+      Math.cos(a) * 3.3,
+      Math.sin(a) * 3.3,
+      0,
+
+      FW_WHITE,
+
+      1.3,
+      .987,
+      -.16,
+      0
+    );
+
+  }
+
+  // 中心亮點
+  fwEmit(
+    x,
+    y,
+    z,
+    0, 0, 0,
+    FW_WHITE,
+    1.05,
+    .99,
+    0,
+    1
+  );
+
+}
 
   // 不使用原本的大型煙火演出
   // 只讓少量星點在遠處散開
@@ -2989,9 +3348,8 @@ function birthdayStep(dt) {
     bday.sparkOne = true;
 
     distantBirthdayFirework(
-      -20, -65
-    );
-
+  -42, -90
+);
   }
 
   if (
@@ -3002,10 +3360,8 @@ function birthdayStep(dt) {
     bday.sparkTwo = true;
 
     distantBirthdayFirework(
-      25, -72
-    );
-
-  }
+  40, -96
+);
 
 
   // ===== 燭火周圍的柔和光線 =====
