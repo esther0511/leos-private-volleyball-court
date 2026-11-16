@@ -1347,7 +1347,33 @@ window.worldOpenMachinePanel = openMachinePanel;
 
     P.hat.visible = party;
   }
+// ===== 生日彩蛋：已解鎖黑貓的特殊反應 =====
 
+window.worldBirthdayCatReaction = () => {
+
+  const o = byId.get('cat');
+
+  // 黑貓未解鎖或仍在降落時，不觸發
+  if (
+    !o ||
+    !active(o) ||
+    o.arrival
+  ) {
+    return false;
+  }
+
+  CAT.state = 'idle';
+  CAT.t = 0;
+  CAT.wait = 99;
+
+  // 播放原本就有的伸懶腰動作
+  CAT.act = 'stretch';
+  CAT.actDur = 2.2;
+  CAT.actT = 2.2;
+
+  return true;
+
+};
   // ===== 第 15 天：野餐籃、三明治、魚罐頭 =====
    create('basket', o => {
     const wicker = 0xb58a68, dk = 0x906243, cx = -.95, cz = -.45;
