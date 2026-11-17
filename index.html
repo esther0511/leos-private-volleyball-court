@@ -1171,7 +1171,14 @@ cv.addEventListener('pointermove', e => {
     st.moved = true;
 
     // 如果正在拖曳排球
-    if (st.o && st.o.userData.ball) {
+    if (
+      st.o &&
+      st.o.userData.ball &&
+      !(
+         typeof window.worldMachineIsPracticing === 'function' &&
+         window.worldMachineIsPracticing()
+       )
+     ) {
 
       b.drag = true;
       spikeFlight = null;
@@ -1292,6 +1299,14 @@ const end=e=>{ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=0;if(!st)return;
   b.lastMove = 0;
 }
   else if (!st.moved && e.type === 'pointerup') {
+  // 擊球練習期間，畫布點擊不觸發舊版排球操作
+if (
+  typeof window.worldMachineIsPracticing === 'function' &&
+  window.worldMachineIsPracticing()
+) {
+  st = null;
+  return;
+}
 
   // 點擊原有互動物件
   if (st.o) {
@@ -1639,7 +1654,11 @@ p.lerpVectors(
   p.z += bv.z * dt;
   bv.x *= Math.exp(-2 * dt);
   bv.z *= Math.exp(-2 * dt);
-  b.armed = 60;
+  b.armed =
+  typeof window.worldMachineIsPracticing === 'function' &&
+  window.worldMachineIsPracticing()
+    ? 0
+    : 60;
   if (hover.t > 25) { hover = null; b.armed = 0; }
 } else if (b.drag) {
 
