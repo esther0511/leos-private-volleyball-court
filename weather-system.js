@@ -412,12 +412,16 @@ weather.lastTapAt = -Infinity;
     lean: .10,
     opacity: .42,
     speed: .96
-  } : {
-    len: .72,
-    lean: .10,
-    opacity: 0,
-    speed: 1
-  };
+ } : (weather.lastRainLook || {
+  len: .72,
+  lean: .10,
+  opacity: .42,
+  speed: .96
+});
+
+if (weather.kind !== 'none') {
+  weather.lastRainLook = rainLook;
+}
   const target =
     weather.kind === 'storm' ? 1 :
     weather.kind === 'medium' ? .70 :
