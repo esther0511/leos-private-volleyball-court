@@ -5,6 +5,10 @@
 
 const weather = {
   touched: new Set(),
+
+  // 記錄上一朵不同雲被點擊的時間
+  lastTapAt: -Infinity,
+
   kind: 'none',
   remaining: 0,
   strength: 0,
@@ -191,7 +195,57 @@ rainbowHit.userData.act = () => {
 
 sc.add(rainbowHit);
 hitList.push(rainbowHit);
+// ===== 將彩虹放在視線前方的遠處天空 =====
 
+function positionRainbowInSky() {
+
+  // 取得玩家目前觀看的水平方向
+  const dir = new T3.Vector3();
+
+  cam.getWorldDirection(dir);
+
+  dir.y = 0;
+
+  if (dir.lengthSq() < .0001) {
+    dir.set(0, 0, -1);
+  }
+
+  dir.normalize();
+
+  // 彩虹正面朝向玩家
+  const yaw = Math.atan2(
+    -dir.x,
+    -dir.z
+  );
+
+  // 原本彩虹幾何中心位於 z = -37
+  const zOffset = new T3.Vector3(0, 0, -37)
+    .applyAxisAngle(
+      new T3.Vector3(0, 1, 0),
+      yaw
+    );
+
+  // 距離約 125 單位，底部高度約 34
+  const anchor = new T3.Vector3(
+
+    cam.position.x + dir.x * 125,
+
+    34,
+
+    cam.position.z + dir.z * 125
+
+  ).sub(zOffset);
+
+
+  // 彩虹本身
+  weatherRainbow.position.copy(anchor);
+  weatherRainbow.rotation.y = yaw;
+
+  // 點擊判定跟著彩虹一起移動
+  rainbowHit.position.copy(anchor);
+  rainbowHit.rotation.y = yaw;
+
+}
 
 // ===== 判斷是否白天 =====
 
@@ -203,35 +257,94 @@ function weatherDaylight() {
 
 // ===== 玩家點擊雲朵 =====
 
+// ===== 不同雲朵 3 秒連點才觸發降雨 =====
+
 function weatherTapCloud(i) {
 
   if (
     bday.active ||
-    weather.touched.has(i)
+    !Number.isInteger(i)
   ) return;
 
+  const now = performance.now();
+
+  // 超過 3 秒沒有點另一朵雲，連點重新計算
+  if (
+    now - weather.lastTapAt >
+    WEATHER_TAP_WINDOW_MS
+  ) {
+
+    weather.touched.clear();
+
+  }
+
+  // 同一朵雲不重複計算
+  if (weather.touched.has(i)) return;
+
   weather.touched.add(i);
+  weather.lastTapAt = now;
 
   const count = weather.touched.size;
 
-  weather.kind =
-    count >= 6 ? 'storm' :
-    count >= 3 ? 'medium' : 'light';
 
-  weather.remaining = rnd(25, 45);
+  // 第一下只播放雲朵原本的反應
+  if (count === 1) {
+
+    popText(
+      '3 秒內再點另一朵雲，才會開始下雨。'
+    );
+
+    return;
+
+  }
+
+
+  // 第二下開始下雨，之後逐步增加雨勢
+  const nextKind =
+    count >= 6 ? 'storm' :
+    count >= 3 ? 'medium' :
+    'light';
+
+
+  // 已經在下雨時，只能升級，不會降級
+  const level = {
+    none: 0,
+    light: 1,
+    medium: 2,
+    storm: 3
+  };
+
+  if (
+    level[nextKind] > level[weather.kind]
+  ) {
+
+    weather.kind = nextKind;
+
+  }
+
+
+  // 同一場雨保留原本倒數時間
+  if (weather.remaining <= 0) {
+
+    weather.remaining = rnd(25, 45);
+
+  }
+
   weather.rainbowTime = 0;
 
   if (count === 6) {
     weather.lightningIn = 1.5;
   }
 
+
   const name =
     count >= 6 ? '雷雨' :
-    count >= 3 ? '中雨' : '小雨';
+    count >= 3 ? '中雨' :
+    '小雨';
 
   popText(`${count} 朵雲：${name}`);
-}
 
+}
 
 // ===== 開發者專用天氣測試 =====
 
@@ -246,6 +359,7 @@ window.worldTestWeather = kind => {
     weather.rainbowTime = 25;
     weather.rainbowPulse = 1;
 
+    positionRainbowInSky();
   } else if (kind === 'clear') {
 
     weather.kind = 'none';
@@ -284,7 +398,7 @@ function weatherStep(dt) {
     weatherRainbow.visible = false;
     rainbowHit.layers.set(1);
     weatherWetGround.material.opacity = 0;
-
+    
     return;
   }
 
@@ -305,8 +419,12 @@ function weatherStep(dt) {
         weather.kind === 'storm' &&
         weatherDaylight()
       ) {
-        weather.rainbowTime = 25;
-      }
+
+         weather.rainbowTime = 25;
+
+  positionRainbowInSky();
+
+}
 
       weather.kind = 'none';
       weather.touched.clear();
