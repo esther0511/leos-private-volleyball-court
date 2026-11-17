@@ -879,23 +879,19 @@ machinePanel.innerHTML = `
       type="button"
       data-machine="close"
       aria-label="關閉"
+      class="vb-machine-close"
     >×</button>
   </div>
 
   <p class="vb-machine-note" id="vbMachineNote">
-    選擇單球或連發；準心對準空中的排球，按 Space 接球。
+    選擇單球或連發後，選單會自動收起。
   </p>
 
   <div class="vb-machine-buttons">
     <button type="button" data-machine="one">
       單球練習
     </button>
-    <button type="button" data-machine="repeat">
-       連發
-    </button>
-    <button type="button" data-machine="stop">
-      取消
-    </button>
+    <button type="button" data-machine="repeat">連發</button>
   </div>
 `;
 
@@ -908,75 +904,93 @@ const machineStyle = document.createElement('style');
 
 machineStyle.textContent = `
   #vbMachinePanel {
-    position: fixed;
-    right: calc(16px + env(safe-area-inset-right, 0px));
-    top: calc(82px + env(safe-area-inset-top, 0px));
-    z-index: 17;
-    width: min(310px, calc(100vw - 32px));
-    padding: 15px 16px 14px;
-    border: 1px solid rgba(255,255,255,.5);
-    border-radius: 16px;
-    background: rgba(29,42,80,.58);
-    color: white;
-    box-shadow: 0 12px 28px rgba(10,20,45,.24);
-    font: 13px/1.55 system-ui, "PingFang TC", sans-serif;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
+  position: fixed;
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  top: calc(82px + env(safe-area-inset-top, 0px));
+  z-index: 17;
+  width: min(278px, calc(100vw - 32px));
+  padding: 14px 14px 13px;
+  border: 1px solid rgba(255,255,255,.42);
+  border-radius: 16px;
+  background: rgba(29,42,80,.50);
+  color: white;
+  box-shadow: 0 12px 28px rgba(10,20,45,.22);
+  font: 13px/1.55 system-ui, "PingFang TC", sans-serif;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
 
-  #vbMachinePanel[hidden] {
-    display: none;
-  }
+#vbMachinePanel[hidden] {
+  display: none;
+}
 
-  #vbMachinePanel .vb-machine-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
+#vbMachinePanel .vb-machine-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
 
-  #vbMachinePanel .vb-machine-head strong {
-    font-size: 15px;
-    letter-spacing: .08em;
-  }
+#vbMachinePanel .vb-machine-head strong {
+  font-size: 15px;
+  letter-spacing: .08em;
+}
 
-  #vbMachinePanel button {
-    border: 1px solid rgba(255,255,255,.38);
-    border-radius: 9px;
-    background: rgba(255,255,255,.12);
-    color: white;
-    font: inherit;
-    cursor: pointer;
-    padding: 9px 10px;
-  }
+#vbMachinePanel button {
+  border: 1px solid rgba(255,255,255,.34);
+  border-radius: 10px;
+  background: rgba(255,255,255,.10);
+  color: white;
+  font: inherit;
+  cursor: pointer;
+  padding: 10px 10px;
+  transition: background .18s ease, border-color .18s ease;
+}
 
-  #vbMachinePanel .vb-machine-head button {
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    font-size: 22px;
-  }
+#vbMachinePanel button:hover {
+  background: rgba(255,255,255,.18);
+}
 
-  #vbMachinePanel button:hover {
-    background: rgba(255,255,255,.22);
-  }
+#vbMachinePanel button:focus-visible {
+  outline: 2px solid #fff1c5;
+  outline-offset: 2px;
+}
 
-  #vbMachinePanel button:focus-visible {
-    outline: 2px solid #fff1c5;
-    outline-offset: 2px;
-  }
+/* 右上角 X：放正中間 */
+#vbMachinePanel .vb-machine-close {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
 
-  #vbMachinePanel .vb-machine-note {
-    margin: 0 0 12px;
-    opacity: .8;
-    font-size: 12px;
-  }
+/* 說明字 */
+#vbMachinePanel .vb-machine-note {
+  margin: 0 0 12px;
+  opacity: .86;
+  font-size: 12px;
+  line-height: 1.5;
+}
 
-  #vbMachinePanel .vb-machine-buttons {
-    display: grid;
-    grid-template-columns: 1fr 1.3fr .75fr;
-    gap: 7px;
-  }
+/* 只保留兩個按鈕，等寬 */
+#vbMachinePanel .vb-machine-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#vbMachinePanel .vb-machine-buttons button {
+  min-height: 44px;
+  padding: 10px 12px;
+  font-weight: 600;
+  text-align: center;
+}
   #vbMachinePanel .vb-machine-hit {
   display: block;
   width: 100%;
