@@ -358,11 +358,40 @@ uiMenu.append(sticksButton, tipsButton);
 
   // Space 提供純鍵盤擊球：靠近球即可連點、三擊後再次按空白鍵殺球。
   function hitBallByKeyboard() {
-    if (!controlsAvailable() || typeof ball === 'undefined') return;
-    if (Math.hypot(tgtP.x - ball.position.x, tgtP.z - ball.position.z) <= 5.5) {
-      hit();
-    }
+
+  if (
+    !controlsAvailable() ||
+    typeof ball === 'undefined'
+  ) return;
+
+
+  // 發球機練習期間
+  // 距離判定交給發球機系統處理
+  if (
+    typeof window.worldMachineIsPracticing === 'function' &&
+    window.worldMachineIsPracticing()
+  ) {
+
+    hit();
+
+    return;
+
   }
+
+
+  // 非練習模式：保留原本擊球距離
+  if (
+    Math.hypot(
+      tgtP.x - ball.position.x,
+      tgtP.z - ball.position.z
+    ) <= 5.5
+  ) {
+
+    hit();
+
+  }
+
+}
 
   const heldCodes = new Set([
     'KeyW', 'KeyA', 'KeyS', 'KeyD',
