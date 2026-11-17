@@ -336,7 +336,14 @@ uiMenu.append(sticksButton, tipsButton);
 
   // 鍵盤沒有滑鼠時，可把畫面中央當作選取游標。
   function interactAtCenter() {
-    if (busy() || mode() === 'boat') return;
+    if (
+  busy() ||
+  mode() === 'boat' ||
+  (
+    typeof window.worldMachineIsPracticing === 'function' &&
+    window.worldMachineIsPracticing()
+  )
+) return;
     const e = { clientX: innerWidth / 2, clientY: innerHeight / 2 };
     const obj = typeof pick === 'function' ? pick(e) : null;
 
