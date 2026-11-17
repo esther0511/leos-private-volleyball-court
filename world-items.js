@@ -2789,8 +2789,12 @@ if (!selected.noStore && !selected.fixed) {
 }
 
 storeBox.append(tools);
-    const stored = list.filter(o => o.stored && o.unlocked && !o.fixed && !o.noStore);
-    const h4 = el('h4');
+
+} // 結束「已選取物件」區塊
+
+const stored = list.filter(
+  o => o.stored && o.unlocked && !o.fixed && !o.noStore
+);
     h4.textContent = '車上收納';
     storeBox.append(h4);
 
