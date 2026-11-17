@@ -966,11 +966,6 @@ machineStyle.textContent = `
     outline-offset: 2px;
   }
 
-    margin: 10px 0 4px;
-    font-weight: 700;
-    color: #fff1c5;
-  }
-
   #vbMachinePanel .vb-machine-note {
     margin: 0 0 12px;
     opacity: .8;
