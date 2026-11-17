@@ -11,6 +11,10 @@
 
   const css = document.createElement('style');
   css.textContent = `
+  /* 玩家關閉提示時，隱藏球場浮動說明 */
+html.vb-hide-tips #tip {
+  display: none !important;
+}
     /* 透明底、細白圈、可移動白圓點：沿用音量鍵的簡潔視覺 */
     .vb-roam-stick {
       position: fixed;
@@ -189,7 +193,10 @@
 
   // 搖桿顯示設定記住上次選擇；E 鍵仍能以畫面中心進行互動。
   const uiPrefKey = 'vb-roam-ui-v1';
-  const uiPrefs = { sticks: true };
+  const uiPrefs = {
+  sticks: true,
+  tips: true
+};
   try {
     const raw = typeof vbStore !== 'undefined'
       ? vbStore.getItem(uiPrefKey)
@@ -197,6 +204,9 @@
     const saved = raw ? JSON.parse(raw) : null;
     if (saved && typeof saved === 'object') {
       if (typeof saved.sticks === 'boolean') uiPrefs.sticks = saved.sticks;
+      if (typeof saved.tips === 'boolean') {
+  uiPrefs.tips = saved.tips;
+}
     }
   } catch (_) { /* 儲存空間受限時仍能操作 */ }
 
@@ -212,7 +222,10 @@
   uiMenu.id = 'vbRoamUiMenu';
   const sticksButton = document.createElement('button');
   sticksButton.type = 'button';
-  uiMenu.append(sticksButton);
+ const tipsButton = document.createElement('button');
+tipsButton.type = 'button';
+
+uiMenu.append(sticksButton, tipsButton);
   document.body.append(uiButton, uiMenu);
 
   function saveUiPrefs() {
@@ -224,9 +237,29 @@
   }
 
   function refreshUiButtons() {
-    sticksButton.textContent = `搖桿 ${uiPrefs.sticks ? '開' : '關'}`;
-    sticksButton.setAttribute('aria-pressed', String(uiPrefs.sticks));
-  }
+
+  sticksButton.textContent =
+    `搖桿 ${uiPrefs.sticks ? '開' : '關'}`;
+
+  sticksButton.setAttribute(
+    'aria-pressed',
+    String(uiPrefs.sticks)
+  );
+
+  tipsButton.textContent =
+    `提示 ${uiPrefs.tips ? '開' : '關'}`;
+
+  tipsButton.setAttribute(
+    'aria-pressed',
+    String(uiPrefs.tips)
+  );
+
+  document.documentElement.classList.toggle(
+    'vb-hide-tips',
+    !uiPrefs.tips
+  );
+
+}
 
   uiButton.addEventListener('click', () => {
     const open = uiMenu.classList.toggle('open');
@@ -238,6 +271,14 @@
     saveUiPrefs();
     refreshUiButtons();
   });
+  tipsButton.addEventListener('click', () => {
+
+  uiPrefs.tips = !uiPrefs.tips;
+
+  saveUiPrefs();
+  refreshUiButtons();
+
+});
   document.addEventListener('pointerdown', e => {
     if (e.target !== uiButton && !uiButton.contains(e.target) &&
         !uiMenu.contains(e.target)) {
