@@ -872,29 +872,6 @@ machinePanel.hidden = true;
 machinePanel.setAttribute('role', 'region');
 machinePanel.setAttribute('aria-label', '擊球練習');
 
-machinePanel.innerHTML = `
-  <div class="vb-machine-head">
-    <strong>擊球練習</strong>
-    <button
-      type="button"
-      data-machine="close"
-      aria-label="關閉"
-      class="vb-machine-close"
-    >×</button>
-  </div>
-
-  <p class="vb-machine-note" id="vbMachineNote">
-    選擇單球或連發後，選單會自動收起。
-  </p>
-
-  <div class="vb-machine-buttons">
-    <button type="button" data-machine="one">
-      單球練習
-    </button>
-    <button type="button" data-machine="repeat">連發</button>
-  </div>
-`;
-
 document.body.append(machinePanel);
 
 
