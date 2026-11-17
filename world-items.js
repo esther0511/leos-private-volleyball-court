@@ -2739,7 +2739,10 @@ function resetSelectedPosition() {
     head.append(title, done);
 
     const hint = el('p', 'hint');
-    hint.textContent = '拖曳物件移動。點一下物件選取，就能旋轉或收起。';
+    hint.textContent =
+  '拖曳物件以移動位置。\n點選物件後可旋轉或收納。';
+
+hint.style.whiteSpace = 'pre-line';
     storeBox.append(head, hint);
 
     if (selected && active(selected)) {
@@ -2792,6 +2795,7 @@ storeBox.append(tools);
 
 } // 結束「已選取物件」區塊
 
+// 無論是否選取物件，都顯示車上收納清單
 const stored = list.filter(
   o => o.stored && o.unlocked && !o.fixed && !o.noStore
 );
