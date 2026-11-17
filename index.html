@@ -1508,10 +1508,16 @@ function hit() {
 
   if (spikeFlight) return;
 
-  // 發球機練習：判斷玩家是否在空中接球
-  if (typeof window.worldMachineOnBallHit === 'function') {
-    window.worldMachineOnBallHit();
-  }
+// 發球機練習期間使用獨立擊球流程
+// 避免接球後又觸發原本的三連擊
+if (
+  typeof window.worldMachineOnBallHit === 'function' &&
+  window.worldMachineOnBallHit()
+) {
+
+  return;
+
+}
 
   const now = performance.now();
   // 超過 1.5 秒重置連擊
