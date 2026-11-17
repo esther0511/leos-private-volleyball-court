@@ -2279,38 +2279,62 @@ let birthdayMeteorLines = null;
 let birthdayLinePairs = [];
 let birthdayStarsUsed = [];
 
+// 英文星座字形：每組座標是一條筆畫
 const BDAY_CONSTELLATION_GLYPHS = {
-  '生': [
-    [[0.50, 0.92], [0.50, 0.08]],
-    [[0.18, 0.72], [0.82, 0.72]],
-    [[0.14, 0.32], [0.86, 0.32]]
+
+  H: [
+    [[0,0],[0,1]],
+    [[1,0],[1,1]],
+    [[0,.52],[1,.52]]
   ],
 
-  '日': [
-    [[0.25, 0.86], [0.75, 0.86], [0.75, 0.14], [0.25, 0.14], [0.25, 0.86]],
-    [[0.30, 0.50], [0.70, 0.50]]
+  A: [
+    [[0,0],[.5,1],[1,0]],
+    [[.23,.46],[.77,.46]]
   ],
 
-  '快': [
-    [[0.14, 0.76], [0.14, 0.62]],
-    [[0.14, 0.42], [0.14, 0.28]],
-    [[0.08, 0.54], [0.22, 0.50]],
-    [[0.42, 0.88], [0.42, 0.14]],
-    [[0.42, 0.62], [0.80, 0.62]],
-    [[0.58, 0.82], [0.80, 0.82]],
-    [[0.58, 0.54], [0.80, 0.20]],
-    [[0.58, 0.54], [0.34, 0.18]]
+  P: [
+    [[0,0],[0,1],[.72,1],
+     [1,.78],[.72,.52],[0,.52]]
   ],
 
-  '樂': [
-    [[0.18, 0.80], [0.28, 0.92], [0.40, 0.80]],
-    [[0.60, 0.80], [0.72, 0.92], [0.82, 0.80]],
-    [[0.22, 0.60], [0.78, 0.60]],
-    [[0.50, 0.76], [0.50, 0.24]],
-    [[0.34, 0.46], [0.18, 0.18]],
-    [[0.66, 0.46], [0.82, 0.18]],
-    [[0.32, 0.34], [0.68, 0.34]]
+  Y: [
+    [[0,1],[.5,.52],[1,1]],
+    [[.5,.52],[.5,0]]
+  ],
+
+  B: [
+    [[0,0],[0,1],[.72,1],
+     [1,.8],[.72,.52],[0,.52]],
+
+    [[0,.52],[.76,.52],
+     [1,.22],[.73,0],[0,0]]
+  ],
+
+  I: [
+    [[0,1],[1,1]],
+    [[.5,1],[.5,0]],
+    [[0,0],[1,0]]
+  ],
+
+  R: [
+    [[0,0],[0,1],[.72,1],
+     [1,.78],[.72,.52],[0,.52]],
+
+    [[.54,.52],[1,0]]
+  ],
+
+  T: [
+    [[0,1],[1,1]],
+    [[.5,1],[.5,0]]
+  ],
+
+  D: [
+    [[0,0],[0,1],[.72,1],
+     [1,.75],[1,.25],
+     [.72,0],[0,0]]
   ]
+
 };
 
 function sampleBirthdayStroke(
@@ -2334,10 +2358,10 @@ function sampleBirthdayStroke(
       b[1] - a[1]
     );
 
-    const steps = Math.max(
-      2,
-      Math.round(segLen / 0.22)
-    );
+   const steps = Math.max(
+     1,
+     Math.round(segLen / .48)
+   );
 
     for (let k = 0; k <= steps; k++) {
 
@@ -2365,23 +2389,29 @@ function sampleBirthdayStroke(
 
 function buildBirthdayStars() {
 
-  const chars = [...'生日快樂'];
+  // 上排 HAPPY，下排 BIRTHDAY
+  const rows = [
+    { text: 'HAPPY', y: 1.8 },
+    { text: 'BIRTHDAY', y: 0 }
+  ];
 
-  const charWidth = 160;
-  const charHeight = 168;
-  const charGap = 76;
+  const charWidth = 1;
+  const charHeight = 1;
+  const charGap = .43;
 
   const totalWidth =
-    chars.length * charWidth +
-    (chars.length - 1) * charGap;
+    8 * charWidth + 7 * charGap;
+
+  const totalHeight = 2.8;
 
   const dots = [];
   const rawPairs = [];
   const dotMap = new Map();
 
   const registerDot = (x, y, ch) => {
+
     const key =
-      `${ch}:${x.toFixed(2)}:${y.toFixed(2)}`;
+      `${ch}:${x.toFixed(4)}:${y.toFixed(4)}`;
 
     if (dotMap.has(key)) {
       return dotMap.get(key);
@@ -2395,97 +2425,122 @@ function buildBirthdayStars() {
     return idx;
   };
 
-  chars.forEach((char, ch) => {
+  let glyphId = 0;
 
-    const strokes = BDAY_CONSTELLATION_GLYPHS[char];
-    const charOffsetX =
-      ch * (charWidth + charGap);
+  rows.forEach(row => {
 
-    strokes.forEach(stroke => {
-      sampleBirthdayStroke(
-        registerDot,
-        rawPairs,
-        ch,
-        stroke,
-        charWidth,
-        charHeight,
-        charOffsetX
-      );
+    const rowWidth =
+      row.text.length * charWidth +
+      (row.text.length - 1) * charGap;
+
+    // 每一行各自置中
+    const left = (totalWidth - rowWidth) / 2;
+
+    [...row.text].forEach((char, n) => {
+
+      const id = glyphId++;
+
+      const offsetX =
+        left + n * (charWidth + charGap);
+
+      BDAY_CONSTELLATION_GLYPHS[char]
+        .forEach(stroke => {
+
+          sampleBirthdayStroke(
+
+            (x, y, ch) =>
+              registerDot(x, y + row.y, ch),
+
+            rawPairs,
+            id,
+            stroke,
+            charWidth,
+            charHeight,
+            offsetX
+
+          );
+
+        });
+
     });
 
   });
 
-  if (!dots.length) return;
 
+  // 根據當下攝影機建立天空排字平面
   cam.updateMatrixWorld(true);
 
   const forward = new T3.Vector3();
+
   cam.getWorldDirection(forward);
 
-  const right =
-    new T3.Vector3(1, 0, 0)
-      .applyQuaternion(cam.quaternion)
-      .normalize();
+  const right = new T3.Vector3(1, 0, 0)
+    .applyQuaternion(cam.quaternion);
 
-  const up =
-    new T3.Vector3(0, 1, 0)
-      .applyQuaternion(cam.quaternion)
-      .normalize();
+  const up = new T3.Vector3(0, 1, 0)
+    .applyQuaternion(cam.quaternion);
 
   const depth = 118;
 
+  // 桌面與手機使用不同可視寬度
   const width = Math.min(
-    64,
+    65,
     2 * depth *
     Math.tan(cam.fov * PI / 360) *
-    cam.aspect * .72
+    cam.aspect * .80
   );
 
   const scale = width / totalWidth;
 
-  const center =
-    cam.position.clone()
-      .addScaledVector(forward, depth)
-      .addScaledVector(up, 9.5);
+  const center = cam.position.clone()
+    .addScaledVector(forward, depth)
+    .addScaledVector(up, 11);
 
+
+  // 保留原本的星星及其位置
   birthdayStarsUsed = [];
 
-  for (const s of stars) {
+  stars.forEach(s => {
     s.birthdayTarget = null;
     s.meteorTarget = null;
-  }
+  });
+
+  // 使用原有天空裡較小的星星
+  const pool = stars.slice(70);
 
   const count = Math.min(
-    stars.length,
+    pool.length,
     dots.length
   );
 
   for (let i = 0; i < count; i++) {
 
     const dot = dots[i];
-    const s = stars[i];
+    const s = pool[i];
 
-    s.birthdayTarget =
-      center.clone()
-        .addScaledVector(
-          right,
-          (dot.x - totalWidth / 2) * scale
-        )
-        .addScaledVector(
-          up,
-          (charHeight * .52 - dot.y) * scale
-        );
+    s.birthdayTarget = center.clone()
 
-    // 結尾像流星一樣往球場附近落下
+      .addScaledVector(
+        right,
+        (dot.x - totalWidth / 2) * scale
+      )
+
+      .addScaledVector(
+        up,
+        (dot.y - totalHeight / 2) * scale
+      );
+
+    // 保留原本的流星雨收尾
     s.meteorTarget = new T3.Vector3(
       rnd(-11, 11),
-      rnd(2.0, 4.6),
+      rnd(2, 4.6),
       rnd(-4.5, 4.5)
     );
 
     s.meteorDelay = rnd(0, .7);
 
     birthdayStarsUsed.push({ s, dot });
+
   }
 
   birthdayLinePairs = rawPairs.filter(
@@ -2647,14 +2702,15 @@ s.s.scale.setScalar(
 
     birthdayLetterLines.material.opacity =
 
-      .24 *
-      sm01(c01((gather - .65) / .35)) *
+  // 星點在 5.5 秒左右完成排列
+  // 5.8 秒後才開始浮現星座連線
+  .24 *
+  sm01(c01((t - 5.8) / 1.2)) *
 
-      (
-        1 -
-        sm01(c01((t - fallStart) / .75))
-      );
-
+  (
+    1 -
+    sm01(c01((t - fallStart) / .75))
+  );
   }
 
   // 流星的短尾痕
