@@ -2517,7 +2517,23 @@ function buildBirthdayStars() {
 
     const dot = dots[i];
     const s = pool[i];
+    if (!s.halo) {
 
+  s.halo = new T3.Sprite(
+    new T3.SpriteMaterial({
+      map: starGlowTexture,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      blending: T3.AdditiveBlending,
+      depthWrite: false,
+      fog: false
+    })
+  );
+
+  s.halo.scale.set(4.5, 4.5, 1);
+  sc.add(s.halo);
+}
     s.birthdayTarget = center.clone()
 
       .addScaledVector(
@@ -2700,17 +2716,20 @@ s.s.scale.setScalar(
   // 星座文字的半透明連線
   if (birthdayLetterLines) {
 
-    birthdayLetterLines.material.opacity =
+    const letterFadeIn =
+  sm01(c01((t - 5.8) / 1.2));
 
-  // 星點在 5.5 秒左右完成排列
-  // 5.8 秒後才開始浮現星座連線
-  .24 *
-  sm01(c01((t - 5.8) / 1.2)) *
+const letterFadeOut =
+  1 - sm01(c01((t - fallStart) / .75));
 
-  (
-    1 -
-    sm01(c01((t - fallStart) / .75))
-  );
+const letterTwinkle =
+  .94 + .06 * Math.sin(t * 7.2);
+
+birthdayLetterLines.material.opacity =
+  .36 *
+  letterFadeIn *
+  letterFadeOut *
+  letterTwinkle;
   }
 
   // 流星的短尾痕
@@ -2747,8 +2766,26 @@ function clearBirthdayStars() {
     s.meteorDelay = 0;
 
     if (s.halo) {
-      s.halo.material.opacity = 0;
-    }
+
+  const glowIn =
+    sm01(c01((t - 5.4) / 1.1));
+
+  const glowOut =
+    1 - sm01(c01((t - fallStart) / .8));
+
+  const glowPulse =
+    .86 + .14 * Math.sin(t * 5.8 + i * .9);
+
+  s.halo.position.copy(s.s.position);
+
+  s.halo.material.opacity =
+    .16 * glowIn * glowOut * glowPulse;
+
+  s.halo.scale.setScalar(
+    (3.1 + gatheredSize * 4.2) *
+    (.96 + .06 * Math.sin(t * 4.4 + i * .7))
+  );
+}
 
   }
 
