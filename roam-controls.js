@@ -310,7 +310,6 @@ uiMenu.append(sticksButton, tipsButton);
   function busy() {
     return (typeof window.worldIsRevealing === 'function' && window.worldIsRevealing()) ||
       (typeof window.worldIsSpecialTransitioning === 'function' && window.worldIsSpecialTransitioning()) ||
-      (typeof window.worldIsOrganizing === 'function' && window.worldIsOrganizing()) ||
       (typeof bday !== 'undefined' && bday.active) ||
       (typeof pad !== 'undefined' && !pad.hidden);
   }
@@ -427,14 +426,29 @@ uiMenu.append(sticksButton, tipsButton);
       return;
     }
 
-    if (code === 'KeyE' && !e.repeat && !busy()) {
+    if (
+  code === 'KeyE' &&
+  !e.repeat &&
+  !busy() &&
+  !(
+    typeof window.worldIsOrganizing === 'function' &&
+    window.worldIsOrganizing()
+  )
+) {
       interactAtCenter();
       e.preventDefault();
       return;
     }
 
     if (code === 'Space') {
-
+    // 整理模式不觸發一般擊球
+if (
+  typeof window.worldIsOrganizing === 'function' &&
+  window.worldIsOrganizing()
+) {
+  e.preventDefault();
+  return;
+}
   // 擊球練習使用專屬的按鍵控制
   if (
     typeof window.worldMachineIsPracticing === 'function' &&
