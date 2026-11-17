@@ -432,15 +432,18 @@ o.parts.waterSurface.material.depthWrite = false;
 const machineGame = {
   running: false,
   inFlight: false,
+
+  // idle / incoming / lifted / outgoing
+  stage: 'idle',
+
   target: 0,
   launched: 0,
-  returned: 0,
-  missed: 0,
   flightAge: 0,
   nextIn: 0,
+
+  strikeTimer: null,
   open: false
 };
-
 // 建立發球機
 create('machine', o => {
 
@@ -559,10 +562,6 @@ machinePanel.innerHTML = `
     >×</button>
   </div>
 
-  <p class="vb-machine-score" id="vbMachineScore">
-    準備開始
-  </p>
-
   <p class="vb-machine-note" id="vbMachineNote">
     球在空中時點擊它，或靠近後按空白鍵接球。
   </p>
@@ -572,6 +571,14 @@ machinePanel.innerHTML = `
     <button type="button" data-machine="five">連發 5 球</button>
     <button type="button" data-machine="stop">停止</button>
   </div>
+  <button
+  type="button"
+  class="vb-machine-hit"
+  data-machine="hit"
+  hidden
+>
+  擊球
+</button>
 `;
 
 document.body.append(machinePanel);
@@ -641,7 +648,6 @@ machineStyle.textContent = `
     outline-offset: 2px;
   }
 
-  #vbMachinePanel .vb-machine-score {
     margin: 10px 0 4px;
     font-weight: 700;
     color: #fff1c5;
@@ -658,32 +664,38 @@ machineStyle.textContent = `
     grid-template-columns: 1fr 1.3fr .75fr;
     gap: 7px;
   }
+  #vbMachinePanel .vb-machine-hit {
+  display: block;
+  width: 100%;
+  margin-top: 9px;
+  background: rgba(224,161,118,.28);
+}
+
+#vbMachinePanel .vb-machine-hit[hidden] {
+  display: none;
+}
 `;
 
 document.head.append(machineStyle);
 
-const machineScore =
-  machinePanel.querySelector('#vbMachineScore');
-
 const machineNote =
   machinePanel.querySelector('#vbMachineNote');
 
+const machineHitButton =
+  machinePanel.querySelector('[data-machine="hit"]');
 
-// 更新計分資訊
+// 只保留操作提示，不計分、不評價
 function machineStatus(note = '') {
-
-  machineScore.textContent = machineGame.running
-    ? `接到 ${machineGame.returned}／${machineGame.launched} 球（共 ${machineGame.target} 球）`
-    : machineGame.target
-      ? `本次完成：${machineGame.returned}／${machineGame.target} 球`
-      : '準備開始';
 
   if (note) {
     machineNote.textContent = note;
   }
+
+  machineHitButton.hidden =
+    !machineGame.running;
+
 }
-
-
+  
 // 開啟面板
 function openMachinePanel() {
 
@@ -707,15 +719,37 @@ function openMachinePanel() {
 
 
 // 停止練習
-function stopMachineGame(message = '練習已停止。') {
+function stopMachineGame(
+  message = '練習已停止。'
+) {
+
+  // 清除尚未執行的單擊／雙擊判定
+  if (machineGame.strikeTimer !== null) {
+
+    clearTimeout(machineGame.strikeTimer);
+
+    machineGame.strikeTimer = null;
+  }
+
+  // 球正在托高時，恢復普通物理運動
+  if (machineGame.stage === 'lifted') {
+
+    hover = null;
+
+    b.armed = 0;
+
+    bv.set(0, 0, 0);
+  }
 
   machineGame.running = false;
   machineGame.inFlight = false;
+
+  machineGame.stage = 'idle';
   machineGame.nextIn = 0;
 
   machineStatus(message);
-}
 
+}
 
 // 開始單球或五球練習
 function startMachineGame(count) {
@@ -735,16 +769,32 @@ function startMachineGame(count) {
     return;
   }
 
-  machineGame.running = true;
-  machineGame.inFlight = false;
-  machineGame.target = count;
-  machineGame.launched = 0;
-  machineGame.returned = 0;
-  machineGame.missed = 0;
-  machineGame.flightAge = 0;
-  machineGame.nextIn = .55;
+  // 練習使用可自由移動的一般球場視角
+if (cameraMode !== 'orbit') {
+  window.worldExitSpecialView?.();
+}
 
-  machineStatus('準備發球，請看向球場。');
+machineGame.running = true;
+machineGame.inFlight = false;
+
+machineGame.stage = 'idle';
+
+machineGame.target = count;
+machineGame.launched = 0;
+
+machineGame.flightAge = 0;
+machineGame.nextIn = .55;
+
+machineStatus(
+  '移動到球附近，按 Space 或點擊「擊球」接球。'
+);
+
+// 從操作面板啟動後，將鍵盤焦點交回球場
+try {
+  cv.focus({ preventScroll: true });
+} catch (_) {
+  cv.focus();
+}
 }
 
 
@@ -798,17 +848,19 @@ function launchMachineBall() {
   );
 
   machineGame.launched++;
-  machineGame.inFlight = true;
-  machineGame.flightAge = 0;
 
-  machineStatus(
-    `第 ${machineGame.launched} 球發出！趁球落地前接住。`
-  );
+machineGame.inFlight = true;
+machineGame.stage = 'incoming';
+machineGame.flightAge = 0;
+
+machineStatus(
+  '球來了，移動到球附近接起來。'
+);
 }
 
+// ===== 一球結束後，準備下一球 =====
 
-// 完成一球
-function finishMachineBall(caught) {
+function finishMachineBall() {
 
   if (
     !machineGame.running ||
@@ -816,41 +868,173 @@ function finishMachineBall(caught) {
   ) return;
 
   machineGame.inFlight = false;
+  machineGame.stage = 'idle';
 
-  if (caught) {
-    machineGame.returned++;
-  } else {
-    machineGame.missed++;
-  }
-
+  // 保留原本的發球間隔
   machineGame.nextIn = 2.1;
 
-  machineStatus(
-    caught ? '接到了！' : '這球沒接到。'
-  );
+  machineStatus('準備下一球。');
+
 }
 
 
-// 玩家在空中接到球
-window.worldMachineOnBallHit = () => {
+// ===== 自由擊球：一般擊球或殺球 =====
+
+function strikeMachineBall(spike) {
 
   if (
     !machineGame.running ||
-    !machineGame.inFlight
-  ) return false;
+    machineGame.stage !== 'lifted'
+  ) return;
 
-  if (
-    machineGame.flightAge < .14 ||
-    ball.position.y <= BR + .24
-  ) return false;
+  machineGame.strikeTimer = null;
 
-  finishMachineBall(true);
+  machineGame.stage = 'outgoing';
+  machineGame.inFlight = true;
+  machineGame.flightAge = 0;
 
+  // 離開托球懸浮狀態
+  hover = null;
+
+  b.armed = 0;
+  b.combo = 0;
+  b.sp = false;
+
+  b.sq = spike ? .20 : .10;
+
+  // 根據球的位置，判斷對面場地
+  const other =
+    ball.position.x <= 0 ? 1 : -1;
+
+  const targetX =
+    other * rnd(4.3, 6.3);
+
+  const targetZ =
+    rnd(-3, 3);
+
+  // 一般擊球較柔和，殺球較快速
+  const duration =
+    spike ? .58 : 1.28;
+
+  // 使用原本球場的重力與拋物線運動
+  bv.set(
+
+    (targetX - ball.position.x) / duration,
+
+    (
+      BR - ball.position.y +
+      .5 * G * duration * duration
+    ) / duration,
+
+    (targetZ - ball.position.z) / duration
+
+  );
+
+  machineStatus(
+    spike ? '殺球！' : '一般擊球。'
+  );
+
+}
+
+
+// ===== 發球機模式：接球與擊球 =====
+
+window.worldMachineOnBallHit = () => {
+
+  // 非練習模式，交還原本球場操作
+  if (!machineGame.running) {
+    return false;
+  }
+
+
+  // 第一階段：接住發球機送出的排球
+  if (machineGame.stage === 'incoming') {
+
+    // 只判斷玩家與球的空間距離
+    // 沒有 Perfect、Good、Miss
+    const distance = Math.hypot(
+
+      tgtP.x - ball.position.x,
+      tgtP.z - ball.position.z
+
+    );
+
+    // 必須靠近球，且球尚未落地
+    if (
+      distance > 5.8 ||
+      ball.position.y <= BR + .10
+    ) {
+
+      return true;
+
+    }
+
+
+    // 接球成功，球自然向上托高
+    machineGame.stage = 'lifted';
+    machineGame.inFlight = false;
+
+    hover = {
+      y: 5.8,
+      t: 0
+    };
+
+    bv.set(0, 0, 0);
+
+    b.sp = false;
+    b.armed = 0;
+    b.combo = 0;
+
+    machineStatus(
+      '球托高了：按一次一般擊球，連按兩次殺球。'
+    );
+
+    return true;
+
+  }
+
+
+  // 第二階段：玩家自由決定擊球方式
+  if (machineGame.stage === 'lifted') {
+
+    // 已有一次點擊，再點一次就是殺球
+    if (machineGame.strikeTimer !== null) {
+
+      clearTimeout(machineGame.strikeTimer);
+
+      machineGame.strikeTimer = null;
+
+      strikeMachineBall(true);
+
+    } else {
+
+      // 等待極短時間，辨識是否為雙擊
+      machineGame.strikeTimer = setTimeout(
+        () => {
+
+          machineGame.strikeTimer = null;
+
+          strikeMachineBall(false);
+
+        },
+        280
+      );
+
+    }
+
+    return true;
+
+  }
+
+
+  // 練習模式期間不觸發原本的三連擊
   return true;
+
 };
 
 
-// 排球落地：記錄失誤
+// ===== 球自然落地，準備下一球 =====
+
 window.worldMachineOnBallGround = () => {
 
   if (
@@ -858,19 +1042,28 @@ window.worldMachineOnBallGround = () => {
     !machineGame.inFlight
   ) return false;
 
-  finishMachineBall(false);
+  finishMachineBall();
 
   return true;
+
 };
 
 
-// 每幀更新發球機
+// ===== 提供鍵盤判斷練習狀態 =====
+
+window.worldMachineIsPracticing = () =>
+  machineGame.running;
+
+
+// ===== 發球機更新 =====
+
 function machineGameStep(dt) {
 
   if (!machineGame.running) return;
 
   const o = byId.get('machine');
 
+  // 其他活動開始時停止發球練習
   if (
     !o ||
     !active(o) ||
@@ -879,31 +1072,60 @@ function machineGameStep(dt) {
     bday.active ||
     reveal
   ) {
+
     stopMachineGame('已離開發球練習。');
+
     return;
+
   }
 
+
+  // 接球後可以自由選擇何時擊球
+  // 不限制必須在某個時機出手
+  if (machineGame.stage === 'lifted') {
+
+    // 防止原本的 25 秒懸浮期限結束
+    if (hover) {
+      hover.t = 0;
+    }
+
+    return;
+
+  }
+
+
+  // 發球或回擊過程中，等待自然落地
   if (machineGame.inFlight) {
 
     machineGame.flightAge += dt;
 
+    // 防止球離開場地後無限等待
     if (machineGame.flightAge > 4.5) {
-      finishMachineBall(false);
+      finishMachineBall();
     }
 
     return;
+
   }
 
+
+  // 下一球倒數
   machineGame.nextIn -= dt;
 
   if (machineGame.nextIn > 0) return;
 
-  if (machineGame.launched >= machineGame.target) {
+
+  // 單球或五球都已發送完畢
+  if (
+    machineGame.launched >=
+    machineGame.target
+  ) {
 
     machineGame.running = false;
+    machineGame.stage = 'idle';
 
     machineStatus(
-      '練習完成！可重新選擇單球或連發。'
+      '練習結束，可以重新選擇單球或連發五球。'
     );
 
   } else {
@@ -911,8 +1133,8 @@ function machineGameStep(dt) {
     launchMachineBall();
 
   }
-}
 
+}
 
 // 避免操作面板時誤觸球場
 machinePanel.addEventListener('keydown', e => {
@@ -942,10 +1164,18 @@ machinePanel.addEventListener('click', e => {
   }
 
   if (action === 'stop') {
-    stopMachineGame();
-  }
+  stopMachineGame();
+}
 
-  if (action === 'close') {
+// 手機可以直接點選面板上的「擊球」
+if (
+  action === 'hit' &&
+  machineGame.running
+) {
+  hit();
+}
+
+if (action === 'close') {
 
     stopMachineGame();
 
