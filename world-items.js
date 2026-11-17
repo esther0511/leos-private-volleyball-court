@@ -871,7 +871,30 @@ machinePanel.hidden = true;
 
 machinePanel.setAttribute('role', 'region');
 machinePanel.setAttribute('aria-label', '擊球練習');
+machinePanel.innerHTML = `
+  <div class="vb-machine-head">
+    <strong>擊球練習</strong>
 
+    <button
+      type="button"
+      data-machine="close"
+      class="vb-machine-close"
+      aria-label="關閉"
+    >×</button>
+  </div>
+
+  <div class="vb-machine-buttons">
+
+    <button type="button" data-machine="one">
+      單球練習
+    </button>
+
+    <button type="button" data-machine="repeat">
+      連發
+    </button>
+
+  </div>
+`;
 document.body.append(machinePanel);
 
 
@@ -986,7 +1009,7 @@ const machineNote =
   machinePanel.querySelector('#vbMachineNote');
 
 function machineStatus(note = '') {
-  if (note) {
+  if (note && machineNote) {
     machineNote.textContent = note;
   }
 }
@@ -2397,6 +2420,120 @@ window.worldBirthdayCatReaction = () => {
     #vbStoreBox button:hover{transform:translateY(-2px)}
     #vbStoreBox button:active{transform:scale(.95)}
     #vbStoreBox button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+    /* ===== 排球車：與擊球練習一致的玻璃面板 ===== */
+
+#vbStoreBox {
+  box-sizing: border-box;
+
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+
+  width: min(290px, calc(100vw - 32px));
+  max-height: min(72vh, 570px);
+
+  padding: 14px;
+
+  border: 1px solid rgba(255,255,255,.42);
+  border-radius: 16px;
+
+  background: rgba(29,42,80,.50);
+  box-shadow: 0 12px 28px rgba(10,20,45,.22);
+
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  font: 13px/1.55 system-ui, "PingFang TC", sans-serif;
+}
+
+/* 標題 */
+#vbStoreBox h3 {
+  font-size: 15px;
+  letter-spacing: .08em;
+}
+
+#vbStoreBox h4 {
+  margin: 12px 0 6px;
+  font-size: 13px;
+}
+
+#vbStoreBox .hint {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: .85;
+}
+
+/* 標題與關閉按鈕 */
+#vbStoreBox .row {
+  margin-bottom: 9px;
+}
+
+#vbStoreBox .row button {
+  display: grid;
+  place-items: center;
+
+  width: 34px;
+  height: 34px;
+  padding: 0;
+
+  border: 1px solid rgba(255,255,255,.34);
+  border-radius: 10px;
+
+  background: rgba(255,255,255,.10);
+
+  font-size: 22px;
+  line-height: 1;
+}
+
+/* 已選取物件 */
+#vbStoreBox .sel {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(224,161,118,.84);
+}
+
+/* 左轉、恢復、右轉：三個等寬按鈕 */
+#vbStoreBox .tools {
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 8px;
+}
+
+#vbStoreBox .tools button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 44px;
+  padding: 8px 10px;
+
+  border: 1px solid rgba(255,255,255,.34);
+  border-radius: 10px;
+
+  background: rgba(255,255,255,.10);
+}
+
+/* 收進排球車：獨立佔滿下一列 */
+#vbStoreBox .tools .cart-store {
+  grid-column: 1 / -1;
+}
+
+/* SVG 圖示 */
+#vbStoreBox .tools button svg {
+  width: 25px;
+  height: 25px;
+
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 車上物品按鈕 */
+#vbStoreBox .stored button {
+  border: 1px solid rgba(255,255,255,.34);
+  background: rgba(255,255,255,.10);
+  border-radius: 10px;
+}
     #vbBoatCtrl{display:none;position:fixed;left:14px;bottom:14px;z-index:16;color:#fff;font:700 14px system-ui;background:#355c97;border:5px solid #1d2a50;border-radius:16px;padding:10px 12px;touch-action:none;user-select:none;box-shadow:0 6px 0 #1d2a50}
     #vbBoatCtrl .arrows{display:grid;grid-template-columns:repeat(3,46px);gap:5px;margin-top:8px}
     #vbBoatCtrl button{border:0;background:#1d2a50;color:#fff;border-radius:10px;padding:10px;touch-action:none;cursor:pointer;font:inherit}
@@ -2409,7 +2546,62 @@ window.worldBirthdayCatReaction = () => {
 
   const el = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
   const btn = text => { const b = el('button'); b.type = 'button'; b.textContent = text; return b; };
+  // ===== 排球車操作圖示 =====
 
+const cartIcons = {
+
+  // 向左旋轉
+  left: `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 7H3V3"/>
+      <path d="M3 7a9 9 0 1 1-1 8"/>
+      <path d="m3 7 4-4"/>
+    </svg>
+  `,
+
+  // 恢復初始位置
+  reset: `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 12V4h8"/>
+      <path d="m4 4 8 8"/>
+      <path d="M9 19h9a2 2 0 0 0 2-2V8"/>
+    </svg>
+  `,
+
+  // 向右旋轉
+  right: `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M17 7h4V3"/>
+      <path d="M21 7a9 9 0 1 0 1 8"/>
+      <path d="m21 7-4-4"/>
+    </svg>
+  `,
+
+  // 收進排球車
+  store: `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 10h16v10H4z"/>
+      <path d="M12 2v12"/>
+      <path d="m8 10 4 4 4-4"/>
+    </svg>
+  `
+};
+
+
+// 建立只有圖示的按鈕
+function cartIconButton(icon, label, handler) {
+
+  const b = btn('');
+
+  b.innerHTML = cartIcons[icon];
+
+  b.setAttribute('aria-label', label);
+  b.title = label;
+
+  b.onclick = handler;
+
+  return b;
+}
   let selected = null;
   const RADIUS = { bottle: .6, towel: 1.1, cart: 1.5, picnic: 2.9, machine: 1.8 };
 
@@ -2438,7 +2630,37 @@ window.worldBirthdayCatReaction = () => {
     selected.root.rotation.y = selected.rot;
     saveLayout(selected);
   }
+  // ===== 恢復物件初始位置與方向 =====
 
+function resetSelectedPosition() {
+
+  if (!selected || !POS[selected.id]) return;
+
+  // 取得這個物件的預設位置
+  const [x, z] = POS[selected.id];
+
+  // 原始位置若被其他物件佔用，
+  // 就改放最近的合法空位，避免重疊。
+  const point = legal(selected, x, z)
+    ? { x, z }
+    : nearest(selected, x, z);
+
+  selected.x = point.x;
+  selected.z = point.z;
+
+  // 旋轉角度也恢復原始狀態
+  selected.rot = 0;
+
+  // 更新實際 3D 物件
+  place(selected);
+
+  // 儲存新位置
+  saveLayout(selected);
+
+  // 更新排球車面板
+  renderStorage();
+
+}
   // ===== 防止物件重疊 =====
 
   function legal(o, x, z) {
@@ -2508,7 +2730,11 @@ window.worldBirthdayCatReaction = () => {
     const head = el('div', 'row');
     const title = el('h3');
     title.textContent = '排球車';
-    const done = btn('完成');
+    const done = btn('×');
+
+    done.setAttribute('aria-label', '完成整理');
+    done.title = '完成整理';
+
     done.onclick = toggleOrganizer;
     head.append(title, done);
 
@@ -2522,19 +2748,47 @@ window.worldBirthdayCatReaction = () => {
       storeBox.append(s);
 
       const tools = el('div', 'tools');
-      const l = btn('↺ 左轉'); l.onclick = () => rotateSelected(-1);
-      const r = btn('右轉 ↻'); r.onclick = () => rotateSelected(1);
-      tools.append(l, r);
 
-      if (!selected.noStore && !selected.fixed) {
-        const k = btn('收進排球車');
-        k.style.gridColumn = '1 / -1';
-        k.onclick = storeSelected;
-        tools.append(k);
-      }
-      storeBox.append(tools);
-    }
+// 第一列：左轉、恢復初始位置、右轉
+tools.append(
 
+  cartIconButton(
+    'left',
+    '向左旋轉',
+    () => rotateSelected(-1)
+  ),
+
+  cartIconButton(
+    'reset',
+    '恢復初始位置',
+    resetSelectedPosition
+  ),
+
+  cartIconButton(
+    'right',
+    '向右旋轉',
+    () => rotateSelected(1)
+  )
+
+);
+
+
+// 第二列：收進排球車
+if (!selected.noStore && !selected.fixed) {
+
+  const k = cartIconButton(
+    'store',
+    '收進排球車',
+    storeSelected
+  );
+
+  k.classList.add('cart-store');
+
+  tools.append(k);
+
+}
+
+storeBox.append(tools);
     const stored = list.filter(o => o.stored && o.unlocked && !o.fixed && !o.noStore);
     const h4 = el('h4');
     h4.textContent = '車上收納';
