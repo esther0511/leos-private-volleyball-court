@@ -2991,19 +2991,39 @@ function endBirthday() {
   clearBirthdayStars();
 
   // 最後讓視線停在球場
-  if (
-    bdayCamSaved &&
-    !bdayCamTouched
-  ) {
+  // 無論演出期間是否碰過畫面，
+// 結束後都恢復正常球場視角
+if (bdayCamSaved) {
 
-    ct.th = bdayCamSaved.th;
-    ct.ph = 1.03;
-    ct.tilt = 0;
-    ct.d = Math.max(27, bdayCamSaved.d);
+  ct.th = bdayCamSaved.th;
+  ct.ph = 1.03;
+  ct.tilt = 0;
+  ct.d = Math.max(27, bdayCamSaved.d);
 
-  }
+  // 視線回到球場中央
+  tgtP.x = 0;
+  tgtP.z = 0;
 
-  bdayCamSaved = null;
+}
+
+// 清除生日演出的鏡頭互動標記
+bdayCamTouched = false;
+
+// 保險處理：離開可能殘留的特殊視角
+if (
+  typeof window.worldExitSpecialView === 'function'
+) {
+  window.worldExitSpecialView();
+}
+
+// 讓鍵盤操作重新取得球場焦點
+try {
+  cv.focus({ preventScroll: true });
+} catch (_) {
+  cv.focus();
+}
+
+bdayCamSaved = null;
 
   endBirthdayMusic();
 
@@ -3232,10 +3252,7 @@ function birthdayStep(dt) {
 
   // ===== 13.8 秒：流星雨引導鏡頭向下 =====
 
-  if (
-    !bdayCamTouched &&
-    t >= 13.8
-  ) {
+  if (t >= 13.8) {
 
     const lower =
       sm01(c01((t - 13.8) / 3.25));
