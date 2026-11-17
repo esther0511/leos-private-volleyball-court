@@ -2979,9 +2979,12 @@ cv.addEventListener('pointerdown', e => {
 
   // 先建立拖曳狀態，再更新面板
   drag = {
-    id: e.pointerId,
-    o
-  };
+  id: e.pointerId,
+  o,
+  startX: e.clientX,
+  startY: e.clientY,
+  moved: false
+};
 
   renderStorage();
 
@@ -3004,10 +3007,22 @@ cv.addEventListener('pointermove', e => {
     drag.id !== e.pointerId
   ) return;
 
-  e.preventDefault();
+ e.preventDefault();
 
-  ndc(e);
-  ray.setFromCamera(m2, cam);
+// 單純點擊只選取，超過 6px 才開始拖曳
+if (!drag.moved) {
+  if (
+    Math.hypot(
+      e.clientX - drag.startX,
+      e.clientY - drag.startY
+    ) < 6
+  ) return;
+
+  drag.moved = true;
+}
+
+ndc(e);
+ray.setFromCamera(m2, cam);
 
   // 將滑鼠位置投影到地面
   if (ray.ray.intersectPlane(
@@ -3041,9 +3056,15 @@ function finishDrag(e) {
 
   e.preventDefault();
 
-  const o = drag.o;
+// 只是點一下選取物件，不改變它的位置
+if (!drag.moved) {
+  drag = null;
+  return;
+}
 
-  // 尋找最近的合法格線位置
+const o = drag.o;
+
+// 尋找最近的合法格線位置
   const p = nearest(
     o,
     o.root.position.x,
@@ -3084,9 +3105,14 @@ cv.addEventListener(
       drag.id !== e.pointerId
     ) return;
 
-    const o = drag.o;
+   if (!drag.moved) {
+  drag = null;
+  return;
+}
 
-    const p = nearest(
+const o = drag.o;
+
+const p = nearest(
       o,
       o.root.position.x,
       o.root.position.z
