@@ -426,11 +426,33 @@ uiMenu.append(sticksButton, tipsButton);
       return;
     }
 
-    if (code === 'Space' && !e.repeat && controlsAvailable()) {
-      hitBallByKeyboard();
-      e.preventDefault();
-      return;
+    if (code === 'Space') {
+
+  // 擊球練習使用專屬的按鍵控制
+  if (
+    typeof window.worldMachineIsPracticing === 'function' &&
+    window.worldMachineIsPracticing()
+  ) {
+
+    if (!e.repeat && controlsAvailable()) {
+      window.worldMachineSpaceDown();
     }
+
+    e.preventDefault();
+    return;
+  }
+
+  // 其他時候維持原本的自由擊球
+  if (!e.repeat && controlsAvailable()) {
+
+    hitBallByKeyboard();
+
+    e.preventDefault();
+    return;
+
+  }
+
+}
 
     if (curMode === 'boat') return; // 帆船沿用既有 WASD / 方向鍵。
     if (heldCodes.has(code) && (controlsAvailable() ||
@@ -440,8 +462,29 @@ uiMenu.append(sticksButton, tipsButton);
     }
   });
 
-  window.addEventListener('keyup', e => held.delete(e.code));
+  window.addEventListener('keyup', e => {
+
+  held.delete(e.code);
+
+  if (
+    e.code === 'Space' &&
+    typeof window.worldMachineIsPracticing === 'function' &&
+    window.worldMachineIsPracticing()
+  ) {
+
+    window.worldMachineSpaceUp();
+
+    e.preventDefault();
+
+  }
+
+});
   window.addEventListener('blur', () => {
+    if (
+  typeof window.worldMachineSpaceCancel === 'function'
+) {
+  window.worldMachineSpaceCancel();
+}
     held.clear();
     velocity.x = velocity.z = 0;
     leftStick.release();
