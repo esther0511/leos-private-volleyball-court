@@ -23,7 +23,7 @@ const weatherSky = new T3.Color(0x536a86);
 const weatherFlashColor = new T3.Color(0xb8cae5);
 const weatherWhite = new T3.Color(0xffffff);
 const weatherCloudGray = new T3.Color(0xa6b3c7);
-
+const WEATHER_TAP_WINDOW_MS = 3000;
 
 // ===== 雨滴 =====
 
@@ -254,11 +254,6 @@ function weatherDaylight() {
   return hour >= 7 && hour <= 17.5;
 }
 
-
-// ===== 玩家點擊雲朵 =====
-
-// ===== 不同雲朵 3 秒連點才觸發降雨 =====
-
 function weatherTapCloud(i) {
 
   if (
@@ -268,17 +263,15 @@ function weatherTapCloud(i) {
 
   const now = performance.now();
 
-  // 超過 3 秒沒有點另一朵雲，連點重新計算
+  // 超過 3 秒沒接續下一朵，就重新開始計算
   if (
     now - weather.lastTapAt >
     WEATHER_TAP_WINDOW_MS
   ) {
-
     weather.touched.clear();
-
   }
 
-  // 同一朵雲不重複計算
+  // 同一朵雲不重複計次
   if (weather.touched.has(i)) return;
 
   weather.touched.add(i);
@@ -286,56 +279,26 @@ function weatherTapCloud(i) {
 
   const count = weather.touched.size;
 
-
-  // 第一下只播放雲朵原本的反應
+  // 第一下只當作一般點雲，不啟動下雨
   if (count === 1) {
-
-    popText(
-      '3 秒內再點另一朵雲，才會開始下雨。'
-    );
-
+    popText('3 秒內再點另一朵雲，才會開始下雨。');
     return;
-
   }
 
-
-  // 第二下開始下雨，之後逐步增加雨勢
-  const nextKind =
-    count >= 6 ? 'storm' :
-    count >= 3 ? 'medium' :
-    'light';
-
-
-  // 已經在下雨時，只能升級，不會降級
-  const level = {
-    none: 0,
-    light: 1,
-    medium: 2,
-    storm: 3
-  };
-
-  if (
-    level[nextKind] > level[weather.kind]
-  ) {
-
-    weather.kind = nextKind;
-
+  // 第二下開始小雨；3~5 中雨；6~9 雷雨
+  if (count >= 6) {
+    weather.kind = 'storm';
+    weather.lightningIn = rnd(1.2, 2.4);
+  } else if (count >= 3) {
+    weather.kind = 'medium';
+  } else {
+    weather.kind = 'light';
   }
 
-
-  // 同一場雨保留原本倒數時間
-  if (weather.remaining <= 0) {
-
-    weather.remaining = rnd(25, 45);
-
-  }
-
+  // 有效觸發後才開始倒數
+  weather.remaining = rnd(25, 45);
   weather.rainbowTime = 0;
-
-  if (count === 6) {
-    weather.lightningIn = 1.5;
-  }
-
+  weather.rainbowPulse = 0;
 
   const name =
     count >= 6 ? '雷雨' :
@@ -343,7 +306,6 @@ function weatherTapCloud(i) {
     '小雨';
 
   popText(`${count} 朵雲：${name}`);
-
 }
 
 // ===== 開發者專用天氣測試 =====
@@ -382,8 +344,9 @@ window.worldTestWeather = kind => {
     return false;
   }
 
-  weather.touched.clear();
-  return true;
+weather.touched.clear();
+weather.lastTapAt = -Infinity;
+return true;
 };
 
 
@@ -426,8 +389,9 @@ function weatherStep(dt) {
 
 }
 
-      weather.kind = 'none';
-      weather.touched.clear();
+weather.kind = 'none';
+weather.touched.clear();
+weather.lastTapAt = -Infinity;
     }
   }
 
