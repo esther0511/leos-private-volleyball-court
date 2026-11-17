@@ -883,15 +883,15 @@ machinePanel.innerHTML = `
   </div>
 
   <p class="vb-machine-note" id="vbMachineNote">
-    選擇單球或連發五球，使用畫面中央準心瞄準排球，按 Space 接球。
+    選擇單球或連發；準心對準空中的排球，按 Space 接球。
   </p>
 
   <div class="vb-machine-buttons">
     <button type="button" data-machine="one">
       單球練習
     </button>
-    <button type="button" data-machine="five">
-      連發五球
+    <button type="button" data-machine="repeat">
+       連發
     </button>
     <button type="button" data-machine="stop">
       取消
@@ -1021,7 +1021,7 @@ function openMachinePanel() {
   machineGame.open = true;
 
   machineStatus(
-    '選好單球或連發五球後，選單會自動收起。'
+    '選好單球或連發後，選單會自動收起。'
   );
 
   return true;
@@ -1505,9 +1505,10 @@ machinePanel.addEventListener('click', e => {
     startMachineGame(1);
   }
 
-  if (action === 'five') {
-    startMachineGame(5);
-  }
+  if (action === 'repeat') {
+  // 連發模式每次最多發出 20 球
+  startMachineGame(20);
+}
 
   if (
     action === 'stop' ||
@@ -1521,7 +1522,72 @@ machinePanel.addEventListener('click', e => {
 
 // 開發者頁面可以直接開啟發球機
 window.worldOpenMachinePanel = openMachinePanel;
+// ===== 開發者：直接預覽一般擊球／特殊殺球 =====
 
+window.worldTestMachineStrike = kind => {
+
+  if (
+    !VB_IS_DEV ||
+    !['hit', 'spike'].includes(kind) ||
+    bday.active ||
+    reveal ||
+    organizing
+  ) return false;
+
+  // 停止目前練習，避免與下一球互相干擾
+  if (machineGame.running) {
+    stopMachineGame();
+  }
+
+  // 開發者測試：將鏡頭移回適合觀看球路的位置
+  window.worldExitSpecialView?.();
+  viewMix = 0;
+
+  tgtP.set(0, 1, 0);
+
+  ct.th = -.55;
+  ct.ph = 1;
+  ct.d = 27;
+  ct.tilt = 0;
+
+  cs.th = ct.th;
+  cs.ph = ct.ph;
+  cs.d = ct.d;
+  cs.tilt = ct.tilt;
+
+  camStep();
+
+  // 使用原本球場的排球與物理系統
+  spikeFlight = null;
+  hover = null;
+
+  b.drag = false;
+  b.sp = false;
+  b.armed = 0;
+  b.combo = 0;
+
+  bv.set(0, 0, 0);
+
+  // 把球放到能清楚看見擊球軌跡的位置
+  ball.position.set(-4.5, 5.8, 0);
+
+  // 暫時進入托球狀態，
+  // 直接呼叫正式版的擊球函式
+  machineGame.running = true;
+  machineGame.stage = 'lifted';
+  machineGame.inFlight = false;
+
+  machineStrike(kind === 'spike');
+
+  // 測試只播放效果，不啟動正式練習流程
+  machineGame.running = false;
+  machineGame.inFlight = false;
+  machineGame.stage = 'idle';
+  machineGame.pressing = false;
+
+  return true;
+
+};
   // ===== 第 10 天：野餐墊與香檳酒杯 =====
 
   const rugTex = (() => {
