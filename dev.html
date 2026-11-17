@@ -129,8 +129,32 @@
   class="secondary space-top"
   type="button"
 >
-  測試：第 7 天發球機遊戲
+  測試：第 7 天擊球練習
 </button>
+<div class="button-grid space-top">
+
+  <button
+    id="testMachineHit"
+    type="button"
+    class="secondary"
+  >
+    測試：一般擊球效果
+  </button>
+
+  <button
+    id="testMachineSpike"
+    type="button"
+    class="secondary"
+  >
+    測試：特殊殺球效果
+  </button>
+
+</div>
+
+<p class="note">
+  擊球效果可直接預覽，不需瞄準或操作按鍵。
+  連發模式最多 20 球，不計分。
+</p>
         <p class="note">選擇天數會直接展示當天內容；按下「測試」後，本日新物件會先隱藏，完成有效殺球才會緩緩降落。</p>
       </section>
 
@@ -249,6 +273,15 @@
     roamState.textContent = roam ? '已載入' : '尚未載入';
     testSpikeUnlock.disabled = !isFn(g, 'worldTestSpikeUnlock');
     testMachine.disabled = !isFn(g, 'worldOpenMachinePanel');
+    for (const id of [
+  'testMachineHit',
+  'testMachineSpike'
+]) {
+
+  document.querySelector('#' + id).disabled =
+    !isFn(g, 'worldTestMachineStrike');
+
+}
 for (const id of [
   'testRainLight',
   'testRainMedium',
@@ -407,7 +440,7 @@ document.querySelector('#testMachine')
     if (ok) {
 
       report(
-        '已開啟發球練習，請選擇單球或連發五球。',
+        '已開啟擊球練習，請選擇單球或連發。',
         'success'
       );
 
@@ -421,7 +454,69 @@ document.querySelector('#testMachine')
     }
 
   });
- 
+ // ===== 開發者：直接預覽一般擊球／殺球效果 =====
+
+for (const [id, kind, label] of [
+
+  ['testMachineHit', 'hit', '一般擊球'],
+
+  ['testMachineSpike', 'spike', '特殊殺球']
+
+]) {
+
+  document.querySelector('#' + id)
+    .addEventListener('click', () => {
+
+      const g = court();
+
+      if (!isFn(g, 'worldTestMachineStrike')) {
+
+        report(
+          '擊球效果測試尚未載入，請檢查 world-items.js。',
+          'error'
+        );
+
+        return;
+
+      }
+
+      try {
+
+        // 尚未切換到第 7 天時，自動切換
+        if (Number(visitDay.value) < 7) {
+
+          visitDay.value = '7';
+          g.setWorldPreviewDay(7);
+
+        }
+
+        const ok =
+          g.worldTestMachineStrike(kind);
+
+        report(
+
+          ok
+            ? `已播放：${label}。`
+            : '目前正在進行其他演出，暫時無法測試擊球。',
+
+          ok ? 'success' : 'error'
+
+        );
+
+      } catch (e) {
+
+        console.error(e);
+
+        report(
+          '擊球效果測試發生錯誤，請檢查瀏覽器控制台。',
+          'error'
+        );
+
+      }
+
+    });
+
+}
   // ===== 開發者：射手座人馬射箭測試 =====
 
 document.querySelector('#testSagArrow')
