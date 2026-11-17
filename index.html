@@ -3664,7 +3664,23 @@ const MOODS = [
 
 const NAMES = MOODS.map(m => m.name);
 const EMOJI = MOODS.map(m => m.emoji);
-
+// 心情板視覺排列：依色彩過渡，love 固定第一
+// 不改變原本紀錄使用的索引
+const MOOD_DISPLAY_ORDER = [
+  7,  // love
+  2,  // angry
+  3,  // anxiety
+  12, // x
+  0,  // joy
+  9,  // expect
+  6,  // embarrassment
+  8,  // dislike
+  10, // fine
+  1,  // sad
+  11, // ugh
+  5,  // helpless
+  4   // lost_soul
+];
 const face = i => {
   const m = MOODS[i];
   if (!m) return '';
@@ -3698,7 +3714,7 @@ function drawEm() {
 
   w.textContent = '';
 
-  MOODS.forEach((_, i) => {
+  MOOD_DISPLAY_ORDER.forEach(i => {
     const e = document.createElement('button');
 
     e.className = 'em' + (i === selE ? ' sel' : '');
