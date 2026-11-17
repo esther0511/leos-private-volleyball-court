@@ -61,13 +61,19 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--sky);font-family
   object-fit:contain;
   display:block;
 }
-.em:hover{
-  transform:none;
-  filter:brightness(1.08);
+/* 滑鼠移入：方塊向左上翹起 */
+.em:hover {
+  transform: translateY(-3px) rotate(-4deg);
 }
-.em.sel{
-  outline:3px solid #fff;
-  transform:none;
+/* 點選後：保留白色外框 */
+.em.sel {
+  outline: 3px solid #fff;
+  transform: translateY(-3px);
+}
+
+/* 已選取的表情仍可在 Hover 時翹起 */
+.em.sel:hover {
+  transform: translateY(-3px) rotate(-4deg);
 }
 textarea{width:100%;box-sizing:border-box;min-height:120px;resize:vertical;border:0;border-radius:10px;padding:12px;background:var(--orange);color:var(--navy);font:inherit;font-size:17px;line-height:1.6}
 textarea::placeholder{color:rgba(29,42,80,.6)}
