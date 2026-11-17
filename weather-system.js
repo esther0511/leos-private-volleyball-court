@@ -197,13 +197,14 @@ sc.add(rainbowHit);
 hitList.push(rainbowHit);
 // ===== 將彩虹放在視線前方的遠處天空 =====
 
+// ===== 將彩虹放在遠方山巒後面 =====
+
 function positionRainbowInSky() {
 
-  // 取得玩家目前觀看的水平方向
+  // 取得玩家觀看的水平方向
   const dir = new T3.Vector3();
 
   cam.getWorldDirection(dir);
-
   dir.y = 0;
 
   if (dir.lengthSq() < .0001) {
@@ -212,38 +213,43 @@ function positionRainbowInSky() {
 
   dir.normalize();
 
-  // 彩虹正面朝向玩家
+  // 彩虹的正面朝向攝影機
   const yaw = Math.atan2(
     -dir.x,
     -dir.z
   );
 
-  // 原本彩虹幾何中心位於 z = -37
-  const zOffset = new T3.Vector3(0, 0, -37)
+  // 以球場中心作基準，
+  // 放在原本山巒圈之外
+  const center = dir.clone()
+    .multiplyScalar(155);
+
+  // 彩虹兩端埋入地平線
+  center.y = -12;
+
+  // 原本彩虹幾何中心在 z = -37
+  const offset = new T3.Vector3(0, 0, -37)
     .applyAxisAngle(
       new T3.Vector3(0, 1, 0),
       yaw
     );
 
-  // 距離約 125 單位，底部高度約 34
-  const anchor = new T3.Vector3(
+  const origin = center.sub(offset);
 
-  cam.position.x + dir.x * 142,
+  // 彩虹與點擊區必須使用相同變換
+  for (const target of [
+    weatherRainbow,
+    rainbowHit
+  ]) {
 
-  10.5,
+    target.position.copy(origin);
+    target.rotation.y = yaw;
 
-  cam.position.z + dir.z * 142
+    // 增加拱形高度，
+    // 底部藏在山後，頂部露出天空
+    target.scale.set(1.3, 1.8, 1);
 
-).sub(zOffset);
-
-
-  // 彩虹本身
-  weatherRainbow.position.copy(anchor);
-  weatherRainbow.rotation.y = yaw;
-
-  // 點擊判定跟著彩虹一起移動
-  rainbowHit.position.copy(anchor);
-  rainbowHit.rotation.y = yaw;
+  }
 
 }
 
@@ -279,11 +285,8 @@ function weatherTapCloud(i) {
 
   const count = weather.touched.size;
 
-  // 第一下只當作一般點雲，不啟動下雨
-  if (count === 1) {
-    popText('3 秒內再點另一朵雲，才會開始下雨。');
-    return;
-  }
+  // 第一下只播放雲朵反應，不透露隱藏機制
+if (count === 1) return;
 
   // 第二下開始小雨；3~5 中雨；6~9 雷雨
   if (count >= 6) {
@@ -300,12 +303,6 @@ function weatherTapCloud(i) {
   weather.rainbowTime = 0;
   weather.rainbowPulse = 0;
 
-  const name =
-    count >= 6 ? '雷雨' :
-    count >= 3 ? '中雨' :
-    '小雨';
-
-  popText(`${count} 朵雲：${name}`);
 }
 
 // ===== 開發者專用天氣測試 =====
