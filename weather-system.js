@@ -228,13 +228,13 @@ function positionRainbowInSky() {
   // 距離約 125 單位，底部高度約 34
   const anchor = new T3.Vector3(
 
-    cam.position.x + dir.x * 125,
+  cam.position.x + dir.x * 142,
 
-    34,
+  10.5,
 
-    cam.position.z + dir.z * 125
+  cam.position.z + dir.z * 142
 
-  ).sub(zOffset);
+).sub(zOffset);
 
 
   // 彩虹本身
@@ -397,7 +397,30 @@ weather.lastTapAt = -Infinity;
 
 
   // ===== 雨勢漸變 =====
-
+  const rainLook =
+  weather.kind === 'storm' ? {
+    len: 2.15,
+    lean: .26,
+    opacity: .82,
+    speed: 1.45
+  } :
+  weather.kind === 'medium' ? {
+    len: 1.38,
+    lean: .18,
+    opacity: .64,
+    speed: 1.18
+  } :
+  weather.kind === 'light' ? {
+    len: .72,
+    lean: .10,
+    opacity: .42,
+    speed: .96
+  } : {
+    len: .72,
+    lean: .10,
+    opacity: 0,
+    speed: 1
+  };
   const target =
     weather.kind === 'storm' ? 1 :
     weather.kind === 'medium' ? .70 :
@@ -411,7 +434,7 @@ weather.lastTapAt = -Infinity;
     weather.strength > .015;
 
   weatherRain.material.opacity =
-    .50 * weather.strength;
+  rainLook.opacity * weather.strength;
 
 
   // ===== 雨滴降落 =====
@@ -423,9 +446,10 @@ weather.lastTapAt = -Infinity;
       const d = weatherDrops[i];
 
       d.y -= d.v *
-        (0.7 + .4 * weather.strength) * dt;
+  rainLook.speed *
+  (0.72 + .36 * weather.strength) * dt;
 
-      d.x += dt * .65;
+d.x += dt * (.55 + rainLook.lean * 1.2);
 
       if (
         d.y < .15 ||
@@ -442,8 +466,8 @@ weather.lastTapAt = -Infinity;
       weatherCoords[k + 1] = d.y;
       weatherCoords[k + 2] = d.z;
 
-      weatherCoords[k + 3] = d.x - .14;
-      weatherCoords[k + 4] = d.y + .65;
+      weatherCoords[k + 3] = d.x - rainLook.lean;
+      weatherCoords[k + 4] = d.y + rainLook.len;
       weatherCoords[k + 5] = d.z;
     }
 
