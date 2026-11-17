@@ -368,11 +368,9 @@ o.parts.waterSurface.material.depthWrite = false;
     }
 
     // 車子空著時顯示裝飾排球
-o.parts.decorativeBalls = [
-  volley(o.art, -.4, 1.03, 0, .27),
-  volley(o.art, .33, 1.03, .2, .27),
-  volley(o.art, 0, 1.31, -.2, .27)
-];
+volley(o.art, -.4, 1.03, 0, .27);
+volley(o.art, .33, 1.03, .2, .27);
+volley(o.art, 0, 1.31, -.2, .27);
 
     clickZone(o, 2.3, 1.7, 1.65, 0, .9, 0, () => o.interact(o));
 
@@ -2290,7 +2288,6 @@ window.worldBirthdayCatReaction = () => {
     }
 
     water.visible = active(byId.get('sailboat'));
-    refreshCartContents();
   }
 
   function syncDay(day) {
@@ -2608,97 +2605,7 @@ function cartIconButton(icon, label, handler) {
 }
   let selected = null;
   const RADIUS = { bottle: .6, towel: 1.1, cart: 1.5, picnic: 2.9, machine: 1.8 };
-  // ===== 排球車：收納物件的縮小模型 =====
-
-const cartContents = new T3.Group();
-
-byId.get('cart').art.add(cartContents);
-
-let cartContentsKey = null;
-
-
-function refreshCartContents() {
-
-  const items = list.filter(o =>
-    o.stored &&
-    o.unlocked &&
-    !o.noStore &&
-    !o.fixed
-  );
-
-  // 只有收納內容改變時才重新建立模型
-  const key = items
-    .map(o => o.id)
-    .sort()
-    .join('|');
-
-  if (key === cartContentsKey) return;
-
-  cartContentsKey = key;
-
-
-  // 清除舊的展示模型
-  while (cartContents.children.length) {
-    cartContents.remove(cartContents.children[0]);
-  }
-
-
-  // 有收納物件時，改為展示實際物件縮小版
-  const decorations =
-    byId.get('cart').parts.decorativeBalls || [];
-
-  decorations.forEach(m => {
-    m.visible = items.length === 0;
-  });
-
-
-  items.slice(0, 4).forEach((o, i) => {
-
-    // 複製外觀，不移除原物件的資料
-    const mini = o.art.clone(true);
-
-    const bounds =
-      new T3.Box3().setFromObject(mini);
-
-    if (bounds.isEmpty()) return;
-
-    const size =
-      bounds.getSize(new T3.Vector3());
-
-    const center =
-      bounds.getCenter(new T3.Vector3());
-
-
-    // 將物件等比例縮小以放入排球車
-    const scale = Math.min(
-      .7,
-      .65 / Math.max(size.x, .01),
-      .6 / Math.max(size.y, .01),
-      .5 / Math.max(size.z, .01)
-    );
-
-    // 最多四格，依序排列
-    const x =
-      i % 2 === 0 ? -.42 : .42;
-
-    const z =
-      Math.floor(i / 2) === 0
-        ? -.25
-        : .25;
-
-    mini.scale.setScalar(scale);
-
-    mini.position.set(
-      x - center.x * scale,
-      .55 - bounds.min.y * scale,
-      z - center.z * scale
-    );
-
-    cartContents.add(mini);
-
-  });
-
-}
+ 
   const selRing = new T3.Mesh(
     new T3.RingGeometry(1.05, 1.25, 48),
     new T3.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .8, side: T3.DoubleSide, depthWrite: false })
@@ -2965,13 +2872,14 @@ cv.addEventListener('pointerdown', e => {
   ) return;
 
   // 整理模式不交給一般球場的鏡頭控制
-  e.stopImmediatePropagation();
-  e.preventDefault();
-
   const o = pickMoveable(e);
 
-  // 點到空白處，不啟動拖曳
-  if (!o) return;
+// 點到空白處，讓原本的球場控制鏡頭
+if (!o) return;
+
+// 只有點到可移動物件時，才交給整理模式
+e.stopImmediatePropagation();
+e.preventDefault();
 
   cv.setPointerCapture(e.pointerId);
 
@@ -3000,14 +2908,11 @@ cv.addEventListener('pointermove', e => {
   ) return;
 
   // 整理期間不讓一般視角跟著滑鼠移動
-  e.stopImmediatePropagation();
+  // 沒有拖曳物件時，不攔截原本的鏡頭移動
+if (!drag || drag.id !== e.pointerId) return;
 
-  if (
-    !drag ||
-    drag.id !== e.pointerId
-  ) return;
-
- e.preventDefault();
+e.stopImmediatePropagation();
+e.preventDefault();
 
 // 單純點擊只選取，超過 6px 才開始拖曳
 if (!drag.moved) {
@@ -3046,15 +2951,11 @@ function finishDrag(e) {
     cameraMode !== 'orbit'
   ) return;
 
-  // 避免放開時又觸發一般球場操作
-  e.stopImmediatePropagation();
+  // 空白處的滑鼠放開，交給球場完成鏡頭操作
+if (!drag || drag.id !== e.pointerId) return;
 
-  if (
-    !drag ||
-    drag.id !== e.pointerId
-  ) return;
-
-  e.preventDefault();
+e.stopImmediatePropagation();
+e.preventDefault();
 
 // 只是點一下選取物件，不改變它的位置
 if (!drag.moved) {
