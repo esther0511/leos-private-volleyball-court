@@ -31,8 +31,14 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--sky);font-family
   object-fit:contain;
   display:block;
 }
-.em:hover{transform:translateY(-3px) rotate(-4deg)}
-.em.sel{outline:3px solid #fff;transform:translateY(-3px)}
+.em:hover{
+  transform:none;
+  filter:brightness(1.08);
+}
+.em.sel{
+  outline:3px solid #fff;
+  transform:none;
+}
 textarea{width:100%;box-sizing:border-box;min-height:120px;resize:vertical;border:0;border-radius:10px;padding:12px;background:var(--orange);color:var(--navy);font:inherit;font-size:17px;line-height:1.6}
 textarea::placeholder{color:rgba(29,42,80,.6)}
 .row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
@@ -3597,17 +3603,25 @@ const FACE = [
   `]
 ];
   
-/* ===== 心情清單：新增心情，只要在最後面加一行 ===== */
+/* ===== 心情板：13 張原創表情貼 ===== */
 
 const MOODS = [
-  { name: '喜悅', emoji: '😄', img: 'assets/moods/joy.png' },
-  { name: '悲傷', emoji: '😢', img: 'assets/moods/sad.png' },
-  { name: '憤怒', emoji: '😠', img: 'assets/moods/angry.png' },
-  { name: '焦慮', emoji: '😰', img: 'assets/moods/anxiety.png' },
-  { name: '空虛', emoji: '😶', img: 'assets/moods/emptiness.png' },
-  { name: '無助', emoji: '😞', img: 'assets/moods/helpless.png' },
+  // 保留原本八種心情的順序，避免影響既有紀錄
+  { name: '喜悅', emoji: '😊', img: 'assets/moods/joy.png' },
+  { name: '悲傷', emoji: '😭', img: 'assets/moods/sad.png' },
+  { name: '憤怒', emoji: '😡', img: 'assets/moods/angry.png' },
+  { name: '焦慮', emoji: '😣', img: 'assets/moods/anxiety.png' },
+  { name: '空虛', emoji: '😶', img: 'assets/moods/lost_soul.png' },
+  { name: '無助', emoji: '😮‍💨', img: 'assets/moods/helpless.png' },
   { name: '尷尬', emoji: '😅', img: 'assets/moods/embarrassed.png' },
-  { name: '愛',   emoji: '🥰', img: 'assets/moods/love.png' }
+  { name: '愛',   emoji: '🥰', img: 'assets/moods/love.png' },
+
+  // 新增五種心情
+  { name: '厭惡', emoji: '😒', img: 'assets/moods/dislike.png' },
+  { name: '期待', emoji: '🤩', img: 'assets/moods/expect.png' },
+  { name: '好喔', emoji: '😑', img: 'assets/moods/fine.png' },
+  { name: '嗚嗚', emoji: '🥺', img: 'assets/moods/ugh.png' },
+  { name: '無表情', emoji: '😶', img: 'assets/moods/x.png' }
 ];
 
 const NAMES = MOODS.map(m => m.name);
