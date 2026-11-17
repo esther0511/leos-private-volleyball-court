@@ -367,9 +367,12 @@ o.parts.waterSurface.material.depthWrite = false;
       );
     }
 
-    volley(o.art, -.4, 1.03, 0, .27);
-    volley(o.art, .33, 1.03, .2, .27);
-    volley(o.art, 0, 1.31, -.2, .27);
+    // 車子空著時顯示裝飾排球
+o.parts.decorativeBalls = [
+  volley(o.art, -.4, 1.03, 0, .27),
+  volley(o.art, .33, 1.03, .2, .27),
+  volley(o.art, 0, 1.31, -.2, .27)
+];
 
     clickZone(o, 2.3, 1.7, 1.65, 0, .9, 0, () => o.interact(o));
 
@@ -2287,6 +2290,7 @@ window.worldBirthdayCatReaction = () => {
     }
 
     water.visible = active(byId.get('sailboat'));
+    refreshCartContents();
   }
 
   function syncDay(day) {
@@ -2604,7 +2608,97 @@ function cartIconButton(icon, label, handler) {
 }
   let selected = null;
   const RADIUS = { bottle: .6, towel: 1.1, cart: 1.5, picnic: 2.9, machine: 1.8 };
+  // ===== 排球車：收納物件的縮小模型 =====
 
+const cartContents = new T3.Group();
+
+byId.get('cart').art.add(cartContents);
+
+let cartContentsKey = null;
+
+
+function refreshCartContents() {
+
+  const items = list.filter(o =>
+    o.stored &&
+    o.unlocked &&
+    !o.noStore &&
+    !o.fixed
+  );
+
+  // 只有收納內容改變時才重新建立模型
+  const key = items
+    .map(o => o.id)
+    .sort()
+    .join('|');
+
+  if (key === cartContentsKey) return;
+
+  cartContentsKey = key;
+
+
+  // 清除舊的展示模型
+  while (cartContents.children.length) {
+    cartContents.remove(cartContents.children[0]);
+  }
+
+
+  // 有收納物件時，改為展示實際物件縮小版
+  const decorations =
+    byId.get('cart').parts.decorativeBalls || [];
+
+  decorations.forEach(m => {
+    m.visible = items.length === 0;
+  });
+
+
+  items.slice(0, 4).forEach((o, i) => {
+
+    // 複製外觀，不移除原物件的資料
+    const mini = o.art.clone(true);
+
+    const bounds =
+      new T3.Box3().setFromObject(mini);
+
+    if (bounds.isEmpty()) return;
+
+    const size =
+      bounds.getSize(new T3.Vector3());
+
+    const center =
+      bounds.getCenter(new T3.Vector3());
+
+
+    // 將物件等比例縮小以放入排球車
+    const scale = Math.min(
+      .7,
+      .65 / Math.max(size.x, .01),
+      .6 / Math.max(size.y, .01),
+      .5 / Math.max(size.z, .01)
+    );
+
+    // 最多四格，依序排列
+    const x =
+      i % 2 === 0 ? -.42 : .42;
+
+    const z =
+      Math.floor(i / 2) === 0
+        ? -.25
+        : .25;
+
+    mini.scale.setScalar(scale);
+
+    mini.position.set(
+      x - center.x * scale,
+      .55 - bounds.min.y * scale,
+      z - center.z * scale
+    );
+
+    cartContents.add(mini);
+
+  });
+
+}
   const selRing = new T3.Mesh(
     new T3.RingGeometry(1.05, 1.25, 48),
     new T3.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .8, side: T3.DoubleSide, depthWrite: false })
@@ -2796,11 +2890,14 @@ storeBox.append(tools);
 } // 結束「已選取物件」區塊
 
 // 無論是否選取物件，都顯示車上收納清單
+// 無論有沒有選取物件，都顯示收納清單
 const stored = list.filter(
   o => o.stored && o.unlocked && !o.fixed && !o.noStore
 );
-    h4.textContent = '車上收納';
-    storeBox.append(h4);
+
+const h4 = el('h4');
+h4.textContent = '車上收納';
+storeBox.append(h4);
 
     const box = el('div', 'stored');
     if (!stored.length) {
@@ -2819,8 +2916,12 @@ const stored = list.filter(
   function toggleOrganizer() {
     if (!byId.get('cart').unlocked) return;
     organizing = !organizing;
-    if (!organizing) selected = null;
-    renderStorage();
+   if (!organizing) {
+  selected = null;
+  drag = null;
+}
+
+renderStorage();
     popText(organizing ? '拖曳物件移動；點一下物件可以旋轉或收起' : '已完成整理');
   }
 
@@ -2853,52 +2954,155 @@ const stored = list.filter(
     return null;
   }
 
-  cv.addEventListener('pointerdown', e => {
-    if (!organizing || cameraMode !== 'orbit') return;
+  // ===== 整理模式專用拖曳控制 =====
 
-    const o = pickMoveable(e);
-    if (!o) return;
+// 按下滑鼠：選取物件
+cv.addEventListener('pointerdown', e => {
 
-    e.stopImmediatePropagation();
-    e.preventDefault();
-    cv.setPointerCapture(e.pointerId);
+  if (
+    !organizing ||
+    cameraMode !== 'orbit'
+  ) return;
 
-    selected = o;
-    renderStorage();
-    drag = { id: e.pointerId, o };
-  }, true);
+  // 整理模式不交給一般球場的鏡頭控制
+  e.stopImmediatePropagation();
+  e.preventDefault();
 
-  cv.addEventListener('pointermove', e => {
-    if (!drag || drag.id !== e.pointerId) return;
+  const o = pickMoveable(e);
 
-    e.stopImmediatePropagation();
-    e.preventDefault();
+  // 點到空白處，不啟動拖曳
+  if (!o) return;
 
-    ndc(e);
-    ray.setFromCamera(m2, cam);
+  cv.setPointerCapture(e.pointerId);
 
-    if (ray.ray.intersectPlane(groundPlane, hitPoint)) {
-      drag.o.root.position.x = hitPoint.x;
-      drag.o.root.position.z = hitPoint.z;
-    }
-  }, true);
+  selected = o;
 
-  function finishDrag(e) {
-    if (!drag || drag.id !== e.pointerId) return;
+  // 先建立拖曳狀態，再更新面板
+  drag = {
+    id: e.pointerId,
+    o
+  };
 
-    e.stopImmediatePropagation();
-    e.preventDefault();
+  renderStorage();
 
-    const o = drag.o;
-    const p = nearest(o, o.root.position.x, o.root.position.z);
-    o.x = p.x; o.z = p.z;
-    place(o);
-    saveLayout(o);
-    drag = null;
+}, true);
+
+
+// 移動滑鼠：拖曳已選取物件
+cv.addEventListener('pointermove', e => {
+
+  if (
+    !organizing ||
+    cameraMode !== 'orbit'
+  ) return;
+
+  // 整理期間不讓一般視角跟著滑鼠移動
+  e.stopImmediatePropagation();
+
+  if (
+    !drag ||
+    drag.id !== e.pointerId
+  ) return;
+
+  e.preventDefault();
+
+  ndc(e);
+  ray.setFromCamera(m2, cam);
+
+  // 將滑鼠位置投影到地面
+  if (ray.ray.intersectPlane(
+    groundPlane,
+    hitPoint
+  )) {
+
+    drag.o.root.position.x = hitPoint.x;
+    drag.o.root.position.z = hitPoint.z;
+
   }
 
-  cv.addEventListener('pointerup', finishDrag, true);
-  cv.addEventListener('pointercancel', finishDrag, true);
+}, true);
+
+
+// 放開滑鼠：確認物件位置
+function finishDrag(e) {
+
+  if (
+    !organizing ||
+    cameraMode !== 'orbit'
+  ) return;
+
+  // 避免放開時又觸發一般球場操作
+  e.stopImmediatePropagation();
+
+  if (
+    !drag ||
+    drag.id !== e.pointerId
+  ) return;
+
+  e.preventDefault();
+
+  const o = drag.o;
+
+  // 尋找最近的合法格線位置
+  const p = nearest(
+    o,
+    o.root.position.x,
+    o.root.position.z
+  );
+
+  o.x = p.x;
+  o.z = p.z;
+
+  place(o);
+  saveLayout(o);
+
+  drag = null;
+
+}
+
+
+cv.addEventListener(
+  'pointerup',
+  finishDrag,
+  true
+);
+
+cv.addEventListener(
+  'pointercancel',
+  finishDrag,
+  true
+);
+
+
+// 防止滑鼠捕捉意外中斷而留下拖曳狀態
+cv.addEventListener(
+  'lostpointercapture',
+  e => {
+
+    if (
+      !drag ||
+      drag.id !== e.pointerId
+    ) return;
+
+    const o = drag.o;
+
+    const p = nearest(
+      o,
+      o.root.position.x,
+      o.root.position.z
+    );
+
+    o.x = p.x;
+    o.z = p.z;
+
+    place(o);
+    saveLayout(o);
+
+    drag = null;
+
+  },
+  true
+);
 
   // ===== 小帆船：鍵盤與手機控制 =====
 
