@@ -2706,9 +2706,30 @@ s.s.scale.setScalar(
   ) *
   (1 - .25 * m)
 );
-      if (s.halo) {
-        s.halo.material.opacity = 0;
-      }
+     if (s.halo) {
+
+  // 星星排列完成後，光暈才開始閃爍
+  const glowIn =
+    sm01(c01((t - 5.4) / 1.1));
+
+  // 流星雨開始時，光暈逐漸消失
+  const glowOut =
+    1 - sm01(c01((t - fallStart) / .8));
+
+  const glowPulse =
+    .86 + .14 * Math.sin(t * 5.8 + i * .9);
+
+  s.halo.position.copy(s.s.position);
+
+  s.halo.material.opacity =
+    .16 * glowIn * glowOut * glowPulse;
+
+  s.halo.scale.setScalar(
+    (3.1 + gatheredSize * 4.2) *
+    (.96 + .06 * Math.sin(t * 4.4 + i * .7))
+  );
+
+}
 
     }
   );
@@ -2751,7 +2772,6 @@ birthdayLetterLines.material.opacity =
 
 }
 
-
 // ===== 演出結束：恢復所有原始星點 =====
 
 function clearBirthdayStars() {
@@ -2765,28 +2785,16 @@ function clearBirthdayStars() {
     s.meteorTarget = null;
     s.meteorDelay = 0;
 
-    if (s.halo) {
+   if (s.halo) {
 
-  const glowIn =
-    sm01(c01((t - 5.4) / 1.1));
+  // 生日結束後清除光暈
+  s.halo.material.opacity = 0;
 
-  const glowOut =
-    1 - sm01(c01((t - fallStart) / .8));
+  // 恢復光暈原本的位置與尺寸
+  s.halo.position.copy(s.home);
+  s.halo.scale.setScalar(4.5);
 
-  const glowPulse =
-    .86 + .14 * Math.sin(t * 5.8 + i * .9);
-
-  s.halo.position.copy(s.s.position);
-
-  s.halo.material.opacity =
-    .16 * glowIn * glowOut * glowPulse;
-
-  s.halo.scale.setScalar(
-    (3.1 + gatheredSize * 4.2) *
-    (.96 + .06 * Math.sin(t * 4.4 + i * .7))
-  );
 }
-
   }
 
   birthdayStarsUsed = [];
