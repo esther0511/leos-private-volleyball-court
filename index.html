@@ -3806,174 +3806,238 @@ $('#send').onclick=()=>{const t=tx.value.trim();if(!t)return;
   notes.unshift({t,e:selE,d:Date.now()});save();tx.value='';selE=-1;drawEm();paint();sfxSend();
   bv.set(rnd(-1,1),12,rnd(-1,1));$('#hint').textContent='已收進球場，球也跳起來了';setTimeout(()=>$('#hint').textContent=HINT,2500)};
 
-/* ===== 心情板：JSON 備份與匯入 ===== */
+/* ===== 心情板：完整遊戲 JSON 備份與匯入 ===== */
 
-// 顯示操作結果
+// 只備份遊戲實際使用的資料，不包含同網站其他資料。
+// 正式版與 vbDev=1 開發版仍透過 vbStore 各自隔離。
+const VB_SAVE_KEYS = [
+  'vb-notes',
+  'vb-visit-dates',
+  'vb-items-seen',
+  'vb-items-touched',
+  'vb-item-layout',
+  'vb-roam-ui-v1',
+  'vb-music',
+  'vb-music-volume',
+  'vb-music-last-volume',
+  'vb-sfx-volume'
+];
+
 function showMoodHint(message) {
-
   $('#hint').textContent = message;
-
   clearTimeout(showMoodHint.timer);
-
   showMoodHint.timer = setTimeout(() => {
     $('#hint').textContent = HINT;
   }, 2500);
 }
 
-
-// 下載心情紀錄
-$('#dl').onclick = () => {
-
-  if (!notes.length) {
-    showMoodHint('目前還沒有可以下載的紀錄');
-    return;
-  }
-
-  const backup = {
-    format: 'volleyball-mood-board',
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    notes: notes.map(n => ({
-  ...n,
-  emoji: n.e >= 0 ? EMOJI[n.e] : '',
-  mood: n.e >= 0 ? NAMES[n.e] : '',
-  time: n.d ? new Date(n.d).toLocaleString('zh-TW') : ''
-}))
-  };
-
-  const blob = new Blob(
-    [JSON.stringify(backup, null, 2)],
-    { type: 'application/json;charset=utf-8' }
-  );
-
+function saveJsonFile(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: 'application/json;charset=utf-8'
+  });
   const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
 
-  const link = document.createElement('a');
-
-  link.href = url;
-  link.download = '心情板紀錄.json';
-
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-
-  setTimeout(() => {
-    URL.revokeObjectURL(url);
-  }, 30000);
-
-  showMoodHint('已啟動紀錄下載');
-};
-
-
-// 開啟檔案選擇視窗
-$('#ul').onclick = () => {
-  $('#ulFile').click();
-};
-
-
-// 匯入心情紀錄
-$('#ulFile').addEventListener('change', async e => {
-
-  const file = e.target.files[0];
-
-  if (!file) return;
-
+// 本機模式：將心情、解鎖、場景擺放及設定一起備份。
+$('#dl').onclick = () => {
   try {
-
-    if (file.size > 2000000) {
-      throw new Error('檔案過大');
+    const storage = {};
+    for (const key of VB_SAVE_KEYS) {
+      storage[key] = vbStore.getItem(key);
     }
+    // 從最新的記憶體狀態寫入心情紀錄，兼容舊版文字紀錄。
+    storage['vb-notes'] = JSON.stringify(notes);
 
-    const text = await file.text();
-    const data = JSON.parse(text);
-
-    // 支援備份格式
-    const incoming = Array.isArray(data)
-      ? data
-      : data && data.notes;
-
-    if (
-      !Array.isArray(incoming) ||
-      incoming.length > 10000
-    ) {
-      throw new Error('紀錄格式不正確');
-    }
-
-    // 建立現有紀錄的比對資料
-    const existing = new Set(
-      notes.map(n =>
-        JSON.stringify([n.t, n.e, n.d])
-      )
-    );
-
-    let added = 0;
-
-    incoming.forEach(item => {
-
-      if (!item || typeof item.t !== 'string') {
-        return;
-      }
-
-      const note = {
-
-        t: item.t.slice(0, 600),
-
-        e: Number.isInteger(item.e) &&
-           item.e >= -1 &&
-           item.e < MOODS.length
-          ? item.e
-          : -1,
-
-        d: Number.isFinite(item.d)
-          ? item.d
-          : 0
-      };
-
-      if (!note.t.trim()) return;
-
-      const key = JSON.stringify([
-        note.t,
-        note.e,
-        note.d
-      ]);
-
-      // 已有相同紀錄就不重複匯入
-      if (!existing.has(key)) {
-
-        notes.push(note);
-        existing.add(key);
-
-        added++;
-      }
-    });
-
-    // 依照時間排序
-    notes.sort((a, b) => {
-      return (b.d || 0) - (a.d || 0);
-    });
-
-    // 保留原本的自動儲存
-    save();
-
-    // 更新心情板畫面
-    paint();
-
-    showMoodHint(
-      `成功匯入 ${added} 則新紀錄`
-    );
-
+    const backup = {
+      format: 'volleyball-game-save',
+      version: 2,
+      scope: VB_IS_DEV ? 'development' : 'production',
+      exportedAt: new Date().toISOString(),
+      storage
+    };
+    const date = new Date().toLocaleDateString('sv-SE');
+    saveJsonFile(backup, `排球場完整存檔-${date}.json`);
+    showMoodHint('已下載完整遊戲存檔');
   } catch (error) {
+    console.error('下載存檔失敗：', error);
+    showMoodHint('下載失敗，請檢查瀏覽器儲存權限');
+  }
+};
 
-    console.error(error);
+$('#ul').onclick = () => $('#ulFile').click();
 
-    showMoodHint(
-      '匯入失敗，請檢查備份檔案'
-    );
+function isRecord(value) {
+  return value !== null && typeof value === 'object' &&
+    !Array.isArray(value);
+}
+
+// 驗證完整存檔。拒絕任意 localStorage 鍵名，避免覆蓋非遊戲資料。
+function checkGameSave(data) {
+  if (!isRecord(data) ||
+      data.format !== 'volleyball-game-save' ||
+      data.version !== 2 ||
+      !isRecord(data.storage)) {
+    throw new Error('不支援的完整存檔格式');
+  }
+  if (data.scope !== (VB_IS_DEV ? 'development' : 'production')) {
+    throw new Error('正式版與開發版存檔不能混用');
+  }
+  const keys = Object.keys(data.storage);
+  if (keys.length !== VB_SAVE_KEYS.length ||
+      keys.some(key => !VB_SAVE_KEYS.includes(key))) {
+    throw new Error('存檔欄位不完整或包含未知欄位');
   }
 
-  // 清空檔案選擇，方便再次匯入
-  e.target.value = '';
+  for (const key of VB_SAVE_KEYS) {
+    const raw = data.storage[key];
+    if (raw === null) continue;
+    if (typeof raw !== 'string' || raw.length > 1400000) {
+      throw new Error(`存檔欄位不正確：${key}`);
+    }
+
+    if (['vb-music', 'vb-music-volume',
+         'vb-music-last-volume', 'vb-sfx-volume'].includes(key)) {
+      if (key === 'vb-music' && raw !== 'on' && raw !== 'off') {
+        throw new Error('音樂開關資料不正確');
+      }
+      if (key !== 'vb-music' &&
+          (!/^\d{1,3}$/.test(raw) || Number(raw) > 100)) {
+        throw new Error('音量設定資料不正確');
+      }
+      continue;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (key === 'vb-notes') {
+      if (!Array.isArray(parsed) || parsed.length > 10000 ||
+          !parsed.every(n => typeof n === 'string' ? n.length <= 600 :
+            (isRecord(n) && typeof n.t === 'string' &&
+             n.t.length <= 600 &&
+             (n.e === undefined || (Number.isInteger(n.e) &&
+               n.e >= -1 && n.e < MOODS.length)) &&
+             (n.d === undefined || Number.isFinite(n.d))))) {
+        throw new Error('心情紀錄格式不正確');
+      }
+    } else if (key === 'vb-visit-dates') {
+      if (!Array.isArray(parsed) || parsed.length > 10000 ||
+          !parsed.every(d => typeof d === 'string' &&
+            /^\d{4}-\d{2}-\d{2}$/.test(d))) {
+        throw new Error('造訪日期資料不正確');
+      }
+    } else if (key === 'vb-roam-ui-v1') {
+      if (!isRecord(parsed) ||
+          (parsed.sticks !== undefined && typeof parsed.sticks !== 'boolean')) {
+        throw new Error('操作設定資料不正確');
+      }
+    } else if (key === 'vb-item-layout') {
+      if (!isRecord(parsed) || Object.keys(parsed).length > 50 ||
+          !Object.entries(parsed).every(([id, o]) =>
+            id.length <= 50 && isRecord(o) &&
+            Number.isFinite(o.x) && Number.isFinite(o.z) &&
+            Math.abs(o.x) <= 100 && Math.abs(o.z) <= 100 &&
+            typeof o.stored === 'boolean' &&
+            Number.isFinite(o.rot) && Math.abs(o.rot) <= 100)) {
+        throw new Error('物件位置資料不正確');
+      }
+    } else {
+      // 已看過、已互動物件：以物件 ID 為鍵、布林值為狀態。
+      if (!isRecord(parsed) || Object.keys(parsed).length > 50 ||
+          !Object.entries(parsed).every(([id, value]) =>
+            id.length <= 50 && typeof value === 'boolean')) {
+        throw new Error('物件進度資料不正確');
+      }
+    }
+  }
+  return data.storage;
+}
+
+// 舊版「心情板紀錄.json」仍可匯入，採合併方式、不覆蓋其他進度。
+function mergeOldMoodBackup(data) {
+  const incoming = Array.isArray(data) ? data : data?.notes;
+  if (!Array.isArray(incoming) || incoming.length > 10000) {
+    throw new Error('舊版心情紀錄格式不正確');
+  }
+  const existing = new Set(notes.map(n => JSON.stringify([n.t, n.e, n.d])));
+  let added = 0;
+  for (const item of incoming) {
+    const original = typeof item === 'string' ? {t: item} : item;
+    if (!isRecord(original) || typeof original.t !== 'string') continue;
+    const note = {
+      t: original.t.slice(0, 600),
+      e: Number.isInteger(original.e) && original.e >= -1 &&
+         original.e < MOODS.length ? original.e : -1,
+      d: Number.isFinite(original.d) ? original.d : 0
+    };
+    if (!note.t.trim()) continue;
+    const key = JSON.stringify([note.t, note.e, note.d]);
+    if (existing.has(key)) continue;
+    notes.push(note);
+    existing.add(key);
+    added++;
+  }
+  notes.sort((a,b) => (b.d || 0) - (a.d || 0));
+  save();
+  paint();
+  showMoodHint(`成功匯入 ${added} 則舊版心情紀錄`);
+}
+
+// 完整存檔採「還原」而非合併，避免日期與物件配置互相衝突。
+function restoreGameSave(storage) {
+  const previous = {};
+  for (const key of VB_SAVE_KEYS) previous[key] = vbStore.getItem(key);
+  try {
+    for (const key of VB_SAVE_KEYS) {
+      if (storage[key] === null) vbStore.removeItem(key);
+      else vbStore.setItem(key, storage[key]);
+    }
+  } catch (error) {
+    for (const key of VB_SAVE_KEYS) {
+      try {
+        if (previous[key] === null) vbStore.removeItem(key);
+        else vbStore.setItem(key, previous[key]);
+      } catch (rollbackError) {
+        console.error('存檔回復失敗：', rollbackError);
+      }
+    }
+    throw error;
+  }
+  // 遊戲物件在初始化時讀取存檔，還原後必須重新載入。
+  location.reload();
+}
+
+$('#ulFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    if (file.size > 2000000) throw new Error('存檔超過 2 MB');
+    const data = JSON.parse(await file.text());
+
+    if (isRecord(data) && data.format === 'volleyball-game-save') {
+      const storage = checkGameSave(data);
+      if (!confirm('完整存檔會覆蓋此瀏覽器現有的遊戲進度（包含心情、造訪天數和排球車）。\n\n建議先下載現有存檔備份。確定要還原嗎？')) return;
+      restoreGameSave(storage);
+    } else if (Array.isArray(data) ||
+               (isRecord(data) && Array.isArray(data.notes))) {
+      mergeOldMoodBackup(data);
+    } else {
+      throw new Error('無法辨識的存檔格式');
+    }
+  } catch (error) {
+    console.error('匯入失敗：', error);
+    alert(`匯入失敗：${error.message}`);
+  } finally {
+    e.target.value = '';
+  }
 });
+
+
 
 /* ===== 精簡版自然音效系統 ===== */
 
