@@ -2324,10 +2324,18 @@ window.worldBirthdayCatReaction = () => {
 
         if (first && !o.stored) {
           if (VB_IS_DEV) {
-            // 開發者預覽：立刻降落
-            o.arrival = { t: -list.indexOf(o) * .25, d: 6, height: startHeight(o) };
-            o.root.position.y = o.arrival.height;
-          } else {
+  // 小帆船從水面漂來，其他物件照舊降落
+  if (o.id === 'sailboat') {
+    startWindSailboatArrival(o);
+  } else {
+    o.arrival = {
+      t: -list.indexOf(o) * .25,
+      d: 6,
+      height: startHeight(o)
+    };
+    o.root.position.y = o.arrival.height;
+  }
+} else {
             // 正式版：排進送達佇列，等玩家準備好
             o.pending = true;
             o.arrival = null;
@@ -4056,7 +4064,88 @@ let lastInput = 0;
     }
   }
 
+  // ===== 第 30 天：小帆船順風漂來 =====
 
+function startWindSailboatArrival(o) {
+
+  // 小帆船從水域遠方出現
+  const fromX = LAKE.x - LAKE.r * 0.88;
+  const fromZ = LAKE.z + LAKE.r * 0.34;
+
+  const heading = Math.atan2(
+    o.x - fromX,
+    fromZ - o.z
+  );
+
+  // 設定漂流動畫
+  o.arrival = {
+    kind: 'wind',
+    t: 0,
+    d: 9,
+    fromX,
+    fromZ,
+    heading
+  };
+
+  // 放在水面，而不是空中
+  o.root.position.set(fromX, 0.12, fromZ);
+  o.art.rotation.y = -heading;
+}
+
+
+// ===== 每一幀更新小帆船的位置 =====
+
+function stepWindSailboatArrival(o, dt) {
+
+  const a = o.arrival;
+
+  a.t = Math.min(a.d, a.t + dt);
+
+  const p = a.t / a.d;
+
+  // 平滑加速與減速
+  const ease = p * p * (3 - 2 * p);
+
+  // 讓船不是完全直線移動
+  const drift =
+    0.38 *
+    Math.sin(p * Math.PI * 2) *
+    Math.sin(p * Math.PI);
+
+  // 沿水面逐漸靠岸
+  o.root.position.set(
+    a.fromX + (o.x - a.fromX) * ease + drift,
+    0.12 + 0.045 * Math.sin(a.t * 2.2),
+    a.fromZ + (o.z - a.fromZ) * ease + drift * 0.5
+  );
+
+  // 船身隨水面輕輕搖晃
+  o.art.rotation.z = 0.03 * Math.sin(a.t * 1.6);
+  o.art.rotation.x = 0.015 * Math.sin(a.t * 2.1);
+
+  // 接近岸邊時，船首逐漸回正
+  const settle = Math.max(
+    0,
+    Math.min(1, (p - 0.72) / 0.28)
+  );
+
+  const turn = settle * settle * (3 - 2 * settle);
+
+  o.art.rotation.y = -a.heading * (1 - turn);
+
+  // 完成靠岸
+  if (p >= 1) {
+
+    o.root.position.set(o.x, 0, o.z);
+
+    o.art.rotation.set(0, 0, 0);
+
+    boatHeading = 0;
+    boatSpeed = 0;
+
+    finishArrival(o);
+  }
+}
   // ===== 殺球後：鏡頭引導與物件降落 =====
 
   function tryStartReveal(now) {
@@ -4204,26 +4293,34 @@ let lastInput = 0;
 
       r.items.forEach((o, i) => {
 
-        const height = Math.max(
-          18,
-          startHeight(o)
-        );
+  if (o.id === 'sailboat') {
 
-        o.arrival = {
-          t: -i * .45,
-          d: 6.5,
-          height
-        };
+    // 小帆船：順風從遠方水面漂來
+    startWindSailboatArrival(o);
 
-        o.root.position.set(
-          o.x,
-          height,
-          o.z
-        );
+  } else {
 
-        o.pending = false;
-      });
+    // 其他物件：維持原本從天空降落
+    const height = Math.max(
+      18,
+      startHeight(o)
+    );
 
+    o.arrival = {
+      t: -i * .45,
+      d: 6.5,
+      height
+    };
+
+    o.root.position.set(
+      o.x,
+      height,
+      o.z
+    );
+  }
+
+  o.pending = false;
+});
       refreshVisibility();
 
     }
@@ -4436,9 +4533,17 @@ for (const o of list) {
       
       if (!active(o)) continue;
       
-      // 首次解鎖：從天空降落
-      if (o.arrival) {
-        o.arrival.t += dt;
+      // 首次解鎖：依物件類型播放不同動畫
+if (o.arrival) {
+
+  // 小帆船專屬：順風漂來
+  if (o.arrival.kind === 'wind') {
+    stepWindSailboatArrival(o, dt);
+    continue;
+  }
+
+  // 其他物件維持原本的天空降落
+  o.arrival.t += dt;
 
         const p = Math.max(
           0,
