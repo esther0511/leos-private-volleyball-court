@@ -572,7 +572,7 @@ if (
     if (len > 1) { forward /= len; strafe /= len; }
 
     if (len > .05) resetting = false;
-    const speed = (held.has('ShiftLeft') || held.has('ShiftRight')) ? 10 : 6.2;
+    const speed = (held.has('ShiftLeft') || held.has('ShiftRight')) ? 11.6 : 6.2;
     const desiredX = (-Math.sin(ct.th) * forward + Math.cos(ct.th) * strafe) * speed;
     const desiredZ = (-Math.cos(ct.th) * forward - Math.sin(ct.th) * strafe) * speed;
     const alpha = 1 - Math.exp(-10 * dt);
