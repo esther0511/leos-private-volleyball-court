@@ -54,9 +54,18 @@
     letters: Array.isArray(saved.letters) ? saved.letters.filter(l => l && typeof l === 'object' && typeof l.text === 'string').slice(0, 100)
       .map(l => ({ id: limit(l.id,70), text: limit(l.text,4000), sender: limit(l.sender,100) })) : [],
     bottles: Array.isArray(saved.bottles) ? saved.bottles.filter(b => b && typeof b === 'object' && typeof b.id === 'string').slice(0, 100)
-      .map(b => ({ id: limit(b.id,70), text: limit(b.text,MAX_TEXT) })) : []
+      .map(b => ({ id: limit(b.id,70), text: limit(b.text,MAX_TEXT) })) : [],
+    // 單獨記錄撿過的瓶子：之後即使把空瓶放回海上也不會重刷。    
+    collectedBottleIds: Array.isArray(saved.collectedBottleIds)
+      ? [...new Set(
+        saved.collectedBottleIds.filter(
+          x => typeof x === 'string' && x.length <= 70
+        )
+      )].slice(0, 500)
+    : []
   };
   // 以原本的 key 儲存；也保留 notes 以便舊版讀取。
+
   const persist = () => {
     const data = { ...state, version: 2, notes: state.entries.map(e => e.text) };
     try { vbStore.setItem(KEY, JSON.stringify(data)); return true; }
@@ -264,8 +273,8 @@
     box.addEventListener('input',()=>{entry.text=box.value;persist();});
     r.append(box);
     const turn=tools(r);
-    turn.append(button('← 上一頁',()=>{entryIndex--;render();},entryIndex===0));
-    turn.append(button('下一頁 →',()=>{entryIndex++;render();},entryIndex>=state.entries.length-1));
+    turn.append(button('←',()=>{entryIndex--;render();},entryIndex===0));
+    turn.append(button('→',()=>{entryIndex++;render();},entryIndex>=state.entries.length-1));
   }
   function renderSheets() {
     if(!state.log){hint('取得航海日誌後，才能從裡面取出紙張。');return;}
@@ -280,8 +289,8 @@
     box.addEventListener('input',()=>{sheet.text=box.value;persist();});
     r.append(box);
     const turn=tools(r);
-    turn.append(button('← 前一張',()=>{sheetIndex--;render();},sheetIndex===0));
-    turn.append(button('下一張 →',()=>{sheetIndex++;render();},sheetIndex>=state.sheets.length-1));
+    turn.append(button('←',()=>{sheetIndex--;render();},sheetIndex===0));
+    turn.append(button('→',()=>{sheetIndex++;render();},sheetIndex>=state.sheets.length-1));
   }
   function renderBottles() {
     if(!state.bottles.length){hint('背包裡還沒有瓶子。以後出航時，可能會撿到漂流瓶或空瓶。');return;}
@@ -362,6 +371,21 @@
       return persist();
     },
     // 只提供讀取，目前不消耗紙張；第三／四階段再加上確認裝瓶流程。
+    hasCollectedBottle: id =>
+  state.collectedBottleIds.includes(id),
+
+markCollectedBottle: id => {
+  if (typeof id !== 'string' || !id || id.length > 70)
+    return false;
+
+  if (!state.collectedBottleIds.includes(id))
+    state.collectedBottleIds.push(id);
+
+  state.collectedBottleIds =
+    state.collectedBottleIds.slice(-500);
+
+  return persist();
+},
     listSheets:()=>clone(state.sheets)
   };
 })();
