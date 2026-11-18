@@ -3419,6 +3419,9 @@ if (typeof window.vbWeatherStep === 'function') {
   window.vbWeatherStep(dt);
 }
 if (typeof worldItemsStep === 'function') {
+if (typeof window.vbDriftStep === 'function') {
+  window.vbDriftStep(dt);
+}
   worldItemsStep(dt);
 }
   
@@ -5255,6 +5258,7 @@ setTimeout(()=>$('#tip').style.opacity=0,14000);
 <!-- 第四階段：場邊物件 -->
 <script src="./world-items.js"></script>
 <script src="./boat-cabin.js"></script>
+<script src="./drift-bottles.js"></script>
 <script src="./roam-controls.js"></script>
 <script src="./weather-system.js"></script>
 </body>
