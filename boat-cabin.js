@@ -66,11 +66,90 @@
   };
   // 以原本的 key 儲存；也保留 notes 以便舊版讀取。
 
-  const persist = () => {
-    const data = { ...state, version: 2, notes: state.entries.map(e => e.text) };
-    try { vbStore.setItem(KEY, JSON.stringify(data)); return true; }
-    catch (err) { console.error('[boat-cabin-v2] 儲存失敗', err); return false; }
+  const persistState = snapshot => {
+  const data = {
+    ...snapshot,
+    version: 2,
+    notes: snapshot.entries.map(e => e.text)
   };
+  try {
+    vbStore.setItem(KEY, JSON.stringify(data));
+    return true;
+  } catch (err) {
+    console.error('[boat-cabin-v2] 儲存失敗', err);
+    return false;
+  }
+};
+
+const persist = () => persistState(state);
+
+function collectDriftBottle({
+  id,
+  kind,
+  text = '',
+  sender = ''
+} = {}) {
+  if (
+    !state.bag ||
+    typeof id !== 'string' ||
+    !id ||
+    id.length > 70 ||
+    (kind === 'letter' && id.length > 65) ||
+    !['letter', 'empty'].includes(kind) ||
+    (kind === 'letter' &&
+      (typeof text !== 'string' || !text.trim()))
+  ) return false;
+
+  if (state.collectedBottleIds.includes(id)) return false;
+
+  const letterId = `note-${id}`;
+
+  const needsLetter =
+    kind === 'letter' &&
+    !state.letters.some(l => l.id === letterId);
+
+  const needsBottle =
+    !state.bottles.some(b => b.id === id);
+
+  if (
+    (needsLetter && state.letters.length >= 100) ||
+    (needsBottle && state.bottles.length >= 100)
+  ) return false;
+
+  const next = {
+    ...state,
+    letters: needsLetter
+      ? [
+          ...state.letters,
+          {
+            id: letterId,
+            text: limit(text, 4000),
+            sender: limit(sender, 100)
+          }
+        ]
+      : [...state.letters],
+
+    bottles: needsBottle
+      ? [
+          ...state.bottles,
+          { id, text: '' }
+        ]
+      : [...state.bottles],
+
+    collectedBottleIds: [
+      ...state.collectedBottleIds,
+      id
+    ].slice(-500)
+  };
+
+  if (!persistState(next)) return false;
+
+  state.letters = next.letters;
+  state.bottles = next.bottles;
+  state.collectedBottleIds = next.collectedBottleIds;
+
+  return true;
+}
 
   const css = document.createElement('style');
   css.textContent = `
@@ -358,6 +437,7 @@
     hide:close,
     openBackpack:()=>open('bag'),
     isOpen:()=>!panel.hidden,
+    collectDriftBottle,
     addLetter:(id,text,sender='')=>{
       if(!state.bag || typeof id!=='string' || !id || typeof text!=='string')return false;
       if(state.letters.some(l=>l.id===id))return false;
