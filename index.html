@@ -536,9 +536,9 @@ const amb=new T3.AmbientLight(0xffffff,.8),sunL=new T3.DirectionalLight(0xffffff
 const mkFlat=(w,d,y,c)=>{const m=new T3.Mesh(new T3.PlaneGeometry(w,d),L(c));m.rotation.x=-PI/2;m.position.y=y;return m};
 
 /* ground, hills, court */
-const ground=new T3.Mesh(new T3.CircleGeometry(150,64),L(0x52aed4));ground.rotation.x=-PI/2;ground.userData.block=1;sc.add(ground);hitList.push(ground);
+const ground=new T3.Mesh(new T3.CircleGeometry(150,64),L(0x52aed4));ground.rotation.x=-PI/2;ground.userData.block=1;sc.add(ground);hitList.push(ground);const horizonHills = [];
 for(let i=0;i<16;i++){const a=i/16*PI*2+rnd(-.1,.1),r=rnd(88,112),h=rnd(9,22),h0=new T3.Mesh(new T3.ConeGeometry(rnd(14,24),h,7),L(0x4d8fbb));
-  h0.position.set(Math.cos(a)*r,h/2,Math.sin(a)*r);h0.userData.block=1;sc.add(h0);hitList.push(h0)}
+  h0.position.set(Math.cos(a)*r,h/2,Math.sin(a)*r);h0.userData.block=1;sc.add(h0);hitList.push(h0);horizonHills.push(h0)}
 const court=new T3.Group();court.userData.block=1;sc.add(court);hitList.push(court);
 court.add(mkFlat(24,15,.01,0x355c97),mkFlat(18,9,.02,0xe0a176));
 const ln=(x,z,w,d)=>{const m=mkFlat(w,d,.03,0xffffff);m.position.x=x;m.position.z=z;court.add(m)};
