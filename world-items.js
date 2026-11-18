@@ -243,7 +243,7 @@ o.parts.waterSurface.material.depthWrite = false;
     );
     puddle.rotation.x = -Math.PI / 2;
     puddle.position.set(1.01, .067, 0);
-    puddle.scale.set(.001, 1, .001);
+    puddle.scale.set(.001, .001, 1);
     o.root.add(puddle);
     o.parts.puddle = puddle;
 
@@ -272,7 +272,7 @@ o.parts.waterSurface.material.depthWrite = false;
     o.parts.spillTime = 0;
     o.parts.cap.rotation.z = 0;
     if (o.parts.waterSurface) o.parts.waterSurface.visible = true;
-    o.parts.puddle.scale.set(.001, 1, .001);
+    o.parts.puddle.scale.set(.001, .001, 1);
     o.parts.clover.scale.setScalar(.001);
   });
 
@@ -2126,11 +2126,11 @@ window.worldBirthdayCatReaction = () => {
 
   // ===== 第 30 天：水域與小帆船 =====
 
-    const LAKE = { x: -72, z: 14, rx: 55, rz: 48 };
-  const SEA = { shoreX: -20.5, farX: -135, zLimit: 105 };
-  const SEA_WIDTH = 620;
+  const ARRIVAL_ROUTE = { x: -72, z: 14, rx: 55, rz: 48 };
+  const SEA = { shoreX: -20.5, farX: -430, zLimit: 380 };
+  const SEA_WIDTH = 1100;
   const water = new T3.Mesh(
-    new T3.PlaneGeometry(SEA_WIDTH, 620),
+    new T3.PlaneGeometry(SEA_WIDTH, 1100),
     new T3.MeshBasicMaterial({
       color: 0x70b8c5,
       transparent: true,
@@ -4112,8 +4112,8 @@ let lastInput = 0;
 function startWindSailboatArrival(o) {
 
   // 小帆船從水域遠方出現
- const fromX = LAKE.x - LAKE.rx * .82;
- const fromZ = LAKE.z + LAKE.rz * .10;
+ const fromX = ARRIVAL_ROUTE.x - ARRIVAL_ROUTE.rx * .82;
+const fromZ = ARRIVAL_ROUTE.z + ARRIVAL_ROUTE.rz * .10;
 
   const heading = Math.atan2(
     o.x - fromX,
@@ -4244,7 +4244,7 @@ const fx = isSailArrival
   : batch.reduce((sum, o) => sum + o.x, 0) / batch.length;
 
 const fz = isSailArrival
-  ? LAKE.z
+  ? ARRIVAL_ROUTE.z
   : batch.reduce((sum, o) => sum + o.z, 0) / batch.length;
 
     reveal = {
@@ -4480,7 +4480,7 @@ window.setWorldPreviewDay = day => {
   } else if (n === 30) {
 
     // 第 30 天：站在球場邊，看小帆船漂來
-    tgtP.set(-59, 1, LAKE.z);
+    tgtP.set(-59, 1, ARRIVAL_ROUTE.z);
 
     ct.th = 1.684;
     ct.ph = 1.54;
@@ -4665,7 +4665,7 @@ if (o.id === 'bottle') {
     o.art.rotation.z = -Math.PI / 2 * .92 * fall;
     o.art.position.y = .22 * fall;
     P.cap.rotation.z = -1.45 * capOpen;
-    P.puddle.scale.set(.001 + .68 * pour, 1, .001 + .38 * pour);
+    P.puddle.scale.set(.001 + .68 * pour, .001 + .38 * pour, 1);
     P.clover.scale.setScalar(Math.max(.001, bloom));
     if (P.water) P.water.scale.y = Math.max(.2, 1 - .75 * pour);
     if (P.waterSurface) P.waterSurface.visible = pour < .98;
@@ -4952,14 +4952,8 @@ if (
             Math.cos(boatHeading) *
             boatSpeed * dt;
 
-// 擴大後的橢圓形航行範圍
-// 保留岸邊 2 單位的安全距離
-
-const u =
-  (nx - LAKE.x) / (LAKE.rx - 2);
-
-const v =
-  (nz - LAKE.z) / (LAKE.rz - 2);
+// 海上航行不再受舊湖泊的橢圓邊界限制。
+// 僅保留遠方安全界限及岸邊距離。
 
 if (
   nx < SEA.shoreX - 1.4 &&
