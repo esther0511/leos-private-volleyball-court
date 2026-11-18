@@ -185,8 +185,7 @@
   }
 
   // ===== 第 2 天：水壺 =====
-
-    create('bottle', o => {
+      create('bottle', o => {
     // 透明運動水瓶：半透明瓶身、裡面有水、有刻度、翻蓋噴嘴
     const clear = new T3.MeshPhongMaterial({
       color: 0xdff3f7, transparent: true, opacity: .34,
@@ -224,19 +223,60 @@ o.parts.waterSurface.material.depthWrite = false;
 
     for (let i = 0; i < 4; i++) cub(o.art, .09, .014, .01, 0, .2 + i * .14, .222, 0xffffff);
 
-    cyl(o.art, .17, .2, .08, 0, .85, 0, 0x355c97, 22);
-    cyl(o.art, .13, .15, .13, 0, .96, 0, 0x355c97, 22);
-    cyl(o.art, .045, .06, .1, 0, 1.08, 0, 0xe0a176, 12);
-
+    // 整個瓶蓋以側邊為轉軸：倒地後蓋子能掀開。
+    const cap = new T3.Group();
+    cap.position.set(-.16, .82, 0);
+    o.art.add(cap);
+    cyl(cap, .17, .2, .08, .16, .03, 0, 0x355c97, 22);
+    cyl(cap, .13, .15, .13, .16, .14, 0, 0x355c97, 22);
+    cyl(cap, .045, .06, .1, .16, .26, 0, 0xe0a176, 12);
     const loop = new T3.Mesh(new T3.TorusGeometry(.1, .02, 6, 16), material(0xe0a176));
-    loop.position.set(.15, .97, 0);
-    o.art.add(loop);
+    loop.position.set(.30, .16, 0);
+    cap.add(loop);
+    o.parts.cap = cap;
+    o.parts.spillTime = -1;
 
-    clickZone(o, .8, 1.35, .8, 0, .62, 0, () => o.interact(o));
+    // 水灘與幸運草固定在地面，不跟著瓶身一起傾斜。
+    const puddle = new T3.Mesh(
+      new T3.CircleGeometry(1, 40),
+      new T3.MeshBasicMaterial({color:0x84d2e5,transparent:true,opacity:.46,depthWrite:false,side:T3.DoubleSide})
+    );
+    puddle.rotation.x = -Math.PI / 2;
+    puddle.position.set(1.01, .067, 0);
+    puddle.scale.set(.001, 1, .001);
+    o.root.add(puddle);
+    o.parts.puddle = puddle;
+
+    const clover = new T3.Group();
+    clover.position.set(1.35, .08, .12);
+    // 四片橢圓小葉、短柄；用 3D 幾何拼出四葉草，不用美術檔案。
+    const green = new T3.MeshLambertMaterial({color:0x55a76d,side:T3.DoubleSide});
+    const leafGeo = new T3.SphereGeometry(.095, 12, 8);
+    [[-.09,0], [.09,0], [0,-.09], [0,.09]].forEach(([x,z])=>{
+      const leaf = new T3.Mesh(leafGeo, green);
+      leaf.position.set(x,.018,z);
+      leaf.scale.set(.92,.22,1.12);
+      clover.add(leaf);
+    });
+    const stem = new T3.Mesh(new T3.CylinderGeometry(.015,.015,.23,8),green);
+    stem.rotation.z = .85;
+    stem.position.set(.12,.02,.12);
+    clover.add(stem);
+    clover.scale.setScalar(.001);
+    o.root.add(clover);
+    o.parts.clover = clover;
+
+    clickZone(o, 1.65, 1.35, 1.35, .34, .56, 0, () => o.interact(o));
   }, o => {
-    o.time = .9;
+    // 再次點擊可重播「傾倒 → 流水 → 長出四葉草」。
+    o.parts.spillTime = 0;
+    o.parts.cap.rotation.z = 0;
+    if (o.parts.waterSurface) o.parts.waterSurface.visible = true;
+    o.parts.puddle.scale.set(.001, 1, .001);
+    o.parts.clover.scale.setScalar(.001);
   });
 
+    
   // ===== 第 2 天：毛巾 =====
 
     // 毛圈質感貼圖：兩端有條紋
@@ -2086,29 +2126,24 @@ window.worldBirthdayCatReaction = () => {
 
   // ===== 第 30 天：水域與小帆船 =====
 
-  const LAKE = {
-  x: -72,
-  z: 14,
-  rx: 55,
-  rz: 48
-};
-
+    const LAKE = { x: -72, z: 14, rx: 55, rz: 48 };
+  const SEA = { shoreX: -20.5, farX: -135, zLimit: 105 };
+  const SEA_WIDTH = 620;
   const water = new T3.Mesh(
-    new T3.CircleGeometry(1, 96),
+    new T3.PlaneGeometry(SEA_WIDTH, 620),
     new T3.MeshBasicMaterial({
       color: 0x70b8c5,
       transparent: true,
       opacity: .84,
-      depthWrite: false
+      depthWrite: false,
+      fog: true
     })
   );
-
   water.rotation.x = -Math.PI / 2;
-  water.scale.set(LAKE.rx, LAKE.rz, 1);
-  water.position.set(LAKE.x, .045, LAKE.z);
+  water.position.set(SEA.shoreX - SEA_WIDTH / 2, .045, 0);
   water.visible = false;
   sc.add(water);
-
+  
   create('sailboat', o => {
     const hull = orb(
       o.art, 1.12,
@@ -3133,7 +3168,7 @@ const p = nearest(
         'arrowdown',
         'arrowleft',
         'arrowright',
-        'w', 'a', 's', 'd'
+        'w', 'a', 's', 'd', 'shift'
       ].includes(k)
     ) {
       pressed.add(k);
@@ -4619,32 +4654,32 @@ if (o.id === 'bottle') {
   const slosh =
     Math.sin(o.time * 11) * t;
 
-  // 瓶身左右輕微搖晃
-  o.art.rotation.z =
-    Math.sin(o.time * 17) * t * .11;
-
-  // 水體不再大幅旋轉，只做極小幅度變化
-  if (o.parts.water) {
-
-    o.parts.water.rotation.z = 0;
-
-    o.parts.water.scale.y =
-      1 + slosh * .012;
-  }
-
-  // 水面獨立、小角度晃動
-  if (o.parts.waterSurface) {
-
-    o.parts.waterSurface.rotation.z =
-      -slosh * .055;
-
-    o.parts.waterSurface.position.y =
-      .518 +
-      Math.sin(o.time * 14) * t * .005;
+  const P = o.parts;
+  if (P.spillTime >= 0) {
+    P.spillTime = Math.min(5.8, P.spillTime + dt);
+    const smooth = x => {x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+    const fall = smooth(P.spillTime / 1.05);
+    const capOpen = smooth((P.spillTime - .73) / .7);
+    const pour = smooth((P.spillTime - 1.08) / 1.20);
+    const bloom = smooth((P.spillTime - 2.15) / 1.55);
+    o.art.rotation.z = -Math.PI / 2 * .92 * fall;
+    o.art.position.y = .22 * fall;
+    P.cap.rotation.z = -1.45 * capOpen;
+    P.puddle.scale.set(.001 + .68 * pour, 1, .001 + .38 * pour);
+    P.clover.scale.setScalar(Math.max(.001, bloom));
+    if (P.water) P.water.scale.y = Math.max(.2, 1 - .75 * pour);
+    if (P.waterSurface) P.waterSurface.visible = pour < .98;
+  } else {
+    o.art.rotation.z = Math.sin(o.time * 17) * t * .11;
+    if (P.water) P.water.scale.y = 1 + slosh * .012;
+    if (P.waterSurface) {
+      P.waterSurface.rotation.z = -slosh * .055;
+      P.waterSurface.position.y = .518 + Math.sin(o.time * 14) * t * .005;
+    }
   }
 
 }
-      
+
       // 單條毛巾：輕微擺動，不穿過地板
 if (
   o.id === 'towel' &&
@@ -4887,24 +4922,21 @@ if (
           pressed.has('d');
 
         if (cameraMode === 'boat') {
+          const boosting = pressed.has('shift');
+
           boatSpeed +=
-            (forward ? 5 : 0) * dt;
+              (forward ? (boosting ? 7.4 : 5) : 0) * dt;
 
           boatSpeed -=
-            (backward ? 4 : 0) * dt;
+              (backward ? 4 : 0) * dt;
 
           boatSpeed = Math.max(
-            -1.8,
-            Math.min(5, boatSpeed)
-          );
+              -1.8,
+              Math.min(boosting ? 6.7 : 5, boatSpeed)
+            );
 
-          if (left) {
-            boatHeading += 1.25 * dt;
-          }
-
-          if (right) {
-            boatHeading -= 1.25 * dt;
-          }
+          if (left) boatHeading += 1.25 * dt;
+          if (right) boatHeading -= 1.25 * dt;
         }
 
         boatSpeed *= Math.exp(-.7 * dt);
@@ -4920,7 +4952,7 @@ if (
             Math.cos(boatHeading) *
             boatSpeed * dt;
 
-          // 擴大後的橢圓形航行範圍
+// 擴大後的橢圓形航行範圍
 // 保留岸邊 2 單位的安全距離
 
 const u =
@@ -4929,15 +4961,15 @@ const u =
 const v =
   (nz - LAKE.z) / (LAKE.rz - 2);
 
-if (u * u + v * v < 1) {
-
+if (
+  nx < SEA.shoreX - 1.4 &&
+  nx > SEA.farX &&
+  Math.abs(nz) < SEA.zLimit
+) {
   o.x = nx;
   o.z = nz;
-
 } else {
-
   boatSpeed = 0;
-
 }
         }
 
