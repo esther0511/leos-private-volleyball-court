@@ -2325,6 +2325,13 @@ window.worldBirthdayCatReaction = () => {
     }
 
     water.visible = byId.get('sailboat').unlocked;
+
+// 海面出現後，隱藏遠海方向的山丘。
+if (typeof horizonHills !== 'undefined') {
+  for (const hill of horizonHills) {
+    hill.visible = !water.visible || hill.position.x > -12;
+  }
+}
   }
 
   function syncDay(day) {
@@ -4925,14 +4932,14 @@ if (
           const boosting = pressed.has('shift');
 
           boatSpeed +=
-              (forward ? (boosting ? 7.4 : 5) : 0) * dt;
+              (forward ? (boosting ? 8.5 : 5) : 0) * dt;
 
           boatSpeed -=
               (backward ? 4 : 0) * dt;
 
           boatSpeed = Math.max(
               -1.8,
-              Math.min(boosting ? 6.7 : 5, boatSpeed)
+              Math.min(boosting ? 7.8 : 5, boatSpeed)
             );
 
           if (left) boatHeading += 1.25 * dt;
