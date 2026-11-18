@@ -5053,7 +5053,11 @@ if (u * u + v * v < 1) {
   };
 
   // ===== 日後替換手繪外觀的接口 =====
-
+  // 供船艙模組讀取帆船模型與航行狀態
+window.VBBoatAccess = {
+  getObject: () => byId.get('sailboat'),
+  isSailing: () => cameraMode === 'boat'
+};
   window.VBWorldItems = {
     days: UNLOCK,
 
