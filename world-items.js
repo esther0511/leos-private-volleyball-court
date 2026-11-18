@@ -2087,13 +2087,14 @@ window.worldBirthdayCatReaction = () => {
   // ===== 第 30 天：水域與小帆船 =====
 
   const LAKE = {
-    x: -38,
-    z: 14,
-    r: 16
-  };
+  x: -72,
+  z: 14,
+  rx: 55,
+  rz: 48
+};
 
   const water = new T3.Mesh(
-    new T3.CircleGeometry(LAKE.r, 56),
+    new T3.CircleGeometry(1, 96),
     new T3.MeshBasicMaterial({
       color: 0x70b8c5,
       transparent: true,
@@ -2103,6 +2104,7 @@ window.worldBirthdayCatReaction = () => {
   );
 
   water.rotation.x = -Math.PI / 2;
+  water.scale.set(LAKE.rx, LAKE.rz, 1);
   water.position.set(LAKE.x, .045, LAKE.z);
   water.visible = false;
   sc.add(water);
@@ -2287,7 +2289,7 @@ window.worldBirthdayCatReaction = () => {
       hitEnable(o, yes && !o.arrival);
     }
 
-    water.visible = active(byId.get('sailboat'));
+    water.visible = byId.get('sailboat').unlocked;
   }
 
   function syncDay(day) {
@@ -4069,8 +4071,8 @@ let lastInput = 0;
 function startWindSailboatArrival(o) {
 
   // 小帆船從水域遠方出現
-  const fromX = LAKE.x - LAKE.r * 0.88;
-  const fromZ = LAKE.z + LAKE.r * 0.34;
+ const fromX = LAKE.x - LAKE.rx * .82;
+ const fromZ = LAKE.z + LAKE.rz * .10;
 
   const heading = Math.atan2(
     o.x - fromX,
@@ -4081,7 +4083,7 @@ function startWindSailboatArrival(o) {
   o.arrival = {
     kind: 'wind',
     t: 0,
-    d: 9,
+    d: 11,
     fromX,
     fromZ,
     heading
@@ -4193,13 +4195,16 @@ function stepWindSailboatArrival(o, dt) {
       o => o.day === day
     );
 
-    const fx =
-      batch.reduce((sum, o) => sum + o.x, 0) /
-      batch.length;
+    const isSailArrival =
+  batch.some(o => o.id === 'sailboat');
 
-    const fz =
-      batch.reduce((sum, o) => sum + o.z, 0) /
-      batch.length;
+const fx = isSailArrival
+  ? -59
+  : batch.reduce((sum, o) => sum + o.x, 0) / batch.length;
+
+const fz = isSailArrival
+  ? LAKE.z
+  : batch.reduce((sum, o) => sum + o.z, 0) / batch.length;
 
     reveal = {
       items: batch,
@@ -4227,16 +4232,26 @@ function stepWindSailboatArrival(o, dt) {
     // 第一階段：只移動鏡頭
     // 此時物件仍維持 pending，不會提前出現
 
-    ct.th =
-      cs.th +
-      wrapAngle(Math.atan2(fx, fz) - cs.th);
+    if (isSailArrival) {
 
-    ct.ph = 1.05;
-    ct.tilt = 0;
+  // 球場左側岸邊，接近玩家人眼高度
+  ct.th = cs.th + wrapAngle(1.684 - cs.th);
+  ct.ph = 1.54;
+  ct.d = 44.6;
+  ct.tilt = 0;
 
-    ct.d = batch.some(
-      o => o.id === 'sailboat'
-    ) ? 24 : 17;
+} else {
+
+  // 其他物件維持原本的鏡頭演出
+  ct.th =
+    cs.th +
+    wrapAngle(Math.atan2(fx, fz) - cs.th);
+
+  ct.ph = 1.05;
+  ct.tilt = 0;
+  ct.d = 17;
+
+}
   }
 
 
@@ -4412,13 +4427,26 @@ window.setWorldPreviewDay = day => {
   if (n === 1) {
 
     // 第 1 天恢復原本球場視角
-    tgtP.set(0, 1, 0);
+    if (n === 30) {
 
-    ct.th = -0.55;
-    ct.ph = 1.0;
-    ct.d = 27;
-    ct.tilt = 0;
+  // 第 30 天：從球場邊觀看小帆船漂來
+  tgtP.set(-59, 1, LAKE.z);
 
+  ct.th = 1.684;
+  ct.ph = 1.54;
+  ct.d = 44.6;
+  ct.tilt = 0;
+
+} else {
+
+  tgtP.set(centerX, 1, centerZ);
+
+  ct.th = -0.55;
+  ct.ph = 1.0;
+  ct.d = 18;
+  ct.tilt = 0;
+
+}
   } else if (newItems.length > 0) {
 
     // 以當天物件的平均位置作為觀看中心
@@ -4887,18 +4915,25 @@ if (
             Math.cos(boatHeading) *
             boatSpeed * dt;
 
-          // 航行範圍限制在水域
-          if (
-            Math.hypot(
-              nx - LAKE.x,
-              nz - LAKE.z
-            ) < LAKE.r - 2
-          ) {
-            o.x = nx;
-            o.z = nz;
-          } else {
-            boatSpeed = 0;
-          }
+          // 擴大後的橢圓形航行範圍
+// 保留岸邊 2 單位的安全距離
+
+const u =
+  (nx - LAKE.x) / (LAKE.rx - 2);
+
+const v =
+  (nz - LAKE.z) / (LAKE.rz - 2);
+
+if (u * u + v * v < 1) {
+
+  o.x = nx;
+  o.z = nz;
+
+} else {
+
+  boatSpeed = 0;
+
+}
         }
 
         o.root.position.set(
