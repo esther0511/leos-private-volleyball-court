@@ -4424,45 +4424,44 @@ window.setWorldPreviewDay = day => {
     o => o.day === n
   );
 
+   // ===== 開發者預覽：不同解鎖日的攝影機 =====
+
   if (n === 1) {
 
-    // 第 1 天恢復原本球場視角
-    if (n === 30) {
+    // 第 1 天：原始球場
+    tgtP.set(0, 1, 0);
 
-  // 第 30 天：從球場邊觀看小帆船漂來
-  tgtP.set(-59, 1, LAKE.z);
+    ct.th = -0.55;
+    ct.ph = 1.0;
+    ct.d = 27;
+    ct.tilt = 0;
 
-  ct.th = 1.684;
-  ct.ph = 1.54;
-  ct.d = 44.6;
-  ct.tilt = 0;
+  } else if (n === 30) {
 
-} else {
+    // 第 30 天：站在球場邊，看小帆船漂來
+    tgtP.set(-59, 1, LAKE.z);
 
-  tgtP.set(centerX, 1, centerZ);
+    ct.th = 1.684;
+    ct.ph = 1.54;
+    ct.d = 44.6;
+    ct.tilt = 0;
 
-  ct.th = -0.55;
-  ct.ph = 1.0;
-  ct.d = 18;
-  ct.tilt = 0;
-
-}
   } else if (newItems.length > 0) {
 
-    // 以當天物件的平均位置作為觀看中心
+    // 其他解鎖日：觀看新物件
     const centerX =
-      newItems.reduce((sum, o) => sum + o.x, 0) /
-      newItems.length;
+      newItems.reduce((sum, o) => sum + o.x, 0)
+      / newItems.length;
 
     const centerZ =
-      newItems.reduce((sum, o) => sum + o.z, 0) /
-      newItems.length;
+      newItems.reduce((sum, o) => sum + o.z, 0)
+      / newItems.length;
 
     tgtP.set(centerX, 1, centerZ);
 
     ct.th = -0.55;
     ct.ph = 1.0;
-    ct.d = n === 30 ? 22 : 18;
+    ct.d = 18;
     ct.tilt = 0;
   }
 
