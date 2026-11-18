@@ -2294,7 +2294,13 @@ window.worldBirthdayCatReaction = () => {
 
   function syncDay(day) {
     for (const o of list) {
-      const unlock = day >= o.day;
+      // 小帆船正式版於 2026/12/24 開放
+      // 開發版仍使用第 30 天進行測試
+      const unlock = o.id === 'sailboat'
+        ? (VB_IS_DEV
+            ? day >= 30
+            : today() >= '2026-12-24')
+        : day >= o.day;
 
       if (unlock && !o.unlocked) {
         o.unlocked = true;
