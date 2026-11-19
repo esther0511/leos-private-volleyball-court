@@ -209,7 +209,74 @@ function collectDriftBottle({
     }
   `;
   document.head.append(css);
+  // ===== 小帆船介面簡化 =====
 
+const boatHudStyle = document.createElement('style');
+
+boatHudStyle.textContent = `
+  /* 移除原本大型船舶操作面板 */
+  #vbBoatCtrl {
+    left: auto !important;
+    right: 16px !important;
+    top: 78px !important;
+    bottom: auto !important;
+
+    width: auto !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+
+    background: transparent !important;
+    box-shadow: none !important;
+
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  #vbBoatCtrl .vb-boat-head {
+    margin: 0 !important;
+  }
+
+  /* 隱藏標題與查看船上物品按鈕 */
+  #vbBoatCtrl .vb-boat-head strong,
+  #vbBoatCtrl [data-cabin] {
+    display: none !important;
+  }
+
+  /* 電腦版使用鍵盤，不顯示方向按鈕 */
+  #vbBoatCtrl .arrows {
+    display: none !important;
+  }
+
+  /* 保留獨立離船按鈕 */
+  #vbBoatCtrl [data-exit] {
+    min-height: 37px;
+    padding: 7px 12px;
+
+    background: rgba(29,42,80,.48);
+
+    border: 1px solid
+      rgba(255,255,255,.48);
+
+    border-radius: 999px;
+  }
+
+  /* 觸控裝置仍保留四個方向按鈕 */
+  @media (pointer: coarse) {
+    #vbBoatCtrl .arrows {
+      display: grid !important;
+
+      position: fixed;
+      left: 16px;
+      bottom: 17px;
+
+      background: transparent;
+    }
+  }
+`;
+
+document.head.append(boatHudStyle);
   // 不重綁舊帆船按鍵，只改用相同視覺與增加船艙入口。
   const originalTitle = controls.firstElementChild;
   const head = document.createElement('div');
