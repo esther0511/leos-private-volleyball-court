@@ -4012,9 +4012,13 @@ window.worldPlaySagittarius = () => {
   return true;
 };
   
-  // 裁判椅或帆船視角：雙擊返回
-  cv.addEventListener('dblclick', e => {
-    if (cameraMode === 'orbit') return;
+  // 裁判椅仍可雙擊返回。
+// 小帆船只能透過「離船 ×」或 Esc 離開。
+cv.addEventListener('dblclick', e => {
+  if (
+    cameraMode === 'boat' ||
+    cameraMode === 'orbit'
+  ) return;
 
     e.stopImmediatePropagation();
     e.preventDefault();
@@ -4246,14 +4250,20 @@ function stepWindSailboatArrival(o, dt) {
     const isSailArrival =
   batch.some(o => o.id === 'sailboat');
 
+// 發球機左側附近觀看小帆船漂來。
+// tgtP 是鏡頭焦點，不是攝影機本身位置。
+
 const fx = isSailArrival
-  ? -59
-  : batch.reduce((sum, o) => sum + o.x, 0) / batch.length;
+  ? -26
+  : batch.reduce(
+      (sum, o) => sum + o.x, 0
+    ) / batch.length;
 
 const fz = isSailArrival
-  ? ARRIVAL_ROUTE.z
-  : batch.reduce((sum, o) => sum + o.z, 0) / batch.length;
-
+  ? 5
+  : batch.reduce(
+      (sum, o) => sum + o.z, 0
+    ) / batch.length;
     reveal = {
       items: batch,
       phase: 'glide',
@@ -4261,14 +4271,21 @@ const fz = isSailArrival
       fx,
       fz,
 
-      saved: {
-        th: ct.th,
-        ph: ct.ph,
-        d: ct.d,
-        tilt: ct.tilt,
-        x: tgtP.x,
-        z: tgtP.z
-      }
+      saved: isSailArrival ? {
+  th: 2.35,
+  ph: 1.36,
+  d: 13,
+  tilt: 0,
+  x: -26,
+  z: 5
+} : {
+  th: ct.th,
+  ph: ct.ph,
+  d: ct.d,
+  tilt: ct.tilt,
+  x: tgtP.x,
+  z: tgtP.z
+}
     };
 
     revealArmed = false;
@@ -4282,10 +4299,13 @@ const fz = isSailArrival
 
     if (isSailArrival) {
 
-  // 球場左側岸邊，接近玩家人眼高度
-  ct.th = cs.th + wrapAngle(1.684 - cs.th);
-  ct.ph = 1.54;
-  ct.d = 44.6;
+  // 從發球機左側附近觀看海灣。
+  ct.th = cs.th + wrapAngle(
+    2.35 - cs.th
+  );
+
+  ct.ph = 1.36;
+  ct.d = 13;
   ct.tilt = 0;
 
 } else {
@@ -4484,15 +4504,16 @@ window.setWorldPreviewDay = day => {
     ct.d = 27;
     ct.tilt = 0;
 
-  } else if (n === 30) {
+ } else if (n === 30) {
 
-    // 第 30 天：站在球場邊，看小帆船漂來
-    tgtP.set(-59, 1, ARRIVAL_ROUTE.z);
+  // 從發球機左側附近觀看帆船。
 
-    ct.th = 1.684;
-    ct.ph = 1.54;
-    ct.d = 44.6;
-    ct.tilt = 0;
+  tgtP.set(-26, 1, 5);
+
+  ct.th = 2.35;
+  ct.ph = 1.36;
+  ct.d = 13;
+  ct.tilt = 0;
 
   } else if (newItems.length > 0) {
 
@@ -4928,8 +4949,15 @@ if (
           pressed.has('arrowright') ||
           pressed.has('d');
 
-        if (cameraMode === 'boat') {
-          const boosting = pressed.has('shift');
+        const boatPanelOpen =
+  window.VBDriftBottles?.isReading?.() ||
+  window.VBBoatCabin?.isOpen?.();
+
+if (
+  cameraMode === 'boat' &&
+  !boatPanelOpen
+) {
+  const boosting = pressed.has('shift');
 
           boatSpeed +=
               (forward ? (boosting ? 8.5 : 5) : 0) * dt;
@@ -4943,10 +4971,16 @@ if (
             );
 
           if (left) boatHeading += 1.25 * dt;
-          if (right) boatHeading -= 1.25 * dt;
-        }
+if (right) boatHeading -= 1.25 * dt;
 
-        boatSpeed *= Math.exp(-.7 * dt);
+} else if (boatPanelOpen) {
+
+  // 閱讀或查看背包時，船停止移動。
+  boatSpeed = 0;
+
+}
+
+boatSpeed *= Math.exp(-.7 * dt);
 
         if (Math.abs(boatSpeed) > .01) {
           const nx =
@@ -5035,21 +5069,31 @@ if (
       p.y + Math.sin(chairLook.pitch) * 10,
       p.z - Math.cos(chairLook.yaw) * cp * 10
       );
-    } else if (mode === 'boat') {
-      const o = byId.get('sailboat');
+   } else if (mode === 'boat') {
+  const o = byId.get('sailboat');
 
-      p.set(
-        o.x - Math.sin(boatHeading) * 3,
-        2.7,
-        o.z + Math.cos(boatHeading) * 4.5
-      );
+  // 攝影機位於船後方偏右。
+  // 避免帆布擋住海面及漂流瓶。
 
-      look.set(
-        o.x + Math.sin(boatHeading) * 4,
-        1.1,
-        o.z - Math.cos(boatHeading) * 4
-      );
+  p.set(
+    o.x
+      - Math.sin(boatHeading) * 4.1
+      + Math.cos(boatHeading) * 1.9,
 
+    3.15,
+
+    o.z
+      + Math.cos(boatHeading) * 4.1
+      + Math.sin(boatHeading) * 1.9
+  );
+
+  look.set(
+    o.x + Math.sin(boatHeading) * 5.0,
+
+    1.0,
+
+    o.z - Math.cos(boatHeading) * 5.0
+  );
     } else {
       // 平滑返回原本的環繞攝影機
       cam.position.lerp(
@@ -5094,7 +5138,13 @@ if (
   // 供船艙模組讀取帆船模型與航行狀態
 window.VBBoatAccess = {
   getObject: () => byId.get('sailboat'),
-  isSailing: () => cameraMode === 'boat'
+
+  isSailing: () => cameraMode === 'boat',
+
+  // 撞到海灣邊界或岩石時停止船速
+  stop: () => {
+    boatSpeed = 0;
+  }
 };
   window.VBWorldItems = {
     days: UNLOCK,
