@@ -9,7 +9,7 @@
   const boat = access?.getObject?.();
   const arrows = controls?.querySelector('.arrows');
   const exitButton = controls?.querySelector('[data-exit]');
-  if (!boat || !controls || !arrows || !exitButton || !window.vbStore && typeof vbStore === 'undefined') {
+  if (!boat || !controls || !arrows || !exitButton || typeof vbStore === 'undefined') {
     console.warn('[boat-cabin-v2] 缺少小帆船或儲存接口。');
     return;
   }
@@ -282,9 +282,18 @@ function collectDriftBottle({
   };
   const tools = host => {const d=el('div','vb-tools');host.append(d);return d;};
   const picked = id => {
-    if(state[id])return;
-    state[id]=true;persist();syncProps();render();
-  };
+  if (state[id]) return;
+
+  state[id] = true;
+
+  if (!persist()) {
+    state[id] = false;
+    return;
+  }
+
+  syncProps();
+  render();
+};
 
   function renderBoat() {
     hint('船艙裡留下了一些東西。');
@@ -431,13 +440,64 @@ function collectDriftBottle({
   observer.observe(controls,{attributes:true,attributeFilter:['style']});
 
   // 公開接口保留原始方法；後續漂流瓶可以直接與同一份存檔接軌。
-  window.VBBoatCabin={
-    getState:()=>clone(state),
-    show:()=>open('boat'),
-    hide:close,
-    openBackpack:()=>open('bag'),
-    isOpen:()=>!panel.hidden,
-    collectDriftBottle,
+  window.VBBoatCabin = {
+  getState: () => clone(state),
+
+  show: () => open('boat'),
+
+  hide: close,
+
+  openBackpack: () => open('bag'),
+
+  // 直接打開背包內指定分類
+  openBackpackTab: (name = 'letters') => {
+    if (!state.bag) return false;
+
+    open('bag');
+
+    tab = [
+      'letters',
+      'journal',
+      'sheets',
+      'bottles'
+    ].includes(name) ? name : 'letters';
+
+    render();
+    return true;
+  },
+
+  // 點擊船上的實體物件時取得物品
+  takeItem: id => {
+    if (!['bag', 'letter', 'log'].includes(id)) {
+      return false;
+    }
+
+    if (!state[id]) {
+      picked(id);
+    }
+
+    return state[id];
+  },
+
+  // 直接閱讀船上原本的信件
+  openBoatLetter: () => {
+    if (!state.letter) return false;
+
+    if (!state.letterOpened) {
+      state.letterOpened = true;
+      persist();
+    }
+
+    open('boat');
+    view = 'letter';
+    render();
+
+    return true;
+  },
+
+  isOpen: () => !panel.hidden,
+
+  collectDriftBottle,
     addLetter:(id,text,sender='')=>{
       if(!state.bag || typeof id!=='string' || !id || typeof text!=='string')return false;
       if(state.letters.some(l=>l.id===id))return false;
