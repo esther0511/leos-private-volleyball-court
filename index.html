@@ -3822,8 +3822,9 @@ const VB_SAVE_KEYS = [
   'vb-roam-ui-v1',
   'vb-music',
   'vb-music-volume',
-  'vb-music-last-volume',
-  'vb-sfx-volume'
+'vb-music-last-volume',
+'vb-sfx-volume',
+'vb-boat-cabin-v1'
 ];
 
 function showMoodHint(message) {
@@ -3893,12 +3894,28 @@ function checkGameSave(data) {
     throw new Error('正式版與開發版存檔不能混用');
   }
   const keys = Object.keys(data.storage);
-  if (keys.length !== VB_SAVE_KEYS.length ||
-      keys.some(key => !VB_SAVE_KEYS.includes(key))) {
-    throw new Error('存檔欄位不完整或包含未知欄位');
-  }
 
-  for (const key of VB_SAVE_KEYS) {
+// 舊版備份可能沒有船艙資料。
+// 允許匯入，但不刪除現有船艙收藏。
+
+const oldKeys = VB_SAVE_KEYS.filter(
+  key => key !== 'vb-boat-cabin-v1'
+);
+
+if (
+  keys.some(
+    key => !VB_SAVE_KEYS.includes(key)
+  ) ||
+  oldKeys.some(
+    key => !Object.hasOwn(data.storage, key)
+  )
+) {
+  throw new Error(
+    '存檔欄位不完整或包含未知欄位'
+  );
+}
+
+for (const key of keys) {
     const raw = data.storage[key];
     if (raw === null) continue;
     if (typeof raw !== 'string' || raw.length > 1400000) {
@@ -3934,7 +3951,33 @@ function checkGameSave(data) {
             /^\d{4}-\d{2}-\d{2}$/.test(d))) {
         throw new Error('造訪日期資料不正確');
       }
-    } else if (key === 'vb-roam-ui-v1') {
+    } else if (key === 'vb-boat-cabin-v1') {
+
+  if (
+    !isRecord(parsed) ||
+
+    (parsed.letters !== undefined &&
+      !Array.isArray(parsed.letters)) ||
+
+    (parsed.bottles !== undefined &&
+      !Array.isArray(parsed.bottles)) ||
+
+    (parsed.entries !== undefined &&
+      !Array.isArray(parsed.entries)) ||
+
+    (parsed.sheets !== undefined &&
+      !Array.isArray(parsed.sheets)) ||
+
+    (parsed.collectedBottleIds !== undefined &&
+      (
+        !Array.isArray(parsed.collectedBottleIds) ||
+        parsed.collectedBottleIds.length > 500
+      ))
+  ) {
+    throw new Error(
+      '船艙收藏資料格式不正確'
+    );
+  }
       if (!isRecord(parsed) ||
           (parsed.sticks !== undefined && typeof parsed.sticks !== 'boolean')) {
         throw new Error('操作設定資料不正確');
@@ -3993,25 +4036,56 @@ function mergeOldMoodBackup(data) {
 
 // 完整存檔採「還原」而非合併，避免日期與物件配置互相衝突。
 function restoreGameSave(storage) {
+
   const previous = {};
-  for (const key of VB_SAVE_KEYS) previous[key] = vbStore.getItem(key);
+
+  // 只還原備份實際包含的資料。
+  // 舊版備份不會刪除新加入的船艙收藏。
+
+  const incomingKeys = Object.keys(storage);
+
+  for (const key of incomingKeys) {
+    previous[key] = vbStore.getItem(key);
+  }
+
   try {
-    for (const key of VB_SAVE_KEYS) {
-      if (storage[key] === null) vbStore.removeItem(key);
-      else vbStore.setItem(key, storage[key]);
+
+    for (const key of incomingKeys) {
+
+      if (storage[key] === null) {
+        vbStore.removeItem(key);
+      } else {
+        vbStore.setItem(key, storage[key]);
+      }
+
     }
+
   } catch (error) {
-    for (const key of VB_SAVE_KEYS) {
+
+    for (const key of incomingKeys) {
+
       try {
-        if (previous[key] === null) vbStore.removeItem(key);
-        else vbStore.setItem(key, previous[key]);
+
+        if (previous[key] === null) {
+          vbStore.removeItem(key);
+        } else {
+          vbStore.setItem(key, previous[key]);
+        }
+
       } catch (rollbackError) {
-        console.error('存檔回復失敗：', rollbackError);
+
+        console.error(
+          '存檔回復失敗：',
+          rollbackError
+        );
+
       }
     }
+
     throw error;
   }
-  // 遊戲物件在初始化時讀取存檔，還原後必須重新載入。
+
+  // 還原後重新載入遊戲。
   location.reload();
 }
 
