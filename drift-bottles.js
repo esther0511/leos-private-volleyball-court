@@ -168,60 +168,102 @@
   // 三、沙岸與濕沙
   // ====================================
 
-  function makeShore(side, isWet) {
-    const divisions = 104;
+// ===== 自然銜接的海灣沙岸 =====
 
-    const geo = stripGeometry(
-      -24.5,
-      -143,
-      divisions,
-      x => {
-        const center = coastCenter(x);
-        const edge = halfWidth(x);
+// 左右沙岸使用相同海岸曲線。
+// 靠近球場的一端逐漸收窄，
+// 不再使用額外圓形補丁。
 
-        // 不規則海岸線
-        const wobble =
-          .4 * Math.sin(x * .18) +
-          .22 * Math.sin(x * .37);
+function makeShore(side, wet) {
 
-        const inner =
-          center +
-          side * (
-            edge +
-            (isWet ? .13 : .48) +
-            wobble
-          );
+  const divisions = 112;
 
-        const outer =
-          inner +
-          side * (isWet ? 2.3 : 6.5);
+  const geo = stripGeometry(
+    -18,
+    -143,
+    divisions,
+    x => {
 
-        return [
-          inner,
-          outer,
-          isWet ? .066 : .06
-        ];
-      }
-    );
+      // 靠近球場的一端逐漸收束
+      const tip = ease(
+        (-x - 18) / 12
+      );
 
-    const mesh = new T3.Mesh(
-      geo,
-      new T3.MeshBasicMaterial({
-        color: isWet
-          ? 0xb6a891
-          : 0xe9d7ad,
+      // 海岸線的小幅度自然起伏
+      const wave = tip * (
+        .36 * Math.sin(x * .18) +
+        .18 * Math.sin(x * .37)
+      );
 
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        side: T3.DoubleSide
-      })
-    );
+      const edge =
+        halfWidth(x) * tip;
 
-    mesh.frustumCulled = false;
-    mesh.visible = false;
+      const shore =
+        coastCenter(x) +
+        side * (edge + wave);
 
-    sc.add(mesh);
+      // 濕沙緊鄰海水，
+      // 乾沙接在濕沙外側。
+      // 兩者不再大面積重疊。
+
+      const inner =
+        shore +
+        side *
+        (wet ? .12 : 2.12) *
+        tip;
+
+      const outer =
+        shore +
+        side *
+        (wet ? 2.17 : 8.2) *
+        tip;
+
+      return [
+        inner,
+        outer,
+        wet ? .068 : .061
+      ];
+    }
+  );
+
+  const mesh = new T3.Mesh(
+    geo,
+    new T3.MeshBasicMaterial({
+
+      color: wet
+        ? 0xb6a891
+        : 0xe9d7ad,
+
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: T3.DoubleSide
+
+    })
+  );
+
+  mesh.frustumCulled = false;
+  mesh.visible = false;
+
+  sc.add(mesh);
+
+  return {
+    mesh,
+    divisions
+  };
+}
+
+// 乾沙
+const sand = [
+  makeShore(1, false),
+  makeShore(-1, false)
+];
+
+// 濕沙
+const wet = [
+  makeShore(1, true),
+  makeShore(-1, true)
+];
 
     return {
       mesh,
@@ -428,10 +470,7 @@
         );
       }
 
-      beachTip.visible = land > .001;
-
-      beachTip.material.opacity =
-        land * .88;
+    
 
       // 最初是草地；球場本身維持不變。
       if (typeof ground !== 'undefined') {
