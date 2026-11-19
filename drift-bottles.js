@@ -1,24 +1,17 @@
 
 /*
- * 排球場｜第三階段整合模組
- * 2026.11
+ * 排球場｜第三階段
+ * 漸變海岸、岩石停泊、船艙物件、漂流瓶與信紙
  *
- * 功能：
- * 1. 草地、沙岸、濕沙逐日演變
- * 2. 12/24 開放不規則海灣
- * 3. 岩石與小帆船停靠
- * 4. 調整船上鏡頭與離船操作
- * 5. 3D 防水背包、信封、航海日誌
- * 6. 滑鼠直接點擊漂流瓶
- * 7. 抽出信紙與攤開閱讀
- * 8. 收藏沿用 vb-boat-cabin-v1
- *
- * 載入位置：
+ * 載入順序：
  * world-items.js
  * boat-cabin.js
  * drift-bottles.js
  * roam-controls.js
- * weather-system.js
+ *
+ * 收藏沿用 vb-boat-cabin-v1。
+ * 不新增 localStorage key。
+ * 正式故事內容尚未加入。
  */
 
 (() => {
@@ -32,23 +25,29 @@
   if (
     !access?.getObject?.() ||
     !cabin?.getState ||
+    typeof cabin.collectDriftBottle !== 'function' ||
     typeof T3 === 'undefined' ||
     typeof sc === 'undefined' ||
+    typeof cv === 'undefined' ||
     typeof hitList === 'undefined'
   ) {
-    console.error('[VB Stage 3] 必要接口尚未載入');
+    console.error(
+      '[VB Stage 3] 缺少船隻、場景或收藏接口。'
+    );
     return;
   }
 
   const boat = access.getObject();
+
   const DEV =
     typeof VB_IS_DEV !== 'undefined' &&
     VB_IS_DEV;
 
-  const PI2 = Math.PI * 2;
-  const clamp = x => Math.max(0, Math.min(1, x));
-  const ease = x => {
-    x = clamp(x);
+  const clamp = v =>
+    Math.max(0, Math.min(1, v));
+
+  const ease = v => {
+    const x = clamp(v);
     return x * x * (3 - 2 * x);
   };
 
@@ -58,260 +57,64 @@
     }
   };
 
-  // ========================================
-  // A. 基礎樣式
-  // ========================================
+  // ====================================
+  // 一、海岸設定
+  // ====================================
 
-  const style = document.createElement('style');
-
-  style.textContent = `
-    /* 取消原本右上角的獨立背包按鈕 */
-    #vbBagButton {
-      display: none !important;
-    }
-
-    #vbRoamUiMenu button[hidden] {
-      display: none !important;
-    }
-
-    /* 信紙閱讀介面 */
-    #vbLetterReader {
-      position: fixed;
-      inset: 0;
-      z-index: 40;
-      display: grid;
-      place-items: center;
-      padding: 20px;
-      background: rgba(12, 25, 47, .60);
-      backdrop-filter: blur(7px);
-      -webkit-backdrop-filter: blur(7px);
-    }
-
-    #vbLetterReader[hidden] {
-      display: none !important;
-    }
-
-    #vbLetterReader .reader-inner {
-      width: min(540px, 94vw);
-      max-height: 90dvh;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    #vbLetterReader .reader-paper {
-      position: relative;
-      overflow-y: auto;
-      min-height: 180px;
-      max-height: 69dvh;
-      padding: 38px 34px;
-      background: #f7edda;
-      color: #293850;
-      border-radius: 5px;
-      box-shadow:
-        inset 0 0 30px rgba(172,139,87,.10),
-        0 18px 45px rgba(0,0,0,.30);
-      transform: scaleX(.12) rotate(-4deg);
-      opacity: .35;
-      transform-origin: center;
-      transition:
-        transform .85s cubic-bezier(.19,1,.22,1),
-        opacity .55s ease;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      font: 16px/1.95
-        "PingFang TC",
-        "Noto Serif TC",
-        serif;
-      user-select: text;
-      -webkit-user-select: text;
-    }
-
-    #vbLetterReader.show .reader-paper {
-      transform: scaleX(1) rotate(0);
-      opacity: 1;
-    }
-
-    #vbLetterReader .reader-sender {
-      margin-bottom: 20px;
-      font-size: 13px;
-      opacity: .7;
-    }
-
-    #vbLetterReader .reader-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 9px;
-    }
-
-    #vbLetterReader button {
-      padding: 11px 17px;
-      border: 1px solid rgba(255,255,255,.5);
-      border-radius: 10px;
-      background: rgba(29,42,80,.85);
-      color: white;
-      font: 600 13px
-        system-ui,"PingFang TC",sans-serif;
-      cursor: pointer;
-    }
-
-    #vbLetterReader button:hover {
-      background: #355c97;
-    }
-
-    @media(max-width:560px) {
-      #vbLetterReader {
-        padding: 12px;
-      }
-
-      #vbLetterReader .reader-paper {
-        padding: 26px 23px;
-        font-size: 15px;
-      }
-    }
-
-    @media(prefers-reduced-motion:reduce) {
-      #vbLetterReader .reader-paper {
-        transition-duration: .01s;
-      }
-    }
-  `;
-
-  document.head.append(style);
-
-  // 移除舊版右下角拾取按鈕
-  document.querySelector('#vbDriftPickup')?.remove();
-
-  // ========================================
-  // B. 地形演變
-  // ========================================
-
-  const SHORE = {
-    x: -28,
-    centerZ: 14,
-    farX: -450,
-    progress: 0
+  const COAST = {
+    begin: -25.5,
+    far: -470,
+    middle: 14
   };
 
   function coastCenter(x) {
-    return SHORE.centerZ +
-      Math.sin((x + 40) * .04) * 2.2;
+    return COAST.middle +
+      Math.sin((x + 42) * .028) * 1.5;
   }
 
-  // 靠岸時窄，越往遠海越寬
-  function coastHalfWidth(x) {
-    const neck = ease((-x - 27) / 23);
-    const open = ease((-x - 72) / 145);
-
-    return .2 + neck * 15 + open * 450;
-  }
-
-  // ========================================
-  // C. 建立不規則海面
-  // ========================================
-
-  function buildSeaGeometry() {
-    const positions = [];
-    const indices = [];
-    const segments = 160;
-
-    for (let i = 0; i <= segments; i++) {
-      const x =
-        SHORE.farX +
-        (SHORE.x - SHORE.farX) *
-        i / segments;
-
-      const center = coastCenter(x);
-      const half = coastHalfWidth(x);
-
-      positions.push(
-        x, .048, center - half,
-        x, .048, center + half
-      );
-
-      if (i < segments) {
-        const a = i * 2;
-
-        indices.push(
-          a, a + 1, a + 2,
-          a + 1, a + 3, a + 2
-        );
-      }
-    }
-
-    const geometry = new T3.BufferGeometry();
-
-    geometry.setAttribute(
-      'position',
-      new T3.Float32BufferAttribute(
-        positions, 3
-      )
+  // 靠岸時窄，遠海逐漸變寬。
+  function halfWidth(x) {
+    const neck = ease(
+      (COAST.begin - x) / 17
     );
 
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
+    const ocean = ease(
+      (-x - 70) / 165
+    );
 
-    return geometry;
+    return .4 + 8.2 * neck + 400 * ocean;
   }
 
-  const sea = new T3.Mesh(
-    buildSeaGeometry(),
-    new T3.MeshBasicMaterial({
-      color: 0x70b8c5,
-      transparent: true,
-      opacity: .88,
-      depthWrite: false,
-      side: T3.DoubleSide,
-      fog: true
-    })
-  );
-
-  sea.visible = false;
-  sea.frustumCulled = false;
-  sc.add(sea);
-
-  // 找出舊版矩形水面，稍後隱藏。
-  // 不刪除原模型，避免影響其他引用。
-  const legacyWater = sc.children.find(o =>
-    o !== sea &&
-    o.isMesh &&
-    o.geometry?.type === 'PlaneGeometry' &&
-    o.geometry.parameters?.width >= 500 &&
-    o.position.x < -100 &&
-    Math.abs(o.rotation.x + Math.PI / 2) < .02
-  );
-
-  // ========================================
-  // D. 沙岸與濕沙
-  // ========================================
-
-  function makeShoreBand(side, offset, width, color) {
-    const positions = [];
+  function stripGeometry(
+    startX,
+    endX,
+    count,
+    section
+  ) {
+    const vertices = [];
     const indices = [];
-    const segments = 88;
 
-    for (let i = 0; i <= segments; i++) {
-      const x = -28 - i * 132 / segments;
-      const center = coastCenter(x);
-      const half = coastHalfWidth(x);
+    for (let i = 0; i <= count; i++) {
+      const x =
+        startX +
+        (endX - startX) * i / count;
 
-      const z0 =
-        center + side * (half + offset);
-
-      const z1 =
-        z0 + side * width;
-
-      positions.push(
-        x, .064, z0,
-        x, .064, z1
+      const pair = section(
+        x,
+        i / count
       );
 
-      if (i < segments) {
-        const a = i * 2;
+      vertices.push(
+        x, pair[2], pair[0],
+        x, pair[2], pair[1]
+      );
+
+      if (i < count) {
+        const p = i * 2;
 
         indices.push(
-          a, a + 1, a + 2,
-          a + 1, a + 3, a + 2
+          p, p + 1, p + 2,
+          p + 1, p + 3, p + 2
         );
       }
     }
@@ -321,16 +124,93 @@
     geo.setAttribute(
       'position',
       new T3.Float32BufferAttribute(
-        positions, 3
+        vertices, 3
       )
     );
 
     geo.setIndex(indices);
+    geo.computeVertexNormals();
+
+    return geo;
+  }
+
+  // ====================================
+  // 二、海洋
+  // ====================================
+
+  const ocean = new T3.Mesh(
+    stripGeometry(
+      COAST.begin,
+      COAST.far,
+      180,
+      x => [
+        coastCenter(x) - halfWidth(x),
+        coastCenter(x) + halfWidth(x),
+        .045
+      ]
+    ),
+    new T3.MeshBasicMaterial({
+      color: 0x70b8c5,
+      side: T3.DoubleSide,
+      transparent: true,
+      opacity: .89,
+      depthWrite: false,
+      fog: true
+    })
+  );
+
+  ocean.visible = false;
+  ocean.frustumCulled = false;
+
+  sc.add(ocean);
+
+  // ====================================
+  // 三、沙岸與濕沙
+  // ====================================
+
+  function makeShore(side, isWet) {
+    const divisions = 104;
+
+    const geo = stripGeometry(
+      -24.5,
+      -143,
+      divisions,
+      x => {
+        const center = coastCenter(x);
+        const edge = halfWidth(x);
+
+        // 不規則海岸線
+        const wobble =
+          .4 * Math.sin(x * .18) +
+          .22 * Math.sin(x * .37);
+
+        const inner =
+          center +
+          side * (
+            edge +
+            (isWet ? .13 : .48) +
+            wobble
+          );
+
+        const outer =
+          inner +
+          side * (isWet ? 2.3 : 6.5);
+
+        return [
+          inner,
+          outer,
+          isWet ? .066 : .06
+        ];
+      }
+    );
 
     const mesh = new T3.Mesh(
       geo,
       new T3.MeshBasicMaterial({
-        color,
+        color: isWet
+          ? 0xb6a891
+          : 0xe9d7ad,
+
         transparent: true,
         opacity: 0,
         depthWrite: false,
@@ -338,319 +218,296 @@
       })
     );
 
-    mesh.visible = false;
     mesh.frustumCulled = false;
+    mesh.visible = false;
+
     sc.add(mesh);
 
-    return { mesh, segments };
+    return {
+      mesh,
+      divisions
+    };
   }
 
-  const sandBands = [
-    makeShoreBand(1, .2, 7.5, 0xe9d7ad),
-    makeShoreBand(-1, .2, 7.5, 0xe9d7ad)
+  const sand = [
+    makeShore(1, false),
+    makeShore(-1, false)
   ];
 
-  const wetBands = [
-    makeShoreBand(1, .1, 2, 0xb7ac96),
-    makeShoreBand(-1, .1, 2, 0xb7ac96)
+  const wet = [
+    makeShore(1, true),
+    makeShore(-1, true)
   ];
 
-  // 海灣最內側的一小片沙地
-  const beachCap = new T3.Mesh(
+  // 海灣內側沙地
+  const beachTip = new T3.Mesh(
     new T3.CircleGeometry(1, 48),
     new T3.MeshBasicMaterial({
       color: 0xe9d7ad,
+      side: T3.DoubleSide,
       transparent: true,
       opacity: 0,
-      depthWrite: false,
-      side: T3.DoubleSide
+      depthWrite: false
     })
   );
 
-  beachCap.rotation.x = -Math.PI / 2;
-  beachCap.position.set(-26.8, .063, 14);
-  beachCap.scale.set(5, 11, 1);
-  beachCap.visible = false;
-  sc.add(beachCap);
+  beachTip.rotation.x = -Math.PI / 2;
+  beachTip.position.set(-24.8, .061, 14);
+  beachTip.scale.set(7.5, 5.2, 1);
+  beachTip.visible = false;
 
-  // ========================================
-  // E. 小帆船停靠岩石
-  // ========================================
+  sc.add(beachTip);
 
-  const rocks = new T3.Group();
+  // ====================================
+  // 四、小帆船停靠岩石
+  // ====================================
 
-  const rockPositions = [
-    [-38.3, 11.75, .70],
-    [-37.15, 11.45, .46],
-    [-39.35, 11.25, .34]
+  const rockGroup = new T3.Group();
+
+  const rockCoords = [
+    [-38.2, 11.75, .76],
+    [-39.05, 11.35, .48],
+    [-37.52, 11.46, .32]
   ];
 
-  for (const [x, z, radius] of rockPositions) {
+  for (const [x, z, r] of rockCoords) {
     const rock = new T3.Mesh(
-      new T3.DodecahedronGeometry(radius, 0),
+      new T3.DodecahedronGeometry(r, 0),
       new T3.MeshLambertMaterial({
-        color: 0x87918f,
+        color: 0x89928d,
         flatShading: true
       })
     );
 
-    rock.position.set(x, .13, z);
-    rock.scale.set(1.2, .65, .9);
+    rock.position.set(x, .20, z);
+    rock.scale.set(1.15, .65, .95);
 
-    rocks.add(rock);
+    rockGroup.add(rock);
   }
 
-  rocks.visible = false;
-  sc.add(rocks);
+  rockGroup.visible = false;
+  sc.add(rockGroup);
 
-  // 遠海方向原有的山丘，
-  // 在海洋出現時隱藏，避免像湖泊。
-  const distantHills = sc.children.filter(o =>
-    o.isMesh &&
-    o.geometry?.type === 'ConeGeometry' &&
-    o.position.x < -40 &&
-    Math.hypot(o.position.x, o.position.z) > 75
+  // 找出原本的大面積矩形海面。
+  const oldSeaMeshes = sc.children.filter(m =>
+    m !== ocean &&
+    m.isMesh &&
+    m.geometry?.type === 'PlaneGeometry' &&
+    m.geometry.parameters?.width >= 500 &&
+    m.position.x < -100 &&
+    Math.abs(
+      m.rotation.x + Math.PI / 2
+    ) < .04
   );
 
-  // ========================================
-  // F. 依日期計算地形形成程度
-  // ========================================
+  // 原有遠海方向的山丘。
+  const seaHills =
+    typeof horizonHills !== 'undefined'
+      ? horizonHills.filter(
+          h => h.position.x < -35
+        )
+      : [];
 
-  function firstVisitDate() {
+  // ====================================
+  // 五、依照日期逐漸形成海岸
+  // ====================================
+
+  function firstVisit() {
     try {
-      const raw =
-        typeof vbStore !== 'undefined'
-          ? vbStore.getItem('vb-visit-dates')
-          : null;
+      const days = JSON.parse(
+        vbStore.getItem('vb-visit-dates') ||
+        '[]'
+      );
 
-      const dates = JSON.parse(raw || '[]');
+      const valid = Array.isArray(days)
+        ? days.filter(s =>
+            typeof s === 'string' &&
+            /^\d{4}-\d{2}-\d{2}$/.test(s)
+          ).sort()
+        : [];
 
-      if (Array.isArray(dates)) {
-        const valid = dates
-          .filter(x =>
-            typeof x === 'string' &&
-            /^\d{4}-\d{2}-\d{2}$/.test(x)
-          )
-          .sort();
-
-        if (valid.length) return valid[0];
+      if (valid.length) {
+        return valid[0];
       }
+
     } catch (_) {}
 
-    const now = new Date();
+    const d = new Date();
 
     return [
-      now.getFullYear(),
-      String(now.getMonth() + 1).padStart(2,'0'),
-      String(now.getDate()).padStart(2,'0')
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0')
     ].join('-');
   }
 
-  const firstDate = firstVisitDate();
+  const firstDay = firstVisit();
 
   function terrainProgress() {
     if (DEV) {
-      const day =
-        typeof VB_DEV_STATE !== 'undefined'
-          ? Number(VB_DEV_STATE.visitDay || 1)
-          : 1;
-
-      return clamp((day - 1) / 29);
+      return clamp(
+        ((VB_DEV_STATE?.visitDay || 1) - 1) / 29
+      );
     }
 
-    const start =
-      new Date(firstDate + 'T00:00:00').getTime();
-
-    const finish =
+    const target =
       new Date(2026, 11, 24).getTime();
 
-    const now = Date.now();
+    const from =
+      new Date(
+        firstDay + 'T00:00:00'
+      ).getTime();
 
-    if (now >= finish) return 1;
-    if (start >= finish) return 0;
+    if (Date.now() >= target) {
+      return 1;
+    }
+
+    if (
+      !Number.isFinite(from) ||
+      from >= target
+    ) {
+      return 0;
+    }
 
     return clamp(
-      (now - start) / (finish - start)
+      (Date.now() - from) /
+      (target - from)
     );
   }
 
-  // 球場原本的藍色地面改為草地色。
-  // 不改變球場、樹木或其他物件位置。
-  if (typeof ground !== 'undefined') {
-    ground.material.color.setHex(0x84b6a0);
-  }
+  let lastTerrain = -1;
 
   function updateTerrain() {
     const p = terrainProgress();
-    SHORE.progress = p;
 
-    // 25% 左右開始出現沙岸
-    const sand = ease((p - .18) / .52);
-
-    // 後期才出現濕沙
-    const wet = ease((p - .68) / .25);
-
-    // 沙岸由靠近球場的區域向遠方延伸
-    const length = ease((p - .15) / .72);
-
-    for (const item of sandBands) {
-      item.mesh.visible = sand > .001;
-
-      item.mesh.material.opacity =
-        sand * .92;
-
-      item.mesh.geometry.setDrawRange(
-        0,
-        Math.max(
-          1,
-          Math.floor(item.segments * length)
-        ) * 6
-      );
-    }
-
-    for (const item of wetBands) {
-      item.mesh.visible = wet > .001;
-
-      item.mesh.material.opacity =
-        wet * .45;
-
-      item.mesh.geometry.setDrawRange(
-        0,
-        Math.max(
-          1,
-          Math.floor(item.segments * length)
-        ) * 6
-      );
-    }
-
-    beachCap.visible = sand > .001;
-    beachCap.material.opacity = sand * .92;
-
-    // 正式海洋與小帆船同一天出現
-    const ocean = !!boat.unlocked;
-
-    sea.visible = ocean;
-    rocks.visible = ocean;
-
-    if (legacyWater) {
-      legacyWater.visible = false;
-    }
-
-    for (const hill of distantHills) {
-      hill.visible = !ocean;
-    }
-
-    // 小帆船靠岸最後一刻碰上岩石，
-    // 船身短暫輕微晃動。
-    if (boat.arrival?.kind === 'wind') {
-      const a = boat.arrival;
-      const k = clamp(
-        (a.t / a.d - .89) / .11
-      );
-
-      if (k > 0 && k < 1) {
-        const bump =
-          Math.sin(k * Math.PI * 3) *
-          (1 - k);
-
-        boat.art.rotation.z += bump * .075;
-        boat.art.rotation.x += bump * .025;
-      }
-    }
-  }
-
-  // ========================================
-  // G. 讓玩家從發球機左側觀看登場
-  // ========================================
-
-  let placedForArrival = false;
-
-  function positionNearMachine() {
-    if (
-      typeof tgtP === 'undefined' ||
-      typeof ct === 'undefined'
-    ) return;
-
-    // 發球機預設座標約 (-14.5, -4)
-    // 玩家放在左側數個單位的位置
-    tgtP.set(-17.8, 1, -4);
-
-    ct.th = 1.25;
-    ct.ph = 1.16;
-    ct.d = 32;
-    ct.tilt = 0;
-
-    placedForArrival = true;
-  }
-
-  // 開發模式切換第 30 天時，
-  // 不再把玩家移到海面中央。
-  if (typeof window.setWorldPreviewDay === 'function') {
-    const oldPreview = window.setWorldPreviewDay;
-
-    window.setWorldPreviewDay = day => {
-      oldPreview(day);
-
-      if (DEV && Number(day) === 30) {
-        positionNearMachine();
-      }
-    };
-  }
-
-  // ========================================
-  // H. 防止點擊船身意外離船
-  // ========================================
-
-  const originalBoatAction =
-    boat.root.userData.act;
-
-  boat.root.userData.act = () => {
-    if (access.isSailing()) return;
-
-    if (typeof originalBoatAction === 'function') {
-      originalBoatAction();
-    }
-  };
-
-  // 阻止帆船模式下雙擊畫布離船。
-  // 裁判椅原本的雙擊返回不受影響。
-  document.addEventListener(
-    'dblclick',
-    e => {
-      if (
-        access.isSailing() &&
-        e.target === document.querySelector('#c')
-      ) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-      }
-    },
-    true
-  );
-
-  // ========================================
-  // I. 船上的 3D 物件
-  // ========================================
-
-  const cabinProps = new T3.Group();
-  cabinProps.userData.vbStage3 = true;
-  boat.art.add(cabinProps);
-
-  function box(parent, x,y,z, w,h,d, color) {
-    const mesh = new T3.Mesh(
-      new T3.BoxGeometry(w,h,d),
-      new T3.MeshLambertMaterial({color})
+    const land = ease(
+      (p - .16) / .54
     );
 
-    mesh.position.set(x,y,z);
+    const damp = ease(
+      (p - .63) / .32
+    );
+
+    const length = ease(
+      (p - .15) / .7
+    );
+
+    if (Math.abs(p - lastTerrain) > .00001) {
+
+      for (const s of sand) {
+        s.mesh.visible = land > .001;
+
+        s.mesh.material.opacity =
+          land * .95;
+
+        s.mesh.geometry.setDrawRange(
+          0,
+          Math.max(
+            1,
+            Math.floor(
+              s.divisions * length
+            )
+          ) * 6
+        );
+      }
+
+      for (const w of wet) {
+        w.mesh.visible = damp > .001;
+
+        w.mesh.material.opacity =
+          damp * .45;
+
+        w.mesh.geometry.setDrawRange(
+          0,
+          Math.max(
+            1,
+            Math.floor(
+              w.divisions * length
+            )
+          ) * 6
+        );
+      }
+
+      beachTip.visible = land > .001;
+
+      beachTip.material.opacity =
+        land * .88;
+
+      // 最初是草地；球場本身維持不變。
+      if (typeof ground !== 'undefined') {
+        ground.material.color.setHex(
+          0x84b6a0
+        );
+      }
+
+      lastTerrain = p;
+    }
+
+    // 12/24 才正式出現海洋。
+    const open = !!boat.unlocked;
+
+    ocean.visible = open;
+    rockGroup.visible = open;
+
+    // 防止舊矩形水面重新出現。
+    for (const mesh of oldSeaMeshes) {
+      mesh.visible = false;
+    }
+
+    // 遠海方向不再有湖泊式山丘。
+    for (const hill of seaHills) {
+      hill.visible = !open;
+    }
+
+    // 小帆船撞到岩石時輕微搖晃。
+    const a = boat.arrival;
+
+    if (
+      a?.kind === 'wind' &&
+      a.d > 0
+    ) {
+      const n = clamp(
+        (a.t / a.d - .88) / .12
+      );
+
+      if (n > 0 && n < 1) {
+        const bump =
+          Math.sin(n * Math.PI * 3) *
+          (1 - n);
+
+        boat.art.rotation.z +=
+          bump * .075;
+      }
+    }
+  }
+
+  // ====================================
+  // 六、船上 3D 實體物件
+  // ====================================
+
+  const props = new T3.Group();
+
+  boat.art.add(props);
+
+  const objectHits = [];
+
+  function part(parent, geometry, color, pos) {
+    const mesh = new T3.Mesh(
+      geometry,
+      new T3.MeshLambertMaterial({
+        color
+      })
+    );
+
+    mesh.position.set(...pos);
     parent.add(mesh);
 
     return mesh;
   }
 
-  function addClickArea(parent, w,h,d, y, fn) {
+  function target(parent, size, y, callback) {
     const hit = new T3.Mesh(
-      new T3.BoxGeometry(w,h,d),
+      new T3.BoxGeometry(...size),
       new T3.MeshBasicMaterial({
         transparent: true,
         opacity: 0,
@@ -659,364 +516,752 @@
     );
 
     hit.position.y = y;
-    hit.userData.act = fn;
+    hit.userData.act = callback;
+
     parent.add(hit);
+    objectHits.push(hit);
+
+    return hit;
   }
 
-  function openCabinItem(kind) {
-    if (!access.isSailing()) return;
+  // ====================================
+  // 七、防水背包模型
+  // ====================================
 
-    const state = cabin.getState();
+  const bag = new T3.Group();
 
-    if (kind === 'bag') {
-      if (state.bag) cabin.openBackpack?.();
-      else cabin.show?.();
-
-      return;
-    }
-
-    if (kind === 'letter') {
-      if (!state.letter) {
-        cabin.show?.();
-      } else if (state.bag) {
-        cabin.openBackpack?.();
-      } else {
-        cabin.show?.();
-      }
-
-      return;
-    }
-
-    if (kind === 'log') {
-      if (!state.log || !state.bag) {
-        cabin.show?.();
-        return;
-      }
-
-      cabin.openBackpack?.();
-
-      const journalTab = [
-        ...document.querySelectorAll(
-          '#vbBoatCabin [role="tab"]'
-        )
-      ].find(x => x.textContent === '日誌');
-
-      journalTab?.click();
-    }
-  }
-
-  // ===== 防水背包 =====
-
-  const waterproofBag = new T3.Group();
-  waterproofBag.position.set(.37,.66,.20);
+  bag.position.set(.28, .67, -.22);
 
   // 袋身
-  box(
-    waterproofBag,
-    0,.23,0,
-    .37,.44,.31,
-    0x355c97
+  part(
+    bag,
+    new T3.BoxGeometry(.39, .41, .31),
+    0x355c97,
+    [0, .25, 0]
   );
 
   // 捲口
-  box(
-    waterproofBag,
-    0,.49,0,
-    .40,.12,.32,
-    0x263653
+  part(
+    bag,
+    new T3.CylinderGeometry(
+      .2, .2, .10, 18
+    ),
+    0x263653,
+    [0, .49, 0]
   );
 
-  // 防水扣帶
-  box(
-    waterproofBag,
-    0,.39,.166,
-    .055,.30,.025,
-    0xe0a176
+  // 扣帶
+  part(
+    bag,
+    new T3.BoxGeometry(
+      .045, .29, .025
+    ),
+    0xe0a176,
+    [0, .37, .167]
   );
 
-  box(
-    waterproofBag,
-    0,.50,.185,
-    .13,.055,.035,
-    0xf2e6cc
+  // 扣具
+  part(
+    bag,
+    new T3.BoxGeometry(
+      .13, .055, .045
+    ),
+    0xffe7ad,
+    [0, .46, .185]
   );
 
   // 背帶
-  const strap = new T3.Mesh(
+  const handle = new T3.Mesh(
     new T3.TorusGeometry(
-      .16,.024,6,18,Math.PI
+      .13, .024, 6, 18, Math.PI
     ),
     new T3.MeshLambertMaterial({
-      color:0x263653
+      color: 0x263653
     })
   );
 
-  strap.rotation.z = Math.PI;
-  strap.position.y = .56;
-  waterproofBag.add(strap);
+  handle.rotation.z = Math.PI;
+  handle.position.y = .56;
 
-  addClickArea(
-    waterproofBag,
-    .64,.85,.64,.35,
-    () => openCabinItem('bag')
-  );
+  bag.add(handle);
 
-  cabinProps.add(waterproofBag);
+  // 點擊背包
+  target(
+    bag,
+    [.7, .85, .68],
+    .35,
+    () => {
+      if (!access.isSailing()) return;
 
-  // ===== 船上信封 =====
-
-  const shipLetter = new T3.Group();
-  shipLetter.position.set(-.36,.69,-.27);
-
-  box(
-    shipLetter,
-    0,.02,0,
-    .35,.035,.27,
-    0xf7edda
-  );
-
-  box(
-    shipLetter,
-    0,.045,0,
-    .10,.012,.06,
-    0xc48b7e
-  );
-
-  addClickArea(
-    shipLetter,
-    .53,.40,.46,.17,
-    () => openCabinItem('letter')
-  );
-
-  cabinProps.add(shipLetter);
-
-  // ===== 航海日誌 =====
-
-  const shipLog = new T3.Group();
-  shipLog.position.set(-.11,.69,.39);
-
-  box(
-    shipLog,
-    0,.02,0,
-    .40,.07,.48,
-    0x355c97
-  );
-
-  box(
-    shipLog,
-    .015,.063,0,
-    .36,.015,.43,
-    0x426d9a
-  );
-
-  box(
-    shipLog,
-    -.18,.04,0,
-    .045,.08,.49,
-    0xf2dfae
-  );
-
-  addClickArea(
-    shipLog,
-    .56,.38,.60,.15,
-    () => openCabinItem('log')
-  );
-
-  cabinProps.add(shipLog);
-
-  // 原第二階段的小型船艙物件，
-  // 改由新模型呈現，避免疊成兩份。
-  const originalProps = boat.art.children.filter(o => {
-    if (!o.isGroup || o === cabinProps) return false;
-
-    const p = o.position;
-
-    return (
-      Math.abs(p.y - .67) < .03 &&
-      (
-        Math.abs(p.x + .29) < .03 ||
-        Math.abs(p.x - .27) < .03 ||
-        Math.abs(p.x - .24) < .03
-      )
-    );
-  });
-
-  // ========================================
-  // J. 左上角選單加入防水背包
-  // ========================================
-
-  function addBackpackMenu() {
-    const menu =
-      document.querySelector('#vbRoamUiMenu');
-
-    const menuButton =
-      document.querySelector('#vbRoamUiButton');
-
-    if (!menu || !menuButton) return;
-
-    if (menu.querySelector('[data-waterproof-bag]')) {
-      return;
-    }
-
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.dataset.waterproofBag = '1';
-    button.textContent = '防水背包';
-
-    button.hidden = !cabin.getState().bag;
-
-    button.addEventListener('click', () => {
-      if (!cabin.getState().bag) return;
+      if (!cabin.getState().bag) {
+        cabin.takeItem?.('bag');
+        notify('取得防水背包。');
+      }
 
       cabin.openBackpack?.();
-
-      menu.classList.remove('open');
-
-      menuButton.setAttribute(
-        'aria-expanded',
-        'false'
-      );
-    });
-
-    menu.append(button);
-
-    menuButton.addEventListener('click', () => {
-      button.hidden = !cabin.getState().bag;
-    });
-  }
-
-  // roam-controls.js 在後面載入，
-  // 所以等網頁載入完畢才加入選單。
-  window.addEventListener(
-    'load',
-    addBackpackMenu,
-    {once:true}
+    }
   );
 
-  // ========================================
-  // K. 調整船上攝影機
-  // ========================================
+  props.add(bag);
 
-  const cameraGuide = new T3.Object3D();
+  // ====================================
+  // 八、信封模型
+  // ====================================
 
-  function updateBoatCamera(dt) {
-    if (!access.isSailing()) return;
+  const envelope = new T3.Group();
 
-    const heading = -boat.art.rotation.y;
+  envelope.position.set(
+    -.36, .70, -.39
+  );
 
-    const sideX = Math.cos(heading);
-    const sideZ = Math.sin(heading);
+  part(
+    envelope,
+    new T3.BoxGeometry(.34, .03, .25),
+    0xf9f0d9,
+    [0, 0, 0]
+  );
 
-    const frontX = Math.sin(heading);
-    const frontZ = -Math.cos(heading);
+  part(
+    envelope,
+    new T3.BoxGeometry(.09, .012, .06),
+    0xc99088,
+    [0, .022, 0]
+  );
 
-    // 攝影機偏向船的一側，
-    // 避免桅杆和帆布擋住正中央。
-    const desired = new T3.Vector3(
-      boat.x + sideX * 2.0 - frontX * 2.2,
-      2.5,
-      boat.z + sideZ * 2.0 - frontZ * 2.2
-    );
+  target(
+    envelope,
+    [.53, .38, .49],
+    .16,
+    () => {
+      if (!access.isSailing()) return;
 
-    const look = new T3.Vector3(
-      boat.x + frontX * 3.3,
-      1.0,
-      boat.z + frontZ * 3.3
-    );
+      cabin.takeItem?.('letter');
+      cabin.openBoatLetter?.();
+    }
+  );
 
-    cam.position.lerp(
-      desired,
-      Math.min(1,dt * 7)
-    );
+  props.add(envelope);
 
-    cameraGuide.position.copy(cam.position);
-    cameraGuide.lookAt(look);
+  // ====================================
+  // 九、航海日誌模型
+  // ====================================
 
-    cam.quaternion.slerp(
-      cameraGuide.quaternion,
-      Math.min(1,dt * 8)
-    );
-  }
+  const journal = new T3.Group();
 
-  const oldCameraStep =
-    window.worldSceneCameraStep;
+  journal.position.set(
+    .21, .70, .33
+  );
 
-  if (typeof oldCameraStep === 'function') {
-    window.worldSceneCameraStep = dt => {
-      oldCameraStep(dt);
-      updateBoatCamera(dt);
-    };
-  }
+  // 書封
+  part(
+    journal,
+    new T3.BoxGeometry(.39, .06, .47),
+    0x355c97,
+    [0, 0, 0]
+  );
 
-  // ========================================
-  // L. 舊世界更新後追加海岸更新
-  // ========================================
+  // 書頁
+  part(
+    journal,
+    new T3.BoxGeometry(.32, .018, .42),
+    0xf0e5d2,
+    [.02, .042, 0]
+  );
 
-  const oldWorldStep = window.worldItemsStep;
+  // 書脊
+  part(
+    journal,
+    new T3.BoxGeometry(.035, .065, .48),
+    0x263653,
+    [-.18, 0, 0]
+  );
 
-  if (typeof oldWorldStep === 'function') {
-    window.worldItemsStep = dt => {
-      const previousX = boat.x;
-      const previousZ = boat.z;
+  target(
+    journal,
+    [.57, .38, .59],
+    .16,
+    () => {
+      if (!access.isSailing()) return;
 
-      oldWorldStep(dt);
+      cabin.takeItem?.('log');
 
-      // 正式版首次帆船登場前，
-      // 將玩家放在發球機左側附近。
+      if (cabin.getState().bag) {
+        cabin.openBackpackTab?.('journal');
+      } else {
+        notify(
+          '航海日誌已取得。先拿起防水背包即可翻閱。'
+        );
+      }
+    }
+  );
+
+  props.add(journal);
+
+  // 隱藏舊版船艙裝飾，避免重疊。
+  const legacyProps = boat.art.children.filter(
+    group => {
       if (
-        !placedForArrival &&
-        boat.unlocked &&
-        (boat.pending || boat.arrival)
+        group === props ||
+        !group.isGroup
+      ) return false;
+
+      const p = group.position;
+
+      return (
+        Math.abs(p.y - .67) < .04 &&
+        (
+          Math.abs(p.x + .29) < .04 ||
+          Math.abs(p.x - .27) < .04 ||
+          Math.abs(p.x - .24) < .04
+        )
+      );
+    }
+  );
+
+  // ====================================
+  // 十、介面樣式
+  // ====================================
+
+  const css = document.createElement('style');
+
+  css.textContent = `
+    /* 取消右上角背包按鈕 */
+    #vbBagButton {
+      display: none !important;
+    }
+
+    #vbRoamUiMenu [hidden] {
+      display: none !important;
+    }
+
+    #vbLetterReader[hidden] {
+      display: none !important;
+    }
+
+    #vbLetterReader {
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      background: rgba(14,23,44,.60);
+      backdrop-filter: blur(7px);
+      -webkit-backdrop-filter: blur(7px);
+    }
+
+    #vbLetterReader .sheet-wrap {
+      width: min(550px,96vw);
+      max-height: 92dvh;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    #vbLetterReader .sheet {
+      background: #f7edda;
+      color: #293850;
+      border-radius: 4px;
+      box-shadow:
+        0 18px 45px rgba(0,0,0,.27);
+      padding: 35px 30px;
+      max-height: 73dvh;
+      min-height: 200px;
+      overflow-y: auto;
+      overflow-wrap: anywhere;
+      user-select: text;
+      -webkit-user-select: text;
+      white-space: pre-wrap;
+      font: 16px/1.95
+        'Noto Serif TC',
+        'PingFang TC',
+        serif;
+      transform:
+        scaleX(.08) translateY(18px);
+      transform-origin: center;
+      opacity: .35;
+      transition:
+        transform .95s cubic-bezier(.2,.9,.2,1),
+        opacity .65s;
+    }
+
+    #vbLetterReader.open .sheet {
+      transform:
+        scaleX(1) translateY(0);
+      opacity: 1;
+    }
+
+    #vbLetterReader .sender {
+      font-size: 13px;
+      opacity: .73;
+      margin-bottom: 18px;
+    }
+
+    #vbLetterReader .buttons {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    #vbLetterReader button {
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,.6);
+      border-radius: 10px;
+      background: #293d65;
+      color: white;
+      padding: 10px 16px;
+      font: 600 13px
+        system-ui,
+        'PingFang TC',
+        sans-serif;
+    }
+
+    #vbLetterReader button:hover {
+      background: #355c97;
+    }
+
+    @media(max-width:560px) {
+      #vbLetterReader .sheet {
+        padding: 23px 20px;
+        font-size: 15px;
+      }
+    }
+
+    @media(prefers-reduced-motion:reduce) {
+      #vbLetterReader .sheet {
+        transition-duration: .01s;
+      }
+    }
+  `;
+
+  document.head.append(css);
+
+  // 移除舊拾取按鈕
+  document.querySelector(
+    '#vbDriftPickup'
+  )?.remove();
+
+  // ====================================
+  // 十一、左上角選單加入防水背包
+  // ====================================
+
+  function connectBagMenu() {
+    const menu = document.querySelector(
+      '#vbRoamUiMenu'
+    );
+
+    const button = document.querySelector(
+      '#vbRoamUiButton'
+    );
+
+    if (
+      !menu ||
+      !button ||
+      menu.querySelector('[data-waterproof-bag]')
+    ) return;
+
+    const bagMenu =
+      document.createElement('button');
+
+    bagMenu.type = 'button';
+    bagMenu.dataset.waterproofBag = '1';
+    bagMenu.textContent = '防水背包';
+
+    bagMenu.hidden =
+      !cabin.getState().bag;
+
+    bagMenu.addEventListener(
+      'click',
+      () => {
+        if (!cabin.getState().bag) return;
+
+        cabin.openBackpack?.();
+
+        menu.classList.remove('open');
+
+        button.setAttribute(
+          'aria-expanded',
+          'false'
+        );
+      }
+    );
+
+    menu.append(bagMenu);
+
+    button.addEventListener('click', () => {
+      bagMenu.hidden =
+        !cabin.getState().bag;
+    });
+  }
+
+  if (document.readyState === 'complete') {
+    connectBagMenu();
+  } else {
+    window.addEventListener(
+      'load',
+      connectBagMenu,
+      {once:true}
+    );
+  }
+
+  // ====================================
+  // 十二、漂流瓶資料
+  // ====================================
+
+  // 正式故事尚未加入。
+  // 之後將完整故事寫入這個陣列。
+  const STORY_BOTTLES = [];
+
+  const d = new Date();
+
+  const today = [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2,'0'),
+    String(d.getDate()).padStart(2,'0')
+  ].join('-');
+
+  const dayNum = Math.floor(
+    new Date(
+      d.getFullYear(),
+      d.getMonth(),
+      d.getDate()
+    ) / 86400000
+  );
+
+  const sources = STORY_BOTTLES
+    .filter(o =>
+      typeof o?.id === 'string' &&
+      o.id.length <= 65 &&
+      typeof o.text === 'string' &&
+      o.text.trim() &&
+      Number.isFinite(o.x) &&
+      Number.isFinite(o.z)
+    )
+    .map(o => ({
+      ...o,
+      kind:'letter'
+    }));
+
+  // 開發者模式測試信
+  if (DEV) {
+    sources.push({
+      id: 'dev-test-letter',
+      kind: 'letter',
+      x: -48,
+      z: 15,
+      sender: '測試紙條',
+      text:
+        '這只是一封用於測試的紙條。\n\n測試瓶塞打開、信紙抽出、閱讀及收藏。\n\n正式故事尚未加入。'
+    });
+  }
+
+  // 依日期出現空瓶
+  if (
+    DEV ||
+    today === '2026-12-24' ||
+    dayNum % 2 === 0
+  ) {
+    sources.push({
+      id: `empty-${today}-a`,
+      kind: 'empty',
+      x: -53,
+      z: 20
+    });
+  }
+
+  if (dayNum % 5 === 0) {
+    sources.push({
+      id: `empty-${today}-b`,
+      kind: 'empty',
+      x: -97,
+      z: 4
+    });
+  }
+
+  const TAKE_DISTANCE = 4.6;
+
+  const bottles = [];
+  const bottleHits = [];
+
+  const state = () =>
+    cabin.getState();
+
+  const distance = o =>
+    Math.hypot(
+      boat.x - o.x,
+      boat.z - o.z
+    );
+
+  // ====================================
+  // 十三、建立漂流瓶模型
+  // ====================================
+
+  function makeBottle(src, index) {
+    const root = new T3.Group();
+
+    root.position.set(
+      src.x, .22, src.z
+    );
+
+    root.visible = false;
+
+    const art = new T3.Group();
+    art.rotation.z = Math.PI / 2;
+
+    root.add(art);
+
+    const glass = new T3.MeshPhongMaterial({
+      color: 0xc9eef2,
+      transparent: true,
+      opacity: .48,
+      shininess: 95,
+      side: T3.DoubleSide,
+      depthWrite: false
+    });
+
+    const body = new T3.Mesh(
+      new T3.CylinderGeometry(
+        .21, .22, .8, 16, 1, true
+      ),
+      glass
+    );
+
+    art.add(body);
+
+    const base = new T3.Mesh(
+      new T3.CylinderGeometry(
+        .22, .22, .03, 16
+      ),
+      new T3.MeshLambertMaterial({
+        color: 0xa4e3e8,
+        transparent: true,
+        opacity: .62,
+        depthWrite: false
+      })
+    );
+
+    base.position.y = -.4;
+    art.add(base);
+
+    const neck = new T3.Mesh(
+      new T3.CylinderGeometry(
+        .105, .145, .27, 14
+      ),
+      glass
+    );
+
+    neck.position.y = .52;
+    art.add(neck);
+
+    const cork = new T3.Mesh(
+      new T3.CylinderGeometry(
+        .12, .11, .17, 12
+      ),
+      new T3.MeshLambertMaterial({
+        color: 0xcba47b
+      })
+    );
+
+    cork.position.y = .73;
+    art.add(cork);
+
+    let paper = null;
+
+    if (src.kind === 'letter') {
+      paper = new T3.Mesh(
+        new T3.CylinderGeometry(
+          .078, .078, .55, 10
+        ),
+        new T3.MeshLambertMaterial({
+          color: 0xffefcf
+        })
+      );
+
+      paper.position.y = -.04;
+      art.add(paper);
+    }
+
+    // 獨立點擊區
+    const hit = new T3.Mesh(
+      new T3.BoxGeometry(
+        1.38, .82, 1.3
+      ),
+      new T3.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false
+      })
+    );
+
+    root.add(hit);
+
+    const o = {
+      ...src,
+      root,
+      art,
+      cork,
+      paper,
+      glass,
+      hit,
+      index,
+      mode: 'idle',
+      age: 0,
+      taken: false
+    };
+
+    hit.userData.act = () =>
+      beginPickup(o);
+
+    bottleHits.push(hit);
+    sc.add(root);
+
+    return o;
+  }
+
+  const seen = new Set();
+
+  for (const [i, s] of sources.entries()) {
+
+    if (
+      seen.has(s.id) ||
+      state().collectedBottleIds?.includes(s.id) ||
+      state().bottles?.some(
+        b => b.id === s.id
+      )
+    ) continue;
+
+    seen.add(s.id);
+
+    bottles.push(
+      makeBottle(s, i)
+    );
+  }
+
+  // ====================================
+  // 十四、拾取判定
+  // ====================================
+
+  function beginPickup(o) {
+
+    if (
+      !o ||
+      o.mode !== 'idle' ||
+      o.taken ||
+      !access.isSailing() ||
+      cabin.isOpen?.() ||
+      !reader.hidden ||
+      boat.arrival ||
+      boat.pending
+    ) return false;
+
+    if (distance(o) > TAKE_DISTANCE) {
+      notify('再靠近漂流瓶一點。');
+      return false;
+    }
+
+    if (!state().bag) {
+      notify('先點擊船上的防水背包。');
+      return false;
+    }
+
+    o.mode = 'opening';
+    o.age = 0;
+
+    return true;
+  }
+
+  function resetBottle(o) {
+    o.mode = 'idle';
+    o.age = 0;
+
+    o.art.position.y = 0;
+
+    o.cork.position.y = .73;
+    o.cork.rotation.set(0, 0, 0);
+
+    if (o.paper) {
+      o.paper.position.y = -.04;
+    }
+  }
+
+  // ====================================
+  // 十五、收藏與移除
+  // ====================================
+
+  function disposeBottle(o) {
+    o.taken = true;
+
+    sc.remove(o.root);
+
+    const i = bottleHits.indexOf(o.hit);
+
+    if (i >= 0) {
+      bottleHits.splice(i, 1);
+    }
+
+    const disposed = new Set();
+
+    o.root.traverse(m => {
+
+      if (
+        m.geometry &&
+        !disposed.has(m.geometry)
       ) {
-        positionNearMachine();
+        disposed.add(m.geometry);
+        m.geometry.dispose();
       }
 
-      updateTerrain();
+      const materials = m.material
+        ? (
+            Array.isArray(m.material)
+              ? m.material
+              : [m.material]
+          )
+        : [];
 
-      // 不讓帆船駛上岸邊草地、沙灘或岩石。
-      if (
-        access.isSailing() &&
-        !boat.arrival
-      ) {
-        const x = boat.x;
-        const z = boat.z;
-
-        const withinWater =
-          x < -29 &&
-          Math.abs(z - coastCenter(x)) <
-            coastHalfWidth(x) - 1.2;
-
-        const hitsRock =
-          Math.hypot(
-            x + 38.3,
-            z - 11.75
-          ) < 1.6;
-
-        if (!withinWater || hitsRock) {
-          boat.x = previousX;
-          boat.z = previousZ;
-
-          boat.root.position.x = previousX;
-          boat.root.position.z = previousZ;
+      for (const mat of materials) {
+        if (!disposed.has(mat)) {
+          disposed.add(mat);
+          mat.dispose();
         }
       }
-
-      // 船上物件始終可見。
-      for (const prop of originalProps) {
-        prop.visible = false;
-      }
-
-      cabinProps.visible = !!boat.unlocked;
-    };
+    });
   }
 
-  updateTerrain();
+  function collect(o) {
+    const ok = cabin.collectDriftBottle({
+      id: o.id,
+      kind: o.kind,
+      text: o.kind === 'letter'
+        ? o.text
+        : '',
+      sender: o.sender || ''
+    });
 
-  // ========================================
-  // M. 信紙閱讀介面
-  // ========================================
+    if (!ok) {
+      notify(
+        '收藏失敗，請檢查背包或瀏覽器儲存權限。'
+      );
+      return false;
+    }
 
-  const reader = document.createElement('section');
+    disposeBottle(o);
+
+    notify(
+      o.kind === 'letter'
+        ? '信件與空瓶已收進防水背包。'
+        : '空瓶已收進防水背包。'
+    );
+
+    return true;
+  }
+
+  // ====================================
+  // 十六、2D 信紙閱讀介面
+  // ====================================
+
+  const reader =
+    document.createElement('section');
 
   reader.id = 'vbLetterReader';
   reader.hidden = true;
@@ -1032,13 +1277,13 @@
   );
 
   reader.innerHTML = `
-    <div class="reader-inner">
-      <article class="reader-paper">
-        <div class="reader-sender"></div>
-        <div class="reader-text"></div>
+    <div class="sheet-wrap">
+      <article class="sheet">
+        <div class="sender"></div>
+        <div class="message"></div>
       </article>
 
-      <div class="reader-actions">
+      <div class="buttons">
         <button type="button" data-cancel>
           暫時收起
         </button>
@@ -1052,595 +1297,561 @@
 
   document.body.append(reader);
 
-  const senderEl =
-    reader.querySelector('.reader-sender');
-
-  const letterTextEl =
-    reader.querySelector('.reader-text');
-
-  let readingBottle = null;
-
-  // ========================================
-  // N. 漂流瓶來源
-  // ========================================
-
-  // 正式故事尚未定稿，不擅自加入正文。
-  // 之後才在這裡加入正式信件。
-  const STORY_BOTTLES = [];
-
-  const todayDate = new Date();
-
-  const localDay = [
-    todayDate.getFullYear(),
-    String(todayDate.getMonth()+1).padStart(2,'0'),
-    String(todayDate.getDate()).padStart(2,'0')
-  ].join('-');
-
-  const dayNumber = Math.floor(
-    new Date(
-      todayDate.getFullYear(),
-      todayDate.getMonth(),
-      todayDate.getDate()
-    ).getTime() / 86400000
-  );
-
-  const source = STORY_BOTTLES
-    .filter(o =>
-      o &&
-      typeof o.id === 'string' &&
-      typeof o.text === 'string' &&
-      o.text.trim() &&
-      Number.isFinite(o.x) &&
-      Number.isFinite(o.z)
-    )
-    .map(o => ({...o,kind:'letter'}));
-
-  // 開發者模式測試信
-  if (DEV) {
-    source.push({
-      id:'dev-test-letter',
-      kind:'letter',
-      x:-48,
-      z:15,
-      sender:'測試紙條',
-      text:
-        '這只是一封測試信。\n\n用來確認漂流瓶、信紙展開、閱讀與收藏功能。\n\n正式故事尚未加入。'
-    });
-  }
-
-  // 偶爾出現的空瓶
-  if (
-    DEV ||
-    localDay === '2026-12-24' ||
-    dayNumber % 2 === 0
-  ) {
-    source.push({
-      id:`empty-${localDay}-a`,
-      kind:'empty',
-      x:-53,
-      z:20
-    });
-  }
-
-  if (dayNumber % 5 === 0) {
-    source.push({
-      id:`empty-${localDay}-b`,
-      kind:'empty',
-      x:-84,
-      z:-12
-    });
-  }
-
-  const items = [];
-  const TAKE_DISTANCE = 4.6;
-
-  function distance(o) {
-    return Math.hypot(
-      boat.x-o.x,
-      boat.z-o.z
-    );
-  }
-
-  function alreadyCollected(id) {
-    const state = cabin.getState();
-
-    return (
-      state.collectedBottleIds?.includes(id) ||
-      state.bottles?.some(o=>o.id===id)
-    );
-  }
-
-  // ========================================
-  // O. 3D 漂流瓶
-  // ========================================
-
-  function makeDriftBottle(d,index) {
-    const root = new T3.Group();
-    root.position.set(d.x,.22,d.z);
-    root.visible = false;
-
-    const art = new T3.Group();
-    art.rotation.z = Math.PI/2;
-    root.add(art);
-
-    const glass = new T3.MeshPhongMaterial({
-      color:0xc9eef2,
-      transparent:true,
-      opacity:.48,
-      shininess:95,
-      depthWrite:false,
-      side:T3.DoubleSide
-    });
-
-    const body = new T3.Mesh(
-      new T3.CylinderGeometry(
-        .2,.22,.79,16,1,true
-      ),
-      glass
-    );
-    art.add(body);
-
-    const bottom = new T3.Mesh(
-      new T3.CylinderGeometry(
-        .22,.22,.035,16
-      ),
-      new T3.MeshLambertMaterial({
-        color:0xa4e3e8,
-        transparent:true,
-        opacity:.62,
-        depthWrite:false
-      })
-    );
-    bottom.position.y=-.39;
-    art.add(bottom);
-
-    const neck = new T3.Mesh(
-      new T3.CylinderGeometry(
-        .105,.145,.27,14
-      ),
-      glass
-    );
-    neck.position.y=.51;
-    art.add(neck);
-
-    const cork = new T3.Mesh(
-      new T3.CylinderGeometry(
-        .122,.11,.17,12
-      ),
-      new T3.MeshLambertMaterial({
-        color:0xcba47b
-      })
-    );
-    cork.position.y=.72;
-    art.add(cork);
-
-    let paper = null;
-
-    if(d.kind==='letter') {
-      paper = new T3.Mesh(
-        new T3.CylinderGeometry(
-          .078,.078,.54,10
-        ),
-        new T3.MeshLambertMaterial({
-          color:0xffefcf
-        })
-      );
-
-      paper.position.y=-.04;
-      art.add(paper);
-    }
-
-    const hit = new T3.Mesh(
-      new T3.BoxGeometry(1.35,.75,1.25),
-      new T3.MeshBasicMaterial({
-        transparent:true,
-        opacity:0,
-        depthWrite:false
-      })
-    );
-
-    root.add(hit);
-
-    const o = {
-      ...d,
-      index,
-      root,
-      art,
-      cork,
-      paper,
-      glass,
-      taken:false,
-      mode:'idle',
-      age:0
-    };
-
-    root.userData.act = () => startPickup(o);
-    hit.userData.act = () => startPickup(o);
-
-    sc.add(root);
-    hitList.push(root);
-
-    return o;
-  }
-
-  const usedIds = new Set();
-
-  for(const [i,d] of source.entries()) {
-    if(
-      usedIds.has(d.id) ||
-      alreadyCollected(d.id)
-    ) continue;
-
-    usedIds.add(d.id);
-    items.push(makeDriftBottle(d,i));
-  }
-
-  // ========================================
-  // P. 收藏寫入
-  // ========================================
-
-  function saveCollectedBottle(o) {
-    const data = {
-      id:o.id,
-      kind:o.kind,
-      text:o.kind==='letter' ? o.text : '',
-      sender:o.sender || ''
-    };
-
-    // 優先使用新版一次儲存接口
-    if(typeof cabin.collectDriftBottle==='function') {
-      return cabin.collectDriftBottle(data);
-    }
-
-    // 相容尚未升級的船艙接口
-    const state = cabin.getState();
-
-    if(o.kind==='letter') {
-      const noteId = `note-${o.id}`;
-
-      if(
-        !state.letters?.some(x=>x.id===noteId)
-      ) {
-        if(
-          !cabin.addLetter?.(
-            noteId,
-            data.text,
-            data.sender
-          )
-        ) return false;
-      }
-    }
-
-    const latest = cabin.getState();
-
-    if(
-      !latest.bottles?.some(x=>x.id===o.id)
-    ) {
-      if(!cabin.addBottle?.(o.id)) {
-        return false;
-      }
-    }
-
-    return cabin.markCollectedBottle?.(o.id)===true;
-  }
-
-  // ========================================
-  // Q. 拾取動畫
-  // ========================================
-
-  function startPickup(o) {
-    if(
-      o.taken ||
-      o.mode!=='idle' ||
-      !access.isSailing() ||
-      cabin.isOpen?.() ||
-      boat.arrival ||
-      boat.pending
-    ) return;
-
-    if(distance(o)>TAKE_DISTANCE) {
-      notify('再靠近漂流瓶一點。');
-      return;
-    }
-
-    if(!cabin.getState().bag) {
-      notify(
-        '先到船上取得防水背包，才能收藏漂流瓶。'
-      );
-      return;
-    }
-
-    o.mode='opening';
-    o.age=0;
-  }
-
-  function resetBottle(o) {
-    o.mode='idle';
-    o.age=0;
-
-    o.cork.visible=true;
-    o.cork.position.set(0,.72,0);
-    o.cork.rotation.set(0,0,0);
-
-    if(o.paper) {
-      o.paper.visible=true;
-      o.paper.position.y=-.04;
-    }
-
-    o.art.position.y=0;
-    o.art.rotation.y=0;
-  }
-
-  function removeBottle(o) {
-    o.taken=true;
-
-    const i=hitList.indexOf(o.root);
-    if(i>=0)hitList.splice(i,1);
-
-    sc.remove(o.root);
-
-    const disposed=new Set();
-
-    o.root.traverse(obj=>{
-      if(
-        obj.geometry &&
-        !disposed.has(obj.geometry)
-      ) {
-        disposed.add(obj.geometry);
-        obj.geometry.dispose();
-      }
-
-      const materials=obj.material
-        ? (Array.isArray(obj.material)
-            ? obj.material
-            : [obj.material])
-        : [];
-
-      for(const material of materials) {
-        if(!disposed.has(material)) {
-          disposed.add(material);
-          material.dispose();
-        }
-      }
-    });
-  }
-
-  function collectBottle(o) {
-    if(!saveCollectedBottle(o)) {
-      notify('收藏失敗，請確認瀏覽器儲存權限。');
-      return false;
-    }
-
-    removeBottle(o);
-
-    if(o.kind==='letter') {
-      notify(
-        '信件與空瓶已收進防水背包。'
-      );
-    } else {
-      notify(
-        '空瓶已收進防水背包。'
-      );
-    }
-
-    return true;
-  }
-
-  // ========================================
-  // R. 信紙攤開閱讀
-  // ========================================
+  let reading = null;
 
   function showLetter(o) {
-    readingBottle=o;
-    o.mode='reading';
+    o.mode = 'reading';
+    reading = o;
 
-    senderEl.textContent =
-      o.sender || '一封從海上漂來的信';
+    reader.querySelector(
+      '.sender'
+    ).textContent =
+      o.sender ||
+      '一封從海上漂來的信';
 
-    letterTextEl.textContent=o.text || '';
+    reader.querySelector(
+      '.message'
+    ).textContent = o.text;
 
-    reader.hidden=false;
-    reader.classList.remove('show');
+    reader.hidden = false;
+
+    reader.classList.remove('open');
 
     void reader.offsetWidth;
 
-    reader.classList.add('show');
+    reader.classList.add('open');
   }
 
   function closeReader() {
-    reader.classList.remove('show');
-    reader.hidden=true;
+    reader.classList.remove('open');
+    reader.hidden = true;
 
-    if(readingBottle && !readingBottle.taken) {
-      resetBottle(readingBottle);
+    if (
+      reading &&
+      !reading.taken
+    ) {
+      resetBottle(reading);
     }
 
-    readingBottle=null;
+    reading = null;
   }
 
-  reader.querySelector('[data-cancel]')
-    .addEventListener('click',closeReader);
+  reader.querySelector(
+    '[data-cancel]'
+  ).addEventListener(
+    'click',
+    closeReader
+  );
 
-  reader.querySelector('[data-collect]')
-    .addEventListener('click',()=>{
-      if(!readingBottle)return;
+  reader.querySelector(
+    '[data-collect]'
+  ).addEventListener('click', () => {
 
-      if(collectBottle(readingBottle)) {
-        readingBottle=null;
-        reader.classList.remove('show');
-        reader.hidden=true;
+    if (
+      reading &&
+      collect(reading)
+    ) {
+      reading = null;
+      reader.hidden = true;
+      reader.classList.remove('open');
+    }
+
+  });
+
+  // ====================================
+  // 十七、獨立滑鼠點擊偵測
+  // ====================================
+
+  // 避免原本整艘船的點擊區
+  // 蓋住背包及漂流瓶。
+
+  const raycast = new T3.Raycaster();
+  const xy = new T3.Vector2();
+  const canvas = cv;
+
+  function pickStage3(e) {
+
+    if (
+      !access.isSailing() ||
+      !reader.hidden ||
+      cabin.isOpen?.()
+    ) return null;
+
+    const rect =
+      canvas.getBoundingClientRect();
+
+    xy.set(
+      (e.clientX - rect.left) /
+        rect.width * 2 - 1,
+
+      -(
+        (e.clientY - rect.top) /
+        rect.height * 2 - 1
+      )
+    );
+
+    cam.updateMatrixWorld(true);
+
+    raycast.setFromCamera(xy, cam);
+
+    const candidates = objectHits
+      .filter(
+        m =>
+          m.parent?.parent?.visible !== false
+      )
+      .concat(
+        bottleHits.filter(
+          m => m.parent?.visible !== false
+        )
+      );
+
+    const intersections =
+      raycast.intersectObjects(
+        candidates,
+        false
+      );
+
+    for (const hit of intersections) {
+      const obj = hit.object;
+
+      if (
+        typeof obj.userData.act === 'function'
+      ) {
+        return obj;
       }
-    });
+    }
 
-  // Esc 優先關閉信紙，而不是離船
+    return null;
+  }
+
+  let tap = null;
+
+  // ====================================
+  // 十八、滑鼠按下
+  // ====================================
+
+  canvas.addEventListener(
+    'pointerdown',
+    e => {
+
+      if (
+        !access.isSailing() ||
+        !reader.hidden
+      ) return;
+
+      const selection = pickStage3(e);
+
+      tap = {
+        id: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        selection
+      };
+
+      // 防止原本點擊到船身而離船
+      e.stopImmediatePropagation();
+      e.preventDefault();
+
+    },
+    true
+  );
+
+  // ====================================
+  // 十九、滑鼠放開
+  // ====================================
+
+  canvas.addEventListener(
+    'pointerup',
+    e => {
+
+      if (
+        !access.isSailing() ||
+        !reader.hidden
+      ) return;
+
+      const t = tap;
+      tap = null;
+
+      e.stopImmediatePropagation();
+      e.preventDefault();
+
+      if (
+        !t ||
+        t.id !== e.pointerId
+      ) return;
+
+      // 拖曳不算點擊
+      if (
+        Math.hypot(
+          e.clientX - t.x,
+          e.clientY - t.y
+        ) > 8
+      ) return;
+
+      // 必須仍然指向同一個物件
+      const up = pickStage3(e);
+
+      if (
+        up &&
+        up === t.selection
+      ) {
+        up.userData.act();
+      }
+
+    },
+    true
+  );
+
+  canvas.addEventListener(
+    'pointercancel',
+    e => {
+
+      if (!access.isSailing()) return;
+
+      tap = null;
+
+      e.stopImmediatePropagation();
+
+    },
+    true
+  );
+
+  canvas.addEventListener(
+    'pointermove',
+    e => {
+
+      if (
+        !access.isSailing() ||
+        !reader.hidden
+      ) return;
+
+      canvas.style.cursor =
+        pickStage3(e)
+          ? 'pointer'
+          : 'default';
+
+      e.stopImmediatePropagation();
+
+    },
+    true
+  );
+
+  // ====================================
+  // 二十、防止雙擊離船
+  // ====================================
+
   document.addEventListener(
-    'keydown',
-    e=>{
-      if(reader.hidden)return;
+    'dblclick',
+    e => {
 
-      if(e.key==='Escape') {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        closeReader();
-        return;
-      }
-
-      if(
-        [
-          'KeyW','KeyA','KeyS','KeyD',
-          'ArrowUp','ArrowDown',
-          'ArrowLeft','ArrowRight',
-          'Space','ShiftLeft','ShiftRight'
-        ].includes(e.code)
+      if (
+        access.isSailing() &&
+        e.target === canvas
       ) {
         e.preventDefault();
         e.stopImmediatePropagation();
       }
+
     },
     true
   );
 
-  // ========================================
-  // S. 每幀漂流瓶更新
-  // ========================================
+  const oldBoatAction =
+    boat.root.userData.act;
 
-  let nearest=null;
+  boat.root.userData.act = () => {
 
-  window.vbDriftStep=dt=>{
-    const sailing=
-      access.isSailing() &&
-      !cabin.isOpen?.() &&
-      reader.hidden;
+    if (access.isSailing()) return;
 
-    const visible=
-      boat.unlocked &&
-      !boat.pending &&
-      !boat.arrival;
+    oldBoatAction?.();
 
-    const time=performance.now()*.001;
-
-    nearest=null;
-    let best=TAKE_DISTANCE;
-
-    for(const o of items) {
-      if(o.taken)continue;
-
-      o.root.visible=visible;
-
-      if(!visible)continue;
-
-      // 海面浮動
-      o.root.position.y=
-        .22+
-        Math.sin(time*1.5+o.index*2.1)*.038;
-
-      o.root.rotation.y+=dt*.1;
-
-      o.root.rotation.z=
-        Math.sin(time*1.2+o.index)*.045;
-
-      if(o.mode==='opening') {
-        o.age+=dt;
-
-        const lift=ease(o.age/.8);
-        const pull=ease((o.age-.45)/.95);
-
-        // 瓶身微微浮起
-        o.art.position.y=.15*lift;
-
-        // 軟木塞打開，向外移動並旋轉
-        o.cork.position.y=.72+1.1*lift;
-        o.cork.rotation.z=lift*2.8;
-
-        // 紙捲逐漸從瓶口抽出
-        if(o.paper) {
-          o.paper.position.y=
-            -.04+1.15*pull;
-        }
-
-        // 空瓶不出現信紙
-        if(o.age>=1.5) {
-          if(o.kind==='letter') {
-            showLetter(o);
-          } else {
-            if(!collectBottle(o)) {
-              resetBottle(o);
-            }
-          }
-        }
-
-        continue;
-      }
-
-      if(o.mode==='reading')continue;
-
-      // 靠近時，瓶身出現細微亮度變化
-      const dist=distance(o);
-
-      const near=sailing &&
-        dist<=TAKE_DISTANCE;
-
-      o.glass.opacity=near?.57:.48;
-
-      if(near && dist<best) {
-        best=dist;
-        nearest=o;
-      }
-    }
   };
 
-  // ========================================
-  // T. 鍵盤 E 輔助拾取
-  // ========================================
+  // ====================================
+  // 二十一、鍵盤控制
+  // ====================================
 
   window.addEventListener(
     'keydown',
-    e=>{
-      if(
-        e.code!=='KeyE' ||
-        e.repeat ||
-        !nearest ||
+    e => {
+
+      // 閱讀時 Escape 先關閉信紙
+      if (!reader.hidden) {
+
+        if (e.key === 'Escape') {
+          closeReader();
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
+
+        if ([
+          'KeyW',
+          'KeyA',
+          'KeyS',
+          'KeyD',
+          'ArrowUp',
+          'ArrowDown',
+          'ArrowLeft',
+          'ArrowRight',
+          'Space',
+          'ShiftLeft',
+          'ShiftRight'
+        ].includes(e.code)) {
+
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+      }
+
+      // E：畫面中央對準物件互動
+      if (
+        !access.isSailing() ||
         !reader.hidden ||
-        ['INPUT','TEXTAREA','SELECT']
-          .includes(
-            document.activeElement?.tagName
-          )
-      )return;
+        cabin.isOpen?.() ||
+        e.repeat ||
+        e.code !== 'KeyE' ||
+        ['INPUT', 'TEXTAREA'].includes(
+          document.activeElement?.tagName
+        )
+      ) return;
 
-      const target=nearest;
+      const centered = {
+        clientX: innerWidth / 2,
+        clientY: innerHeight / 2
+      };
 
-      startPickup(target);
+      const selected =
+        pickStage3(centered);
 
-      e.preventDefault();
-      e.stopImmediatePropagation();
+      if (selected) {
+
+        selected.userData.act();
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+      }
+
     },
     true
   );
 
-  // ========================================
-  // U. 對外公開接口
-  // ========================================
+  // ====================================
+  // 二十二、漂流瓶動畫
+  // ====================================
 
-  window.VBDriftBottles={
-    visibleBottleCount:()=>
-      items.filter(o=>!o.taken).length,
+  function updateBottles(dt) {
 
-    activeBottleCount:()=>
-      items.filter(o=>
-        !o.taken && o.root.visible
+    const available =
+      boat.unlocked &&
+      !boat.arrival &&
+      !boat.pending;
+
+    const t =
+      performance.now() * .001;
+
+    for (const o of bottles) {
+
+      if (o.taken) continue;
+
+      o.root.visible = available;
+
+      if (!available) continue;
+
+      // 海面上下浮動
+      o.root.position.y =
+        .22 +
+        Math.sin(
+          t * 1.5 +
+          o.index * 2.1
+        ) * .038;
+
+      // 緩慢旋轉
+      o.root.rotation.y += dt * .10;
+
+      o.root.rotation.z =
+        Math.sin(
+          t * 1.2 +
+          o.index
+        ) * .045;
+
+      // 拾取動畫
+      if (o.mode === 'opening') {
+
+        o.age += dt;
+
+        const pop = ease(
+          o.age / .75
+        );
+
+        const pull = ease(
+          (o.age - .5) / 1.05
+        );
+
+        // 瓶子浮起
+        o.art.position.y =
+          .13 * pop;
+
+        // 瓶塞打開
+        o.cork.position.y =
+          .73 + 1.05 * pop;
+
+        o.cork.rotation.z =
+          pop * 2.8;
+
+        // 信紙抽出
+        if (o.paper) {
+          o.paper.position.y =
+            -.04 + 1.18 * pull;
+        }
+
+        if (o.age >= 1.8) {
+
+          if (o.kind === 'letter') {
+
+            showLetter(o);
+
+          } else {
+
+            if (!collect(o)) {
+              resetBottle(o);
+            }
+
+          }
+        }
+
+      } else if (o.mode === 'idle') {
+
+        const close =
+          access.isSailing() &&
+          distance(o) < TAKE_DISTANCE;
+
+        // 靠近時玻璃微微變亮
+        o.glass.opacity =
+          close ? .59 : .48;
+
+      }
+    }
+  }
+
+  // 使用原本動畫循環
+  window.vbDriftStep = updateBottles;
+
+  // ====================================
+  // 二十三、更新海岸及船上物件
+  // ====================================
+
+  const previousWorldStep =
+    window.worldItemsStep;
+
+  if (
+    typeof previousWorldStep === 'function'
+  ) {
+
+    window.worldItemsStep = dt => {
+
+      const prevX = boat.x;
+      const prevZ = boat.z;
+
+      previousWorldStep(dt);
+
+      updateTerrain();
+
+      // 隱藏舊船艙模型
+      for (const o of legacyProps) {
+        o.visible = false;
+      }
+
+      // 小帆船解鎖後顯示船上物件
+      props.visible =
+        boat.unlocked &&
+        !boat.pending &&
+        !boat.arrival;
+
+      // 航行不得穿越沙岸或岩石
+      if (
+        access.isSailing() &&
+        !boat.arrival
+      ) {
+
+        const inside =
+          boat.x < COAST.begin - .5 &&
+          Math.abs(
+            boat.z - coastCenter(boat.x)
+          ) < halfWidth(boat.x) - 1;
+
+        const rock =
+          rockCoords.some(
+            ([x, z, r]) =>
+              Math.hypot(
+                boat.x - x,
+                boat.z - z
+              ) < r + 1.05
+          );
+
+        if (
+          !inside ||
+          rock
+        ) {
+
+          boat.x = prevX;
+          boat.z = prevZ;
+
+          boat.root.position.x = prevX;
+          boat.root.position.z = prevZ;
+
+          access.stop?.();
+
+        }
+      }
+    };
+  }
+
+  updateTerrain();
+
+  // ====================================
+  // 二十四、公開接口
+  // ====================================
+
+  window.VBDriftBottles = {
+
+    visibleBottleCount: () =>
+      bottles.filter(
+        o => !o.taken
       ).length,
 
-    takeNearest:()=>{
-      if(!nearest)return false;
-      startPickup(nearest);
-      return true;
-    },
+    activeBottleCount: () =>
+      bottles.filter(
+        o => !o.taken &&
+        o.root.visible
+      ).length,
 
-    terrainProgress:()=>SHORE.progress
+    terrainProgress,
+
+    isReading: () =>
+      !reader.hidden,
+
+    takeNearest: () => {
+
+      const o = bottles
+        .filter(
+          x => !x.taken &&
+          x.mode === 'idle'
+        )
+        .sort(
+          (a, b) =>
+            distance(a) - distance(b)
+        )[0];
+
+      return o
+        ? beginPickup(o)
+        : false;
+    }
   };
 
   console.info(
-    '[VB Stage 3] 海岸、船艙與漂流瓶模組已載入'
+    '[VB Stage 3] 海岸、船艙點擊與漂流瓶就緒'
   );
 
 })();
