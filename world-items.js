@@ -7,7 +7,6 @@
   // 修改解鎖日期，只需要改這張表
   const UNLOCK = Object.freeze({
     bottle: 2,
-    towel: 2,
     cart: 3,
     chair: 5,
     machine: 7,
@@ -19,7 +18,6 @@
 
   const NAME = {
     bottle: '水壺',
-    towel: '毛巾',
     cart: '排球車',
     chair: '裁判椅',
     machine: '發球機',
@@ -32,7 +30,6 @@
   // 每個物件預設落地的位置
   const POS = {
     bottle: [-14.2, 2.5],
-    towel: [-15.2, 2.5],
     cart: [14.5, 1.5],
     chair: [1.0, 10.5],
     machine: [-14.5, -4],
@@ -248,24 +245,61 @@ o.parts.waterSurface.material.depthWrite = false;
     o.parts.puddle = puddle;
 
     const clover = new T3.Group();
-    clover.position.set(1.35, .08, .12);
-    // 四片橢圓小葉、短柄；用 3D 幾何拼出四葉草，不用美術檔案。
-    const green = new T3.MeshLambertMaterial({color:0x55a76d,side:T3.DoubleSide});
-    const leafGeo = new T3.SphereGeometry(.095, 12, 8);
-    [[-.09,0], [.09,0], [0,-.09], [0,.09]].forEach(([x,z])=>{
-      const leaf = new T3.Mesh(leafGeo, green);
-      leaf.position.set(x,.018,z);
-      leaf.scale.set(.92,.22,1.12);
-      clover.add(leaf);
-    });
-    const stem = new T3.Mesh(new T3.CylinderGeometry(.015,.015,.23,8),green);
-    stem.rotation.z = .85;
-    stem.position.set(.12,.02,.12);
-    clover.add(stem);
-    clover.scale.setScalar(.001);
-    o.root.add(clover);
-    o.parts.clover = clover;
 
+clover.position.set(1.35, .08, .12);
+
+const green = new T3.MeshLambertMaterial({
+  color: 0x55a76d,
+  side: T3.DoubleSide
+});
+
+// 莖從地面向上生長，頂端高度為 0.26。
+const stem = new T3.Mesh(
+  new T3.CylinderGeometry(
+    .012, .021, .26, 10
+  ),
+  green
+);
+
+stem.position.set(0, .13, 0);
+clover.add(stem);
+
+// 四片葉子環繞莖的同一個頂端。
+const leafGeo = new T3.SphereGeometry(
+  .095, 16, 10
+);
+
+[
+  [-.075, 0],
+  [.075, 0],
+  [0, -.075],
+  [0, .075]
+].forEach(([x, z]) => {
+
+  const leaf = new T3.Mesh(
+    leafGeo,
+    green
+  );
+
+  leaf.position.set(
+    x,
+    .255,
+    z
+  );
+
+  leaf.scale.set(
+    x ? 1.18 : .78,
+    .27,
+    z ? 1.18 : .78
+  );
+
+  clover.add(leaf);
+});
+
+clover.scale.setScalar(.001);
+
+o.root.add(clover);
+o.parts.clover = clover;
     clickZone(o, 1.65, 1.35, 1.35, .34, .56, 0, () => o.interact(o));
   }, o => {
     // 再次點擊可重播「傾倒 → 流水 → 長出四葉草」。
@@ -275,95 +309,6 @@ o.parts.waterSurface.material.depthWrite = false;
     o.parts.puddle.scale.set(.001, .001, 1);
     o.parts.clover.scale.setScalar(.001);
   });
-
-    
-  // ===== 第 2 天：毛巾 =====
-
-    // 毛圈質感貼圖：兩端有條紋
-  const towelTex = (() => {
-    const c = document.createElement('canvas');
-    c.width = 256; c.height = 128;
-    const g = c.getContext('2d');
-    g.fillStyle = '#fff2e0';
-    g.fillRect(0, 0, 256, 128);
-    for (let i = 0; i < 1400; i++) {
-      g.strokeStyle = Math.random() < .5 ? 'rgba(224,161,118,.22)' : 'rgba(255,255,255,.7)';
-      g.lineWidth = 1.2;
-      g.beginPath();
-      g.arc(Math.random() * 256, Math.random() * 128, rnd(1.2, 2.6), 0, Math.PI * 2);
-      g.stroke();
-    }
-    [[8, '#e0a176'], [20, '#355c97'], [220, '#355c97'], [232, '#e0a176']].forEach(([x, col]) => {
-      g.fillStyle = col;
-      g.fillRect(x, 0, 6, 128);
-    });
-    return new T3.CanvasTexture(c);
-  })();
-
-  create('towel', o => {
-
-  // 只有一條毛巾，不再疊成三層
-  const cloth = new T3.Group();
-
-  o.art.add(cloth);
-  o.parts.cloth = cloth;
-
-  // 一片完整布面
-  const geo = new T3.PlaneGeometry(
-    1.50, 1.05,
-    24, 12
-  );
-
-  geo.rotateX(-Math.PI / 2);
-
-  // 讓毛巾自然產生微小皺褶
-  const p = geo.attributes.position;
-
-  for (let i = 0; i < p.count; i++) {
-
-    const u = p.getX(i) / 1.50 + .5;
-    const v = p.getZ(i) / 1.05 + .5;
-
-    p.setY(
-      i,
-      .07 +
-      .02 * Math.sin(u * Math.PI * 3) +
-      .008 * Math.sin(v * Math.PI * 2)
-    );
-
-  }
-
-  p.needsUpdate = true;
-  geo.computeVertexNormals();
-
-  // 保留原本的米白色布料與條紋貼圖
-  const fabric = new T3.Mesh(
-    geo,
-    new T3.MeshLambertMaterial({
-      map: towelTex,
-      side: T3.DoubleSide
-    })
-  );
-
-  // 稍微偏離水瓶，避免重疊
-  fabric.position.x = -.12;
-  fabric.rotation.y = -.06;
-
-  cloth.add(fabric);
-
-  // 保留點擊毛巾的互動
-  clickZone(
-    o,
-    1.8, .6, 1.2,
-    0, .25, 0,
-    () => o.interact(o)
-  );
-
-}, o => {
-
-  o.time = 1.2;
-
-});
 
   // ===== 第 3 天：排球車 =====
 
@@ -4708,18 +4653,6 @@ if (o.id === 'bottle') {
 
 }
 
-      // 單條毛巾：輕微擺動，不穿過地板
-if (
-  o.id === 'towel' &&
-  o.parts.cloth
-) {
-
-  o.parts.cloth.rotation.z =
-    .014 * Math.sin(performance.now() * .0017) +
-    .022 * Math.sin(o.time * 9) *
-    Math.min(1.2, o.time);
-
-}
       // 發球機雙滾輪旋轉
 if (
   o.id === 'machine' &&
