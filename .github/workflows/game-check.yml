@@ -1,0 +1,25 @@
+name: 排球場健檢
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 檢查遊戲程式語法
+        run: python .github/check_game.py syntax
+      - name: 安裝瀏覽器測試工具
+        run: python -m pip install playwright==1.56.0
+      - name: 啟動正式版與開發版
+        run: python .github/check_game.py startup

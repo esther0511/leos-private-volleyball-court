@@ -258,9 +258,13 @@
 
   function isFn(g, name) { return !!g && typeof g[name] === 'function'; }
 
+  function sceneReady(g) {
+    return g?.document.querySelector('#c')?.dataset.rendered === 'true';
+  }
+
   function checkConnection() {
     const g = court();
-    const scene = isFn(g, 'startBirthday');
+    const scene = sceneReady(g);
     const items = isFn(g, 'setWorldPreviewDay');
     const roam = isFn(g, 'vbRoamStep');
 
@@ -351,7 +355,7 @@ for (const id of [
   setInterval(() => {
     const g = court();
     const previous = `${sceneState.textContent}/${itemsState.textContent}/${roamState.textContent}`;
-    const next = `${isFn(g,'startBirthday') ? '已載入' : '未就緒'}/` +
+    const next = `${sceneReady(g) ? '已載入' : '未就緒'}/` +
       `${isFn(g,'setWorldPreviewDay') ? '已載入' : '未就緒'}/` +
       `${isFn(g,'vbRoamStep') ? '已載入' : '尚未載入'}`;
     if (previous !== next || !firstDaySynced) checkConnection();
