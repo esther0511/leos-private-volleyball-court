@@ -3599,7 +3599,10 @@ camStep();
   R.render(sc, cam);
   requestAnimationFrame(frame);
   }
-requestAnimationFrame(frame);
+requestAnimationFrame(now => {
+  frame(now);
+  R.domElement.dataset.rendered = 'true';
+});
 
 /* mood faces in flat art style */
 const N='#1d2a50',sk=`stroke="${N}" stroke-width="2.4" stroke-linecap="round" fill="none"`;
