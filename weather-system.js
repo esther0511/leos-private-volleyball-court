@@ -27,7 +27,10 @@ const WEATHER_TAP_WINDOW_MS = 3000;
 
 // ===== 雨滴 =====
 
-const WEATHER_DROP_COUNT = 480;
+// 近處維持原有雨絲密度，遠處用較稀的雨幕延伸到海面與山腳。
+const nearRain = { count: 480, width: 36, height: 30 };
+const distantRain = { count: 960, width: 192, height: 72 };
+const WEATHER_DROP_COUNT = nearRain.count + distantRain.count;
 const weatherDrops = [];
 const weatherCoords = new Float32Array(
   WEATHER_DROP_COUNT * 6
@@ -56,20 +59,18 @@ weatherRain.visible = false;
 sc.add(weatherRain);
 
 
-function resetWeatherDrop(d) {
-  const a = rnd(0, PI * 2);
-  const r = Math.sqrt(Math.random()) * 18;
-
-  d.x = Math.cos(a) * r;
-  d.z = Math.sin(a) * r;
-  d.y = rnd(8, 28);
-  d.v = rnd(14, 22);
+// 在世界座標中循環，移動和轉動鏡頭時，已看得見的雨絲保持原來的位置。
+function wrapRainAxis(value, start, span) {
+  return value - span * Math.floor((value - start) / span);
 }
 
-for (let i = 0; i < WEATHER_DROP_COUNT; i++) {
-  const drop = {};
-  resetWeatherDrop(drop);
-  weatherDrops.push(drop);
+for (const layer of [nearRain, distantRain]) {
+  for (let i = 0; i < layer.count; i++) {
+    weatherDrops.push({
+      x: rnd(0, layer.width), y: rnd(0, layer.height), z: rnd(0, layer.width),
+      v: rnd(14, 22), layer
+    });
+  }
 }
 
 
@@ -77,7 +78,7 @@ for (let i = 0; i < WEATHER_DROP_COUNT; i++) {
 // 放在球場地板下面，避免蓋住白線。
 
 const weatherWetGround = new T3.Mesh(
-  new T3.CircleGeometry(18, 64),
+  ground.geometry,
   new T3.MeshBasicMaterial({
     color: 0x264b74,
     transparent: true,
@@ -448,30 +449,27 @@ if (weather.kind !== 'none') {
 
       const d = weatherDrops[i];
 
-      d.y -= d.v *
-  rainLook.speed *
-  (0.72 + .36 * weather.strength) * dt;
+      const { width, height } = d.layer;
+      const floor = Math.max(.15, cam.position.y - height * .65);
+      d.y -= d.v * rainLook.speed * (.72 + .36 * weather.strength) * dt;
+      d.x += dt * (.55 + rainLook.lean * 1.2);
 
-d.x += dt * (.55 + rainLook.lean * 1.2);
-
-      if (
-        d.y < .15 ||
-        Math.hypot(d.x, d.z) > 18
-      ) {
-
-        resetWeatherDrop(d);
-        d.y = rnd(18, 28);
+      if (d.y < floor) {
+        d.x = rnd(0, width);
+        d.z = rnd(0, width);
       }
 
+      const x = wrapRainAxis(d.x, cam.position.x - width / 2, width);
+      d.y = wrapRainAxis(d.y, floor, height);
+      const y = d.y;
+      const z = wrapRainAxis(d.z, cam.position.z - width / 2, width);
       const k = i * 6;
-
-      weatherCoords[k] = d.x;
-      weatherCoords[k + 1] = d.y;
-      weatherCoords[k + 2] = d.z;
-
-      weatherCoords[k + 3] = d.x - rainLook.lean;
-      weatherCoords[k + 4] = d.y + rainLook.len;
-      weatherCoords[k + 5] = d.z;
+      weatherCoords[k] = x;
+      weatherCoords[k + 1] = y;
+      weatherCoords[k + 2] = z;
+      weatherCoords[k + 3] = x - rainLook.lean;
+      weatherCoords[k + 4] = y + rainLook.len;
+      weatherCoords[k + 5] = z;
     }
 
     weatherRainGeo.attributes
