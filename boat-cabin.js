@@ -404,6 +404,15 @@ document.head.append(boatHudStyle);
     r.append(el('div','vb-paper',letter?.text || ''));
     tools(r).append(button('返回信件',()=>{view='bag';tab='letters';render();}));
   }
+  function bindPageEditor(box, page) {
+    const status = el('span', 'vb-hint', '');
+    status.setAttribute('role', 'status');
+    box.addEventListener('input', () => {
+      page.text = box.value;
+      status.textContent = persist() ? '' : '尚未儲存，請先複製文字備份。';
+      box.after(status);
+    });
+  }
   function renderJournal() {
     if(!state.log){hint('航海日誌還留在船上。');return;}
     hint(`尚有 ${state.pagesRemaining} 頁空白紙。日誌每頁文字會自動保存在這台裝置。`);
@@ -411,12 +420,14 @@ document.head.append(boatHudStyle);
     bar.append(button('寫新的一頁',()=>{
       if(state.pagesRemaining<=0 || state.entries.length>=TOTAL_PAGES)return;
       state.pagesRemaining--;state.entries.unshift({id:newId(),text:'',at:Date.now()});
-      entryIndex=0;persist();render();
+      if (!persist()) { state.entries.shift(); state.pagesRemaining++; hint('儲存失敗，未新增頁面。'); return; }
+      entryIndex=0;render();
     },state.pagesRemaining===0 || state.entries.length>=TOTAL_PAGES));
     bar.append(button('取出一張空白紙',()=>{
       if(state.pagesRemaining<=0 || state.sheets.length>=TOTAL_PAGES)return;
       state.pagesRemaining--;state.sheets.unshift({id:newId(),text:'',at:Date.now()});
-      sheetIndex=0;persist();tab='sheets';render();
+      if (!persist()) { state.sheets.shift(); state.pagesRemaining++; hint('儲存失敗，未取出紙張。'); return; }
+      sheetIndex=0;tab='sheets';render();
     },state.pagesRemaining===0 || state.sheets.length>=TOTAL_PAGES));
     if(state.entries.length===0){hint('這本日誌目前還沒有寫過的頁面。');return;}
     entryIndex=Math.min(entryIndex,state.entries.length-1);
@@ -425,7 +436,7 @@ document.head.append(boatHudStyle);
     const box=el('textarea');box.maxLength=MAX_TEXT;
     box.value=entry.text;box.placeholder='在這一頁留下文字……';
     box.setAttribute('aria-label','航海日誌內容');
-    box.addEventListener('input',()=>{entry.text=box.value;persist();});
+    bindPageEditor(box, entry);
     r.append(box);
     const turn=tools(r);
     turn.append(button('←',()=>{entryIndex--;render();},entryIndex===0));
@@ -441,7 +452,7 @@ document.head.append(boatHudStyle);
     const box=el('textarea');box.maxLength=MAX_TEXT;box.value=sheet.text;
     box.placeholder='想寫給誰，或單純留下什麼……';
     box.setAttribute('aria-label','紙張文字');
-    box.addEventListener('input',()=>{sheet.text=box.value;persist();});
+    bindPageEditor(box, sheet);
     r.append(box);
     const turn=tools(r);
     turn.append(button('←',()=>{sheetIndex--;render();},sheetIndex===0));
