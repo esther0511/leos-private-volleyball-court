@@ -182,6 +182,7 @@ function collectDriftBottle({
     #vbBoatCabin {position:fixed;z-index:19;right:calc(16px + env(safe-area-inset-right,0px));
       top:calc(82px + env(safe-area-inset-top,0px));width:min(336px,calc(100vw - 32px));
       max-height:min(77dvh,680px);overflow-y:auto;padding:15px;user-select:text;-webkit-user-select:text;}
+    #vbBoatCabin[data-anchored] {right:auto;bottom:auto;transform:none;}
     #vbBoatCabin[hidden] {display:none!important;}
     #vbBoatCabin .vb-hint {margin:0 0 10px;font-size:12px;opacity:.83;line-height:1.6;}
     #vbBoatCabin .vb-row {padding:11px 0;border-top:1px solid rgba(255,255,255,.2);}
@@ -262,17 +263,11 @@ boatHudStyle.textContent = `
     border-radius: 999px;
   }
 
-  /* 觸控裝置仍保留四個方向按鈕 */
-  @media (pointer: coarse) {
-    #vbBoatCtrl .arrows {
-      display: grid !important;
-
-      position: fixed;
-      left: 16px;
-      bottom: 17px;
-
-      background: transparent;
-    }
+  html.vb-sticks-enabled #vbBoatCtrl .arrows {
+    display:grid !important;
+    position:fixed;
+    left:16px;
+    bottom:17px;
   }
 `;
 
@@ -333,7 +328,7 @@ document.head.append(boatHudStyle);
   document.body.append(panel);
   const content = panel.querySelector('[data-content]');
   const title = panel.querySelector('[data-title]');
-  let view = 'boat', tab = 'letters', entryIndex = 0, sheetIndex = 0;
+  let view = 'boat', tab = 'letters', entryIndex = 0;
   let seenSailing = false;
   const button = (text, fn, disabled=false) => {
     const b=document.createElement('button');b.type='button';b.textContent=text;b.disabled=disabled;
@@ -416,7 +411,7 @@ document.head.append(boatHudStyle);
     bar.append(button('取出一張空白紙',()=>{
       if(state.pagesRemaining<=0 || state.sheets.length>=TOTAL_PAGES)return;
       state.pagesRemaining--;state.sheets.unshift({id:newId(),text:'',at:Date.now()});
-      sheetIndex=0;persist();tab='sheets';render();
+      persist();tab='sheets';render();
     },state.pagesRemaining===0 || state.sheets.length>=TOTAL_PAGES));
     if(state.entries.length===0){hint('這本日誌目前還沒有寫過的頁面。');return;}
     entryIndex=Math.min(entryIndex,state.entries.length-1);
@@ -435,17 +430,14 @@ document.head.append(boatHudStyle);
     if(!state.log){hint('取得航海日誌後，才能從裡面取出紙張。');return;}
     if(!state.sheets.length){hint('背包裡沒有取出的紙張。可以從航海日誌取一頁。');
       tools(content).append(button('打開航海日誌',()=>{tab='journal';render();}));return;}
-    sheetIndex=Math.min(sheetIndex,state.sheets.length-1);
-    const sheet=state.sheets[sheetIndex];
-    const r=row(`取出的紙張 ${sheetIndex+1} / ${state.sheets.length}`,'可以保持空白，也可以先寫好文字；未來再放進漂流瓶。');
-    const box=el('textarea');box.maxLength=MAX_TEXT;box.value=sheet.text;
-    box.placeholder='想寫給誰，或單純留下什麼……';
-    box.setAttribute('aria-label','紙張文字');
-    box.addEventListener('input',()=>{sheet.text=box.value;persist();});
-    r.append(box);
-    const turn=tools(r);
-    turn.append(button('←',()=>{sheetIndex--;render();},sheetIndex===0));
-    turn.append(button('→',()=>{sheetIndex++;render();},sheetIndex>=state.sheets.length-1));
+    for (const [index, sheet] of state.sheets.entries()) {
+      const r=row(`取出的紙張 ${index+1}`,'可以保持空白，也可以先寫好文字；未來再放進漂流瓶。');
+      const box=el('textarea');box.maxLength=MAX_TEXT;box.value=sheet.text;
+      box.placeholder='想寫給誰，或單純留下什麼……';
+      box.setAttribute('aria-label','紙張文字');
+      box.addEventListener('input',()=>{sheet.text=box.value;persist();});
+      r.append(box);
+    }
   }
   function renderBottles() {
     if(!state.bottles.length){hint('背包裡還沒有瓶子。以後出航時，可能會撿到漂流瓶或空瓶。');return;}
@@ -472,13 +464,77 @@ document.head.append(boatHudStyle);
     else if(view==='letter')renderFirstLetter();
     else renderFoundLetter();
   }
+  // Project the hull, mast and sail after the camera has moved for this frame.
+  const shipParts = boat.art.children.filter(m => m.isMesh && m.material.opacity > 0);
+  const projected = new T3.Vector3();
+  function placeBesideBoat() {
+    if (panel.hidden) return;
+    if (!access.isSailing()) {
+      if (panel.hasAttribute('data-anchored')) {
+        panel.removeAttribute('data-anchored');
+        for (const prop of ['left','top','max-height']) panel.style.removeProperty(prop);
+      }
+      return;
+    }
+    panel.dataset.anchored = '';
+    const viewport = cv.getBoundingClientRect();
+    const toX = x => viewport.left + (1 + x) * viewport.width / 2;
+    const toY = y => viewport.top + (1 - y) * viewport.height / 2;
+    let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+    cam.updateMatrixWorld();
+    boat.root.updateWorldMatrix(true, true);
+    for (const mesh of shipParts) {
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      const {min, max} = mesh.geometry.boundingBox;
+      for (let i = 0; i < 8; i++) {
+        projected.set(i & 1 ? max.x : min.x, i & 2 ? max.y : min.y, i & 4 ? max.z : min.z)
+          .applyMatrix4(mesh.matrixWorld).project(cam);
+        if (projected.z < -1 || projected.z > 1) continue;
+        const x = toX(projected.x), y = toY(projected.y);
+        left = Math.min(left,x); right = Math.max(right,x);
+        top = Math.min(top,y); bottom = Math.max(bottom,y);
+      }
+    }
+    if (!Number.isFinite(left)) return;
+    const gap = 12;
+    const width = panel.offsetWidth;
+    const minX = viewport.left + gap;
+    const maxX = Math.max(minX, viewport.right - gap - width);
+    const minY = Math.max(viewport.top + gap, exitButton.getBoundingClientRect().bottom + gap);
+    const controlTop = arrows.offsetHeight ? arrows.getBoundingClientRect().top : viewport.bottom;
+    const maxY = Math.max(minY + 64, Math.min(controlTop, viewport.bottom) - gap);
+    let x, y;
+    let heightLimit = maxY - minY;
+    const beside = right + gap <= maxX || left - gap - width >= minX;
+    if (beside) {
+      x = right + gap <= maxX ? right + gap : left - gap - width;
+    } else {
+      // A narrow screen can fit the panel above or below the boat.
+      x = (left + right - width) / 2;
+      const above = top - gap - minY, below = maxY - bottom - gap;
+      heightLimit = Math.min(heightLimit, Math.max(100, above, below));
+      y = above >= below ? top - gap : bottom + gap;
+    }
+    panel.style.maxHeight = Math.round(heightLimit) + 'px';
+    const height = panel.offsetHeight;
+    if (beside) y = (top + bottom - height) / 2;
+    else if (top - gap - minY >= maxY - bottom - gap) y -= height;
+    panel.style.left = Math.round(Math.max(minX, Math.min(maxX, x))) + 'px';
+    panel.style.top = Math.round(Math.max(minY, Math.min(maxY - height, y))) + 'px';
+  }
+
+  const renderWorldItems = window.worldItemsRenderStep;
+  window.worldItemsRenderStep = (...args) => {
+    renderWorldItems?.(...args);
+    placeBesideBoat();
+  };
   function close() {panel.hidden=true;arrows.style.pointerEvents='';}
   function open(which='bag') {
     if(which==='boat' && !access.isSailing())return;
     if(which==='bag' && !state.bag)return;
     view=which;tab='letters';
     if(access.isSailing())access.pauseControls?.();
-    render();panel.hidden=false;arrows.style.pointerEvents='none';
+    render();panel.hidden=false;placeBesideBoat();arrows.style.pointerEvents='none';
   }
   cabinButton.addEventListener('click',()=>{
     if(!access.isSailing())return;

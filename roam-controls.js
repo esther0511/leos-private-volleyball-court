@@ -237,6 +237,7 @@ uiMenu.append(sticksButton, tipsButton);
   }
 
   function refreshUiButtons() {
+    document.documentElement.classList.toggle('vb-sticks-enabled', uiPrefs.sticks);
 
   sticksButton.textContent =
     `搖桿 ${uiPrefs.sticks ? '開' : '關'}`;
@@ -420,6 +421,8 @@ uiMenu.append(sticksButton, tipsButton);
       return;
     }
 
+    if (curMode === 'boat') return;
+
     if (code === 'KeyR' && !e.repeat) {
       resetCamera();
       e.preventDefault();
@@ -475,7 +478,6 @@ if (
 
 }
 
-    if (curMode === 'boat') return; // 帆船沿用既有 WASD / 方向鍵。
     if (heldCodes.has(code) && (controlsAvailable() ||
         (curMode === 'chair' && code.startsWith('Arrow')))) {
       held.add(code);
