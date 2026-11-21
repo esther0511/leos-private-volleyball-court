@@ -3953,33 +3953,29 @@ for (const key of keys) {
       }
     } else if (key === 'vb-boat-cabin-v1') {
 
-  if (
-    !isRecord(parsed) ||
-
-    (parsed.letters !== undefined &&
-      !Array.isArray(parsed.letters)) ||
-
-    (parsed.bottles !== undefined &&
-      !Array.isArray(parsed.bottles)) ||
-
-    (parsed.entries !== undefined &&
-      !Array.isArray(parsed.entries)) ||
-
-    (parsed.sheets !== undefined &&
-      !Array.isArray(parsed.sheets)) ||
-
-    (parsed.collectedBottleIds !== undefined &&
-      (
-        !Array.isArray(parsed.collectedBottleIds) ||
-        parsed.collectedBottleIds.length > 500
-      ))
-  ) {
-    throw new Error(
-      '船艙收藏資料格式不正確'
-    );
-  }
+      const string = (value, max) => typeof value === 'string' && value.length <= max;
+      const list = (name, max, valid) => parsed[name] === undefined ||
+        (Array.isArray(parsed[name]) && parsed[name].length <= max && parsed[name].every(valid));
+      const page = entry => isRecord(entry) && string(entry.text, 1200) &&
+        (entry.id === undefined || string(entry.id, 70)) &&
+        (entry.at === undefined || (Number.isSafeInteger(entry.at) && entry.at >= 0 && entry.at <= 9999999999999));
       if (!isRecord(parsed) ||
-          (parsed.sticks !== undefined && typeof parsed.sticks !== 'boolean')) {
+          ['letter', 'bag', 'log', 'letterOpened'].some(k =>
+            parsed[k] !== undefined && typeof parsed[k] !== 'boolean') ||
+          (parsed.pagesRemaining !== undefined && (!Number.isInteger(parsed.pagesRemaining) ||
+            parsed.pagesRemaining < 0 || parsed.pagesRemaining > 100)) ||
+          !list('notes', 100, v => string(v, 1200)) ||
+          !list('entries', 100, page) || !list('sheets', 100, page) ||
+          !list('letters', 100, v => isRecord(v) && string(v.id, 70) && string(v.text, 4000) &&
+            (v.sender === undefined || string(v.sender, 100))) ||
+          !list('bottles', 100, v => isRecord(v) && string(v.id, 70) &&
+            (v.text === undefined || string(v.text, 1200))) ||
+          !list('collectedBottleIds', 500, v => string(v, 70))) {
+        throw new Error('船艙收藏資料格式不正確');
+      }
+    } else if (key === 'vb-roam-ui-v1') {
+      if (!isRecord(parsed) || ['sticks','tips'].some(k =>
+          parsed[k] !== undefined && typeof parsed[k] !== 'boolean')) {
         throw new Error('操作設定資料不正確');
       }
     } else if (key === 'vb-item-layout') {
