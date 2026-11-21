@@ -153,8 +153,8 @@ window.VBCatModel = (() => {
     P.ears=[ear(P.head,1),ear(P.head,-1)];
     P.eyes=[];P.closedEyes=[];
     for(const side of [1,-1]){
-      const z=side*(side>0?.101:.106), y=side>0?.042:.046;
-      const ry=side>0?.069:.077, rz=side>0?.064:.076;
+      const z=side*.106, y=.046;
+      const ry=.077, rz=.076;
       const eye=group(P.head);
       facePatch(eye,y,z,ry,rz,.0018,pigment(ink));
       facePatch(eye,y,z,ry-.003,rz-.003,.0033,pigment(0xfffaf3));
@@ -207,7 +207,7 @@ window.VBCatModel = (() => {
     P.mouth.visible=P.mouth.scale.y>.001;
     P.eyes.forEach((e,i)=>{
       e.visible=k.eye>.12;e.scale.y=Math.max(.12,k.eye);
-      e.position.y=.044*(1-e.scale.y);P.closedEyes[i].visible=k.eye<.42;
+      e.position.y=.046*(1-e.scale.y);P.closedEyes[i].visible=k.eye<.42;
     });
     for(let i=0;i<4;i++){
       const front=i<2, side=i%2===0?1:-1, phase=time*7+(i===1||i===2?Math.PI:0);
