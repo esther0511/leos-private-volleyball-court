@@ -25,7 +25,6 @@
   #preview { display: block; width: 100%; height: 100%; border: 0; background: #52aed4; }
   aside { min-width: 0; height: 100%; overflow-y: auto; background: var(--aside); border-left: 1px solid #132345; scrollbar-color: #6681ae transparent; }
   .sidebar { padding: 24px 22px 30px; }
-  .eyebrow { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .22em; color: var(--gold); }
   h1 { margin: 0; font-size: 23px; letter-spacing: .08em; line-height: 1.35; }
   .intro { margin: 9px 0 16px; font-size: 12px; line-height: 1.7; color: var(--muted); }
   .connection { padding: 13px 14px; background: rgba(9,20,47,.22); border: 1px solid var(--stroke); border-radius: 13px; }
@@ -38,7 +37,10 @@
   section { margin-top: 23px; padding-top: 21px; border-top: 1px solid var(--stroke); }
   .section-label { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
   h2 { margin: 0; font-size: 15px; letter-spacing: .04em; }
-  .section-num { font-size: 11px; color: var(--muted); }
+  .related { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; }
+  .related a { color: #d7e7ff; text-underline-offset: 3px; padding-block: 4px; font-size: 14px; }
+  .machine-tools { margin-top: 14px; border-top: 1px solid var(--stroke); padding-top: 10px; }
+  .machine-tools summary { cursor: pointer; font-size: 14px; font-weight: 600; padding-block: 5px; }
   .button-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   button, select, .link-button {
     display: inline-flex; align-items: center; justify-content: center;
@@ -61,14 +63,12 @@
   .key-help { margin: 12px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
   .key-help > div { display: flex; gap: 8px; align-items: center; color: #dbe7fb; font-size: 11.5px; }
   kbd { display: inline-block; flex: none; min-width: 26px; padding: 5px 6px; border: 1px solid var(--stroke); border-radius: 6px; background: rgba(11,25,56,.42); text-align: center; color: #fff; font: 11px ui-monospace, Menlo, Consolas, monospace; }
-  .future { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .footer { margin-top: 20px; color: #a4b9d9; font-size: 11px; line-height: 1.7; }
   @media (max-width: 760px) {
     html, body { overflow: auto; }
     .layout { display: flex; flex-direction: column; min-height: 100dvh; height: auto; }
-    #preview { flex: none; height: 58dvh; min-height: 340px; }
+    #preview { flex: none; height: 54dvh; min-height: min(300px, 52dvh); }
     aside { flex: 1; height: auto; overflow: visible; border: 0; border-top: 1px solid #132345; }
-    .sidebar { padding: 21px 18px 30px; }
+    .sidebar { padding: 18px max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
     .key-help { grid-template-columns: 1fr 1fr; }
   }
   @media (prefers-reduced-motion: reduce) { button { transition: none; } }
@@ -81,16 +81,41 @@
     <div class="sidebar">
     
       <h1>排球場・開發者</h1>
-      <p class="intro">獨立測試環境，不影響正式版的造訪、解鎖與心情紀錄。</p>
-      <div class="connection" aria-label="系統狀態">
-        <div class="connection-row"><span>3D 球場</span><strong id="sceneState">連接中</strong></div>
-        <div class="connection-row"><span>逐日解鎖</span><strong id="itemsState">檢查中</strong></div>
-        <div class="connection-row"><span>自由漫遊／雙搖桿</span><strong id="roamState">檢查中</strong></div>
-        <p id="status" role="status" aria-live="polite">正在連接球場…</p>
-      </div>
+      <p class="intro">預覽進度與正式遊戲分開儲存。</p>
+      <p id="status" role="status" aria-live="polite">正在連接球場…</p>
 
       <section>
-        <div class="section-label"><h2>日夜預覽</h2><span class="section-num">01 / 光線</span></div>
+        <div class="section-label"><h2>造訪天數與解鎖</h2></div>
+        <select id="visitDay" aria-label="選擇預覽造訪天數">
+          <option value="1">第 1 天・原始球場</option>
+          <option value="2">第 2 天・水瓶／毛巾</option>
+          <option value="3">第 3 天・排球車</option>
+          <option value="5">第 5 天・裁判椅</option>
+          <option value="7">第 7 天・發球機</option>
+          <option value="10">第 10 天・野餐墊／香檳</option>
+          <option value="14">第 14 天・黑貓</option>
+          <option value="15">第 15 天・野餐籃</option>
+          <option value="30">12/24・小帆船（開發預覽）</option>
+        </select>
+        <button id="testSpikeUnlock" class="primary space-top" type="button">測試殺球解鎖</button>
+        <p class="note">選擇天數可直接預覽。測試殺球解鎖時，物件會在有效殺球後降落。</p>
+        <div class="related">
+          <a href="./cat-preview.html" target="_blank" rel="noopener">旋轉查看黑貓 ↗</a>
+          <a href="https://raw.githack.com/esther0511/leos-private-volleyball-court/1b39f6a7c172b1f148e4ba586636f7b77c85e3de/dev.html" target="_blank" rel="noopener">香檳試玩版（選第 10 天） ↗</a>
+        </div>
+        <details class="machine-tools">
+          <summary>第 7 天・發球機測試</summary>
+          <button id="testMachine" class="secondary space-top" type="button">開啟擊球練習</button>
+          <div class="button-grid space-top">
+            <button id="testMachineHit" type="button" class="secondary">一般擊球效果</button>
+            <button id="testMachineSpike" type="button" class="secondary">特殊殺球效果</button>
+          </div>
+          <p class="note">可直接預覽擊球效果。連發模式最多 20 球，不計分。</p>
+        </details>
+      </section>
+
+      <section>
+        <div class="section-label"><h2>日夜預覽</h2></div>
         <div class="button-grid" id="timeButtons">
           <button type="button" data-hour="5.5">黎明</button>
           <button type="button" data-hour="9.5">上午</button>
@@ -111,55 +136,7 @@
       </section>
 
       <section>
-        <div class="section-label"><h2>造訪天數與解鎖</h2><span class="section-num">02 / 物件</span></div>
-        <select id="visitDay" aria-label="選擇預覽造訪天數">
-          <option value="1">第 1 天・原始球場</option>
-          <option value="2">第 2 天・水瓶／毛巾</option>
-          <option value="3">第 3 天・排球車</option>
-          <option value="5">第 5 天・裁判椅</option>
-          <option value="7">第 7 天・發球機</option>
-          <option value="10">第 10 天・野餐墊／香檳</option>
-          <option value="14">第 14 天・黑貓</option>
-          <option value="15">第 15 天・野餐籃</option>
-          <option value="30">12/24・小帆船（開發預覽）</option>
-        </select>
-        <button id="testSpikeUnlock" class="primary space-top" type="button">測試：殺球後解鎖本日物件</button>
-        <button
-  id="testMachine"
-  class="secondary space-top"
-  type="button"
->
-  測試：第 7 天擊球練習
-</button>
-<div class="button-grid space-top">
-
-  <button
-    id="testMachineHit"
-    type="button"
-    class="secondary"
-  >
-    測試：一般擊球效果
-  </button>
-
-  <button
-    id="testMachineSpike"
-    type="button"
-    class="secondary"
-  >
-    測試：特殊殺球效果
-  </button>
-
-</div>
-
-<p class="note">
-  擊球效果可直接預覽，不需瞄準或操作按鍵。
-  連發模式最多 20 球，不計分。
-</p>
-        <p class="note">選擇天數會直接展示當天內容；按下「測試」後，本日新物件會先隱藏，完成有效殺球才會緩緩降落。</p>
-      </section>
-
-      <section>
-        <div class="section-label"><h2>漫遊與攝影機</h2><span class="section-num">03 / 操作</span></div>
+        <div class="section-label"><h2>漫遊與攝影機</h2></div>
         <div class="button-grid">
           <button id="focusCourt" type="button" class="primary">進入球場操作</button>
           <button id="resetCamera" type="button" class="secondary">恢復初始視角</button>
@@ -178,7 +155,7 @@
       </section>
 
       <section>
-        <div class="section-label"><h2>生日彩蛋</h2><span class="section-num">04 / 演出</span></div>
+        <div class="section-label"><h2>生日彩蛋</h2></div>
         <button id="testBirthday" type="button" class="primary">播放生日彩蛋</button>
         <p class="note">
           20 秒音畫同步：慢速生日旋律、星座式文字、
@@ -190,7 +167,7 @@
 <section>
   <div class="section-label">
     <h2>天氣與彩虹</h2>
-    <span class="section-num">05 / 天氣</span>
+
   </div>
 
   <div class="button-grid">
@@ -227,7 +204,16 @@
   </p>
 </section>
   
-      <p class="footer">DEV MODE · 造訪紀錄與正式版分開儲存。</p>
+
+      <section>
+        <div class="section-label"><h2>系統狀態</h2></div>
+      <div class="connection" aria-label="系統狀態">
+        <div class="connection-row"><span>3D 球場</span><strong id="sceneState">連接中</strong></div>
+        <div class="connection-row"><span>逐日解鎖</span><strong id="itemsState">檢查中</strong></div>
+        <div class="connection-row"><span>自由漫遊／雙搖桿</span><strong id="roamState">檢查中</strong></div>
+      </div>
+
+      </section>
     </div>
   </aside>
 </div>
