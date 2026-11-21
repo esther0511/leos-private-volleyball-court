@@ -2141,7 +2141,8 @@ window.worldBirthdayCatReaction = () => {
     updateBoatControls();
 
     if (cameraMode === 'boat') {
-      popText('方向鍵／WASD 操控帆船，按返回離船');
+      Object.assign(deckLook, deckStart);
+      popText('使用方向鍵或 WASD 航行，拖曳畫面環顧。');
     }
 
   }, {
@@ -2212,7 +2213,13 @@ window.worldBirthdayCatReaction = () => {
   const pressed = new Set();
 
   let boatSpeed = 0;
-  let boatHeading = 0;
+  // 船首沿水道向外，避開停泊岩石。
+  const harborHeading = -Math.PI / 2 - .10;
+  let boatHeading = harborHeading;
+  const deckDistance = Math.hypot(8.6, 2.6, 3.15);
+  const deckStart = { th: Math.atan2(2.6, 8.6), ph: Math.acos(3.15 / deckDistance), tilt: 0 };
+  const deckLook = { ...deckStart };
+  const harborView = { x: -38, z: 14, th: .48, ph: 1.20, d: 23, tilt: 0 };
 
   // ===== 從畫面上方之外進入 =====
 
@@ -3047,12 +3054,12 @@ const p = nearest(
 
     <div class="arrows">
       <span></span>
-      <button data-key="arrowup">↑</button>
+      <button type="button" aria-label="前進" data-key="arrowup">↑</button>
       <span></span>
 
-      <button data-key="arrowleft">←</button>
-      <button data-key="arrowdown">↓</button>
-      <button data-key="arrowright">→</button>
+      <button type="button" aria-label="向左轉" data-key="arrowleft">←</button>
+      <button type="button" aria-label="後退" data-key="arrowdown">↓</button>
+      <button type="button" aria-label="向右轉" data-key="arrowright">→</button>
     </div>
   `;
 
@@ -3064,6 +3071,7 @@ const p = nearest(
       updateBoatControls();
     };
 
+  const helmKeys = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright']);
   for (
     const btn of
     controls.querySelectorAll('[data-key]')
@@ -3073,6 +3081,8 @@ const p = nearest(
     btn.addEventListener('pointerdown', e => {
       e.preventDefault();
 
+      if (window.VBDriftBottles?.isReading()) return;
+      window.VBBoatCabin?.hide();
       btn.setPointerCapture(e.pointerId);
       pressed.add(key);
     });
@@ -3081,7 +3091,7 @@ const p = nearest(
       const evt of [
         'pointerup',
         'pointercancel',
-        'pointerleave'
+        'lostpointercapture'
       ]
     ) {
       btn.addEventListener(
@@ -3100,6 +3110,7 @@ const p = nearest(
 
     if (cameraMode !== 'boat') {
       pressed.clear();
+      boatSpeed = 0;
     }
   }
 
@@ -3114,15 +3125,7 @@ const p = nearest(
 
     const k = e.key.toLowerCase();
 
-    if (
-      [
-        'arrowup',
-        'arrowdown',
-        'arrowleft',
-        'arrowright',
-        'w', 'a', 's', 'd', 'shift'
-      ].includes(k)
-    ) {
+    if (helmKeys.has(k)) {
       pressed.add(k);
       e.preventDefault();
     }
@@ -3135,7 +3138,10 @@ const p = nearest(
 
   window.addEventListener(
     'keyup',
-    e => pressed.delete(e.key.toLowerCase())
+    e => {
+      const key = e.key.toLowerCase();
+      if (helmKeys.has(key)) pressed.delete(key);
+    }
   );
 
   window.addEventListener(
@@ -4130,16 +4136,16 @@ function stepWindSailboatArrival(o, dt) {
 
   const turn = settle * settle * (3 - 2 * settle);
 
-  o.art.rotation.y = -a.heading * (1 - turn);
+  o.art.rotation.y = -a.heading - wrapAngle(harborHeading - a.heading) * turn;
 
   // 完成靠岸
   if (p >= 1) {
 
     o.root.position.set(o.x, 0, o.z);
 
-    o.art.rotation.set(0, 0, 0);
+    o.art.rotation.set(0, -harborHeading, 0);
 
-    boatHeading = 0;
+    boatHeading = harborHeading;
     boatSpeed = 0;
 
     finishArrival(o);
@@ -4199,13 +4205,13 @@ function stepWindSailboatArrival(o, dt) {
 // tgtP 是鏡頭焦點，不是攝影機本身位置。
 
 const fx = isSailArrival
-  ? -26
+  ? harborView.x
   : batch.reduce(
       (sum, o) => sum + o.x, 0
     ) / batch.length;
 
 const fz = isSailArrival
-  ? 5
+  ? harborView.z
   : batch.reduce(
       (sum, o) => sum + o.z, 0
     ) / batch.length;
@@ -4216,14 +4222,7 @@ const fz = isSailArrival
       fx,
       fz,
 
-      saved: isSailArrival ? {
-  th: 2.35,
-  ph: 1.36,
-  d: 13,
-  tilt: 0,
-  x: -26,
-  z: 5
-} : {
+      saved: isSailArrival ? harborView : {
   th: ct.th,
   ph: ct.ph,
   d: ct.d,
@@ -4244,13 +4243,13 @@ const fz = isSailArrival
 
     if (isSailArrival) {
 
-  // 從發球機左側附近觀看海灣。
+  // 從灣內斜上方觀看海灣。
   ct.th = cs.th + wrapAngle(
-    2.35 - cs.th
+    harborView.th - cs.th
   );
 
-  ct.ph = 1.36;
-  ct.d = 13;
+  ct.ph = harborView.ph;
+  ct.d = harborView.d;
   ct.tilt = 0;
 
 } else {
@@ -4451,13 +4450,13 @@ window.setWorldPreviewDay = day => {
 
  } else if (n === 30) {
 
-  // 從發球機左側附近觀看帆船。
+  // 從灣內斜上方觀看帆船。
 
-  tgtP.set(-26, 1, 5);
+  tgtP.set(harborView.x, 1, harborView.z);
 
-  ct.th = 2.35;
-  ct.ph = 1.36;
-  ct.d = 13;
+  ct.th = harborView.th;
+  ct.ph = harborView.ph;
+  ct.d = harborView.d;
   ct.tilt = 0;
 
   } else if (newItems.length > 0) {
@@ -4882,38 +4881,15 @@ if (
           pressed.has('arrowright') ||
           pressed.has('d');
 
-        const boatPanelOpen =
-  window.VBDriftBottles?.isReading?.() ||
-  window.VBBoatCabin?.isOpen?.();
-
-if (
-  cameraMode === 'boat' &&
-  !boatPanelOpen
-) {
-  const boosting = pressed.has('shift');
-
-          boatSpeed +=
-              (forward ? (boosting ? 8.5 : 5) : 0) * dt;
-
-          boatSpeed -=
-              (backward ? 4 : 0) * dt;
-
-          boatSpeed = Math.max(
-              -1.8,
-              Math.min(boosting ? 7.8 : 5, boatSpeed)
-            );
-
-          if (left) boatHeading += 1.25 * dt;
-if (right) boatHeading -= 1.25 * dt;
-
-} else if (boatPanelOpen) {
-
-  // 閱讀或查看背包時，船停止移動。
-  boatSpeed = 0;
-
-}
-
-boatSpeed *= Math.exp(-.7 * dt);
+        const paused = window.VBDriftBottles?.isReading?.() || window.VBBoatCabin?.isOpen?.();
+        if (cameraMode === 'boat' && !paused) {
+          boatSpeed += ((forward ? 5 : 0) - (backward ? 4 : 0)) * dt;
+          boatSpeed = Math.max(-1.8, Math.min(5, boatSpeed));
+          boatHeading += (Number(right) - Number(left)) * 1.25 * dt;
+        } else {
+          boatSpeed = 0;
+        }
+        boatSpeed *= Math.exp(-(forward || backward ? .7 : 2.8) * dt);
 
         if (Math.abs(boatSpeed) > .01) {
           const nx =
@@ -5002,31 +4978,13 @@ if (
       p.y + Math.sin(chairLook.pitch) * 10,
       p.z - Math.cos(chairLook.yaw) * cp * 10
       );
-   } else if (mode === 'boat') {
-  const o = byId.get('sailboat');
-
-  // 攝影機位於船後方偏右。
-  // 避免帆布擋住海面及漂流瓶。
-
-  p.set(
-    o.x
-      - Math.sin(boatHeading) * 4.1
-      + Math.cos(boatHeading) * 1.9,
-
-    3.15,
-
-    o.z
-      + Math.cos(boatHeading) * 4.1
-      + Math.sin(boatHeading) * 1.9
-  );
-
-  look.set(
-    o.x + Math.sin(boatHeading) * 5.0,
-
-    1.0,
-
-    o.z - Math.cos(boatHeading) * 5.0
-  );
+    } else if (mode === 'boat') {
+      const o = byId.get('sailboat');
+      const azimuth = deckLook.th - boatHeading;
+      const radius = deckDistance * Math.sin(deckLook.ph);
+      look.set(o.x + 2.8 * Math.sin(boatHeading), 1, o.z - 2.8 * Math.cos(boatHeading));
+      p.set(look.x + radius * Math.sin(azimuth), look.y + deckDistance * Math.cos(deckLook.ph),
+        look.z + radius * Math.cos(azimuth));
     } else {
       // 平滑返回原本的環繞攝影機
       cam.position.lerp(
@@ -5046,6 +5004,7 @@ if (
 
     targetCamera.position.copy(cam.position);
     targetCamera.lookAt(look);
+    if (mode === 'boat') targetCamera.rotateX(deckLook.tilt);
 
     cam.quaternion.slerp(
       targetCamera.quaternion,
@@ -5073,6 +5032,10 @@ window.VBBoatAccess = {
   getObject: () => byId.get('sailboat'),
 
   isSailing: () => cameraMode === 'boat',
+
+  lookAround: (dx, dy) => applyOrbitDrag(deckLook, dx, dy),
+
+  pauseControls: () => { pressed.clear(); boatSpeed = 0; },
 
   // 撞到海灣邊界或岩石時停止船速
   stop: () => {

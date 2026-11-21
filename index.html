@@ -1108,6 +1108,17 @@ const cameraRight = new T3.Vector3();
 const cameraAim = new T3.Vector3();
 const cameraUp = new T3.Vector3(0, 1, 0);
 
+function applyOrbitDrag(orbit, dx, dy) {
+  orbit.th -= dx * .006;
+  if (dy < 0 && orbit.ph >= 1.4) {
+    orbit.tilt = Math.min(1, orbit.tilt - dy * .005);
+  } else if (dy >= 0 && orbit.tilt > 0) {
+    orbit.tilt = Math.max(0, orbit.tilt - dy * .005);
+  } else {
+    orbit.ph = Math.max(.25, Math.min(1.4, orbit.ph - dy * .005));
+  }
+}
+
 function camStep() {
 tgtP.y += ((hover ? 4 : 1) - tgtP.y) * 0.05;
   
@@ -1277,25 +1288,7 @@ cv.addEventListener('pointermove', e => {
 
   } else {
 
-    // 左右拖曳：繞球場旋轉
-    ct.th -= dx * 0.006;
-
-    // 上下拖曳：自由抬頭與低頭
-    if (dy < 0) {
-  // 往上拖：先降低鏡頭，降到底再抬頭看天
-  if (ct.ph < 1.4) {
-    ct.ph = Math.min(1.4, ct.ph - dy * 0.005);
-  } else {
-    ct.tilt = Math.min(1.0, ct.tilt - dy * 0.005);
-  }
-} else {
-  // 往下拖：先把頭放平，再升高鏡頭
-  if (ct.tilt > 0) {
-    ct.tilt = Math.max(0, ct.tilt - dy * 0.005);
-  } else {
-    ct.ph = Math.max(0.25, ct.ph - dy * 0.005);
-  }
-}
+    applyOrbitDrag(ct, dx, dy);
   }
 
   st.lx = e.clientX;

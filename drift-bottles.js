@@ -72,53 +72,41 @@
       Math.sin((x + 42) * .028) * 1.5;
   }
 
-  // 靠岸時窄，遠海逐漸變寬。
+  // 灣底是一段半橢圓，兩岸在同一個端點平滑接合。
+  const bendX = COAST.begin - 8;
+  const inletRadius = 7;
+  const capSegments = 24;
+  const bankSegments = 176;
+  const coastEnd = -154;
+
   function halfWidth(x) {
-    const neck = ease(
-      (COAST.begin - x) / 17
-    );
-
-    const ocean = ease(
-      (-x - 70) / 165
-    );
-
-    return .4 + 8.2 * neck + 400 * ocean;
+    if (x > bendX) {
+      const u = Math.min(1, (x - bendX) / 8);
+      return inletRadius * Math.sqrt(1 - u * u);
+    }
+    return inletRadius + 2.2 * ease((bendX - x) / 28) + Math.max(0, -x - 55) * ease((-x - 55) / 75) * .95;
   }
 
-  function stripGeometry(
-    startX,
-    endX,
-    count,
-    section
-  ) {
+  function sampleX(i) {
+    if (i <= capSegments) return bendX + 8 * Math.cos(i / capSegments * Math.PI / 2);
+    if (i <= bankSegments) return bendX + (coastEnd - bendX) * (i - capSegments) / (bankSegments - capSegments);
+    return coastEnd - (i - bankSegments) * 2;
+  }
+
+  function shoreZ(x, side) {
+    return coastCenter(x) + side * halfWidth(x);
+  }
+
+  function stripGeometry(count, section) {
     const vertices = [];
     const indices = [];
-
     for (let i = 0; i <= count; i++) {
-      const x =
-        startX +
-        (endX - startX) * i / count;
-
-      const pair = section(
-        x,
-        i / count
-      );
-
-      vertices.push(
-        x, pair[2], pair[0],
-        x, pair[2], pair[1]
-      );
-
+      vertices.push(...section(sampleX(i), i));
       if (i < count) {
-        const p = i * 2;
-
-        indices.push(
-          p, p + 1, p + 2,
-          p + 1, p + 3, p + 2
-        );
+        const k = i * 2;
+        indices.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
       }
     }
-
     const geo = new T3.BufferGeometry();
 
     geo.setAttribute(
@@ -139,16 +127,9 @@
   // ====================================
 
   const ocean = new T3.Mesh(
-    stripGeometry(
-      COAST.begin,
-      COAST.far,
-      180,
-      x => [
-        coastCenter(x) - halfWidth(x),
-        coastCenter(x) + halfWidth(x),
-        .045
-      ]
-    ),
+    stripGeometry(bankSegments + Math.ceil((coastEnd - COAST.far) / 2), x => [
+      x, .045, shoreZ(x, -1), x, .045, shoreZ(x, 1)
+    ]),
     new T3.MeshBasicMaterial({
       color: 0x70b8c5,
       side: T3.DoubleSide,
@@ -168,63 +149,27 @@
   // 三、沙岸與濕沙
   // ====================================
 
-// ===== 自然銜接的海灣沙岸 =====
-
-// 左右沙岸使用相同海岸曲線。
-// 靠近球場的一端逐漸收窄，
-// 不再使用額外圓形補丁。
-
 function makeShore(side, wet) {
-
-  const divisions = 112;
-
-  const geo = stripGeometry(
-    -18,
-    -143,
-    divisions,
-    x => {
-
-      // 靠近球場的一端逐漸收束
-      const tip = ease(
-        (-x - 18) / 12
-      );
-
-      // 海岸線的小幅度自然起伏
-      const wave = tip * (
-        .36 * Math.sin(x * .18) +
-        .18 * Math.sin(x * .37)
-      );
-
-      const edge =
-        halfWidth(x) * tip;
-
-      const shore =
-        coastCenter(x) +
-        side * (edge + wave);
-
-      // 濕沙緊鄰海水，
-      // 乾沙接在濕沙外側。
-      // 兩者不再大面積重疊。
-
-      const inner =
-        shore +
-        side *
-        (wet ? .12 : 2.12) *
-        tip;
-
-      const outer =
-        shore +
-        side *
-        (wet ? 2.17 : 8.2) *
-        tip;
-
-      return [
-        inner,
-        outer,
-        wet ? .068 : .061
-      ];
+  const divisions = bankSegments;
+  const geo = stripGeometry(divisions, (x, i) => {
+    const z = shoreZ(x, side);
+    // 沿岸線法向量向外推，同一個岸點的濕沙和乾沙共用邊界。
+    let nx = 1, nz = 0;
+    if (i > 0) {
+      const before = sampleX(i - 1), after = sampleX(i + 1);
+      const dx = after - before;
+      const dz = shoreZ(after, side) - shoreZ(before, side);
+      const length = Math.hypot(dx, dz);
+      nx = side * dz / length;
+      nz = -side * dx / length;
     }
-  );
+    const dune = 5.6 + .9 * Math.sin((COAST.begin - x) * .12);
+    const inner = wet ? 0 : 1.5;
+    const outer = wet ? 1.5 : dune;
+    const height = wet ? .068 : .061;
+    return [x + nx * inner, height, z + nz * inner,
+            x + nx * outer, height, z + nz * outer];
+  });
 
   const mesh = new T3.Mesh(
     geo,
@@ -265,40 +210,6 @@ const wet = [
   makeShore(-1, true)
 ];
 
-    return {
-      mesh,
-      divisions
-    };
-  }
-
-  const sand = [
-    makeShore(1, false),
-    makeShore(-1, false)
-  ];
-
-  const wet = [
-    makeShore(1, true),
-    makeShore(-1, true)
-  ];
-
-  // 海灣內側沙地
-  const beachTip = new T3.Mesh(
-    new T3.CircleGeometry(1, 48),
-    new T3.MeshBasicMaterial({
-      color: 0xe9d7ad,
-      side: T3.DoubleSide,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false
-    })
-  );
-
-  beachTip.rotation.x = -Math.PI / 2;
-  beachTip.position.set(-24.8, .061, 14);
-  beachTip.scale.set(7.5, 5.2, 1);
-  beachTip.visible = false;
-
-  sc.add(beachTip);
 
   // ====================================
   // 四、小帆船停靠岩石
@@ -633,7 +544,7 @@ const wet = [
       if (!access.isSailing()) return;
 
       if (!cabin.getState().bag) {
-        cabin.takeItem?.('bag');
+        if (!cabin.takeItem('bag')) return notify('背包未能儲存，請再試一次。');
         notify('取得防水背包。');
       }
 
@@ -674,7 +585,7 @@ const wet = [
     () => {
       if (!access.isSailing()) return;
 
-      cabin.takeItem?.('letter');
+      if (!cabin.takeItem('letter')) return notify('信封未能儲存，請再試一次。');
       cabin.openBoatLetter?.();
     }
   );
@@ -722,7 +633,7 @@ const wet = [
     () => {
       if (!access.isSailing()) return;
 
-      cabin.takeItem?.('log');
+      if (!cabin.takeItem('log')) return notify('日誌未能儲存，請再試一次。');
 
       if (cabin.getState().bag) {
         cabin.openBackpackTab?.('journal');
@@ -764,16 +675,8 @@ const wet = [
   const css = document.createElement('style');
 
   css.textContent = `
-    /* 取消右上角背包按鈕 */
-    #vbBagButton {
-      display: none !important;
-    }
-
-    #vbRoamUiMenu [hidden] {
-      display: none !important;
-    }
-
-    #vbLetterReader[hidden] {
+    #vbDriftPickup {position:fixed;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(116px + env(safe-area-inset-bottom,0px));}
+    #vbDriftPickup[hidden], #vbLetterReader[hidden] {
       display: none !important;
     }
 
@@ -875,73 +778,14 @@ const wet = [
 
   document.head.append(css);
 
-  // 移除舊拾取按鈕
-  document.querySelector(
-    '#vbDriftPickup'
-  )?.remove();
-
-  // ====================================
-  // 十一、左上角選單加入防水背包
-  // ====================================
-
-  function connectBagMenu() {
-    const menu = document.querySelector(
-      '#vbRoamUiMenu'
-    );
-
-    const button = document.querySelector(
-      '#vbRoamUiButton'
-    );
-
-    if (
-      !menu ||
-      !button ||
-      menu.querySelector('[data-waterproof-bag]')
-    ) return;
-
-    const bagMenu =
-      document.createElement('button');
-
-    bagMenu.type = 'button';
-    bagMenu.dataset.waterproofBag = '1';
-    bagMenu.textContent = '防水背包';
-
-    bagMenu.hidden =
-      !cabin.getState().bag;
-
-    bagMenu.addEventListener(
-      'click',
-      () => {
-        if (!cabin.getState().bag) return;
-
-        cabin.openBackpack?.();
-
-        menu.classList.remove('open');
-
-        button.setAttribute(
-          'aria-expanded',
-          'false'
-        );
-      }
-    );
-
-    menu.append(bagMenu);
-
-    button.addEventListener('click', () => {
-      bagMenu.hidden =
-        !cabin.getState().bag;
-    });
-  }
-
-  if (document.readyState === 'complete') {
-    connectBagMenu();
-  } else {
-    window.addEventListener(
-      'load',
-      connectBagMenu,
-      {once:true}
-    );
-  }
+  const pickup = document.createElement('button');
+  pickup.type = 'button';
+  pickup.id = 'vbDriftPickup';
+  pickup.textContent = '撿起漂流瓶';
+  pickup.hidden = true;
+  document.querySelector('#vbBoatCtrl').append(pickup);
+  let nearby = null;
+  pickup.addEventListener('click', () => beginPickup(nearby));
 
   // ====================================
   // 十二、漂流瓶資料
@@ -1177,6 +1021,42 @@ const wet = [
   }
 
   // ====================================
+  // 發出的位置和紙條與背包共用同一筆存檔，重開後可在原處找到。
+  function addReleased(message, animate) {
+    const bottle = makeBottle({ ...message, kind: 'letter', sender: '自己寫的紙條' }, bottles.length);
+    bottles.push(bottle);
+    if (animate) {
+      bottle.mode = 'throwing';
+      bottle.from = boat.root.position.clone();
+      bottle.root.position.copy(bottle.from);
+      bottle.root.visible = true;
+    }
+  }
+
+  for (const message of state().afloat) addReleased(message, false);
+
+  function releaseBottle(id) {
+    if (!access.isSailing() || !reader.hidden) return false;
+    const direction = cam.getWorldDirection(new T3.Vector3());
+    const heading = Math.atan2(direction.z, direction.x);
+    // 優先向畫面前方投出，靠岸時改取旁邊的水面。
+    for (const offset of [.34, -.34, .9, -.9, 1.6, -1.6, Math.PI]) {
+      const x = boat.x + 3.8 * Math.cos(heading + offset);
+      const z = boat.z + 3.8 * Math.sin(heading + offset);
+      if (x >= COAST.begin - .5 || x < COAST.far + 1 ||
+          Math.abs(z - coastCenter(x)) >= halfWidth(x) - .45 ||
+          rockCoords.some(([rx, rz, r]) => Math.hypot(x-rx, z-rz) < r + .6)) continue;
+      const message = cabin.launchMessage(id, x, z);
+      if (!message) return false;
+      cabin.hide();
+      access.pauseControls();
+      addReleased(message, true);
+      notify('漂流瓶落在海面上了。');
+      return true;
+    }
+    return false;
+  }
+
   // 十四、拾取判定
   // ====================================
 
@@ -1203,6 +1083,9 @@ const wet = [
       return false;
     }
 
+    if (bottles.some(b => !b.taken && b.mode !== 'idle')) return false;
+
+    access.pauseControls?.();
     o.mode = 'opening';
     o.age = 0;
 
@@ -1478,13 +1361,17 @@ const wet = [
         !reader.hidden
       ) return;
 
-      const selection = pickStage3(e);
+      if (!e.isPrimary || e.button !== 0) return;
+      const panelWasOpen = cabin.isOpen();
+      const selection = panelWasOpen ? null : pickStage3(e);
+      canvas.setPointerCapture(e.pointerId);
 
       tap = {
         id: e.pointerId,
         x: e.clientX,
         y: e.clientY,
-        selection
+        lastX: e.clientX, lastY: e.clientY, dragged: false,
+        selection, panelWasOpen
       };
 
       // 防止原本點擊到船身而離船
@@ -1509,15 +1396,13 @@ const wet = [
       ) return;
 
       const t = tap;
+      if (!t || t.id !== e.pointerId) return;
       tap = null;
 
       e.stopImmediatePropagation();
       e.preventDefault();
 
-      if (
-        !t ||
-        t.id !== e.pointerId
-      ) return;
+      if (t.dragged) return;
 
       // 拖曳不算點擊
       if (
@@ -1528,6 +1413,7 @@ const wet = [
       ) return;
 
       // 必須仍然指向同一個物件
+      if (t.panelWasOpen) { cabin.hide(); return; }
       const up = pickStage3(e);
 
       if (
@@ -1564,7 +1450,14 @@ const wet = [
         !reader.hidden
       ) return;
 
-      canvas.style.cursor =
+      if (tap?.id === e.pointerId) {
+        tap.dragged ||= Math.hypot(e.clientX - tap.x, e.clientY - tap.y) > 8;
+        if (tap.dragged) {
+          access.lookAround(e.clientX - tap.lastX, e.clientY - tap.lastY);
+          tap.lastX = e.clientX; tap.lastY = e.clientY;
+        }
+      }
+      canvas.style.cursor = tap?.dragged ? 'grabbing' :
         pickStage3(e)
           ? 'pointer'
           : 'default';
@@ -1690,6 +1583,8 @@ const wet = [
     const t =
       performance.now() * .001;
 
+    nearby = null;
+    let opening = false;
     for (const o of bottles) {
 
       if (o.taken) continue;
@@ -1697,6 +1592,17 @@ const wet = [
       o.root.visible = available;
 
       if (!available) continue;
+
+      if (o.mode === 'throwing') {
+        o.age += dt;
+        const t = Math.min(1, o.age / .95);
+        o.root.position.set(o.from.x + (o.x - o.from.x) * t,
+          .22 + (1-t) * .95 + Math.sin(Math.PI*t) * 1.25,
+          o.from.z + (o.z - o.from.z) * t);
+        o.root.rotation.z = (1 - t) * Math.PI;
+        if (t === 1) o.mode = 'idle';
+        continue;
+      }
 
       // 海面上下浮動
       o.root.position.y =
@@ -1717,6 +1623,11 @@ const wet = [
 
       // 拾取動畫
       if (o.mode === 'opening') {
+        opening = true;
+        if (!access.isSailing() || cabin.isOpen()) {
+          resetBottle(o);
+          continue;
+        }
 
         o.age += dt;
 
@@ -1766,12 +1677,14 @@ const wet = [
           access.isSailing() &&
           distance(o) < TAKE_DISTANCE;
 
+        if (close && (!nearby || distance(o) < distance(nearby))) nearby = o;
         // 靠近時玻璃微微變亮
         o.glass.opacity =
           close ? .59 : .48;
 
       }
     }
+    pickup.hidden = !nearby || opening || !reader.hidden || cabin.isOpen();
   }
 
   // 使用原本動畫循環
@@ -1854,6 +1767,7 @@ const wet = [
   // ====================================
 
   window.VBDriftBottles = {
+    releaseBottle,
 
     visibleBottleCount: () =>
       bottles.filter(

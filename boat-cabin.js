@@ -17,7 +17,8 @@
   controls.dataset.cabinVersion = '2';
 
   const KEY = 'vb-boat-cabin-v1';
-  const TOTAL_PAGES = 100;
+  const BOOK_PAGES = 48;
+  const LEGACY_PAGES = 100;
   // 第一封信的正文，等故事定稿後再填入這裡。
   const FIRST_LETTER_TEXT = '';
   const MAX_TEXT = 1200;
@@ -32,16 +33,20 @@
   // v1 只有 notes:string[]；v2 轉成可翻閱、可編輯的頁面，不丟棄舊文字。
   const legacy = Array.isArray(saved.notes) ? saved.notes.filter(v => typeof v === 'string').slice(0, 100) : [];
   const validEntries = Array.isArray(saved.entries)
-    ? saved.entries.filter(e => e && typeof e === 'object' && typeof e.text === 'string').slice(0, TOTAL_PAGES)
+    ? saved.entries.filter(e => e && typeof e === 'object' && typeof e.text === 'string').slice(0, LEGACY_PAGES)
     : null;
   const entries = validEntries
     ? validEntries.map((e, i) => ({ id: limit(e.id, 70) || `old-${i}`, text: limit(e.text), at: safeInt(e.at, 0, 9999999999999, 0) }))
     : legacy.map((text, i) => ({ id: `legacy-${i}`, text: limit(text), at: 0 }));
   const validSheets = Array.isArray(saved.sheets)
-    ? saved.sheets.filter(s => s && typeof s === 'object' && typeof s.text === 'string').slice(0, TOTAL_PAGES)
+    ? saved.sheets.filter(s => s && typeof s === 'object' && typeof s.text === 'string').slice(0, LEGACY_PAGES)
       .map((s, i) => ({ id: limit(s.id, 70) || `sheet-${i}`, text: limit(s.text), at: safeInt(s.at, 0, 9999999999999, 0) }))
     : [];
-  const remainingFallback = Math.max(0, TOTAL_PAGES - entries.length - validSheets.length);
+  const usedByContent = entries.length + validSheets.length;
+  const oldCapacity = saved.pageCapacity === undefined ? LEGACY_PAGES :
+    safeInt(saved.pageCapacity, BOOK_PAGES, 200, BOOK_PAGES);
+  const used = Math.max(usedByContent, oldCapacity - safeInt(saved.pagesRemaining, 0, oldCapacity, oldCapacity));
+  const pageCapacity = Math.max(BOOK_PAGES, used);
   const state = {
     letter: saved.letter === true,
     bag: saved.bag === true,
@@ -49,12 +54,18 @@
     letterOpened: saved.letterOpened === true,
     entries,
     sheets: validSheets,
-    pagesRemaining: safeInt(saved.pagesRemaining, 0, TOTAL_PAGES, remainingFallback),
+    pageCapacity,
+    pagesRemaining: pageCapacity - used,
     // 預留未來漂流瓶模組的收藏資料；此階段不生成故事瓶。
     letters: Array.isArray(saved.letters) ? saved.letters.filter(l => l && typeof l === 'object' && typeof l.text === 'string').slice(0, 100)
       .map(l => ({ id: limit(l.id,70), text: limit(l.text,4000), sender: limit(l.sender,100) })) : [],
     bottles: Array.isArray(saved.bottles) ? saved.bottles.filter(b => b && typeof b === 'object' && typeof b.id === 'string').slice(0, 100)
       .map(b => ({ id: limit(b.id,70), text: limit(b.text,MAX_TEXT) })) : [],
+    afloat: Array.isArray(saved.afloat) ? saved.afloat.filter(m => m && typeof m.id === 'string' &&
+      typeof m.bottleId === 'string' && typeof m.text === 'string' && m.text.trim() &&
+      Number.isFinite(m.x) && Number.isFinite(m.z)).map(m => ({
+        id: limit(m.id, 65), bottleId: limit(m.bottleId, 70), text: limit(m.text), x: m.x, z: m.z
+      })) : [],
     // 單獨記錄撿過的瓶子：之後即使把空瓶放回海上也不會重刷。    
     collectedBottleIds: Array.isArray(saved.collectedBottleIds)
       ? [...new Set(
@@ -102,6 +113,8 @@ function collectDriftBottle({
 
   if (state.collectedBottleIds.includes(id)) return false;
 
+  const outgoing = state.afloat.find(m => m.id === id);
+  const bottleId = outgoing?.bottleId || id;
   const letterId = `note-${id}`;
 
   const needsLetter =
@@ -109,7 +122,7 @@ function collectDriftBottle({
     !state.letters.some(l => l.id === letterId);
 
   const needsBottle =
-    !state.bottles.some(b => b.id === id);
+    !state.bottles.some(b => b.id === bottleId);
 
   if (
     (needsLetter && state.letters.length >= 100) ||
@@ -132,11 +145,12 @@ function collectDriftBottle({
     bottles: needsBottle
       ? [
           ...state.bottles,
-          { id, text: '' }
+          { id: bottleId, text: '' }
         ]
       : [...state.bottles],
 
-    collectedBottleIds: [
+    afloat: outgoing ? state.afloat.filter(m => m.id !== id) : state.afloat,
+    collectedBottleIds: outgoing ? state.collectedBottleIds : [
       ...state.collectedBottleIds,
       id
     ].slice(-500)
@@ -144,6 +158,7 @@ function collectDriftBottle({
 
   if (!persistState(next)) return false;
 
+  state.afloat = next.afloat;
   state.letters = next.letters;
   state.bottles = next.bottles;
   state.collectedBottleIds = next.collectedBottleIds;
@@ -179,9 +194,10 @@ function collectDriftBottle({
       border-radius:999px;border-color:rgba(255,255,255,.52);background:rgba(29,42,80,.26);
       backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);font:600 13px system-ui,'PingFang TC',sans-serif;}
     #vbBagButton[hidden] {display:none!important;}
-    #vbBoatCabin {position:fixed;z-index:19;right:calc(16px + env(safe-area-inset-right,0px));
-      top:calc(82px + env(safe-area-inset-top,0px));width:min(336px,calc(100vw - 32px));
-      max-height:min(77dvh,680px);overflow-y:auto;padding:15px;user-select:text;-webkit-user-select:text;}
+    #vbBoatCabin {position:fixed;z-index:19;left:min(66.5%,calc(100% - 192px));top:54%;
+      transform:translate(-50%,-50%);width:min(352px,calc(100vw - 32px));
+      max-height:min(72dvh,calc(92dvh - 134px),660px);overflow-y:auto;padding:15px;user-select:text;-webkit-user-select:text;}
+    #vbBoatCabin[data-anchored] {right:auto;bottom:auto;transform:none;}
     #vbBoatCabin[hidden] {display:none!important;}
     #vbBoatCabin .vb-hint {margin:0 0 10px;font-size:12px;opacity:.83;line-height:1.6;}
     #vbBoatCabin .vb-row {padding:11px 0;border-top:1px solid rgba(255,255,255,.2);}
@@ -204,7 +220,7 @@ function collectDriftBottle({
       #vbBoatCtrl {width:min(218px,calc(100vw - 32px));padding:11px;}
       #vbBoatCtrl .arrows {grid-template-columns:repeat(3,40px);}
       #vbBoatCtrl .arrows button {height:38px;}
-      #vbBoatCabin {top:calc(73px + env(safe-area-inset-top,0px));max-height:calc(100dvh - 95px);}
+      #vbBoatCabin {left:50%;top:52%;max-height:calc(96dvh - 224px);}
       #vbBagButton {right:calc(80px + env(safe-area-inset-right,0px));}
     }
   `;
@@ -244,11 +260,15 @@ boatHudStyle.textContent = `
     display: none !important;
   }
 
-  /* 電腦版使用鍵盤，不顯示方向按鈕 */
+  #vbBoatCtrl .arrows {display:none;}
+  html.vb-sticks-enabled #vbBoatCtrl .arrows {display:grid;}
   #vbBoatCtrl .arrows {
-    display: none !important;
+    position:fixed;
+    right:calc(16px + env(safe-area-inset-right,0px));
+    bottom:calc(16px + env(safe-area-inset-bottom,0px));
   }
-
+  #vbBoatCtrl .arrows button {background:rgba(29,42,80,.54);color:white;touch-action:none;}
+  #vbBoatCtrl .arrows button:active {background:#355c97;}
   /* 保留獨立離船按鈕 */
   #vbBoatCtrl [data-exit] {
     min-height: 37px;
@@ -262,18 +282,6 @@ boatHudStyle.textContent = `
     border-radius: 999px;
   }
 
-  /* 觸控裝置仍保留四個方向按鈕 */
-  @media (pointer: coarse) {
-    #vbBoatCtrl .arrows {
-      display: grid !important;
-
-      position: fixed;
-      left: 16px;
-      bottom: 17px;
-
-      background: transparent;
-    }
-  }
 `;
 
 document.head.append(boatHudStyle);
@@ -297,8 +305,8 @@ document.head.append(boatHudStyle);
   const bagButton = document.createElement('button');
   bagButton.id = 'vbBagButton';
   bagButton.type = 'button';
-  bagButton.textContent = '背包';
-  bagButton.setAttribute('aria-label', '打開個人背包');
+  bagButton.textContent = '防水背包';
+  bagButton.setAttribute('aria-label', '打開防水背包');
   bagButton.hidden = !state.bag;
   document.body.append(bagButton);
 
@@ -333,7 +341,7 @@ document.head.append(boatHudStyle);
   document.body.append(panel);
   const content = panel.querySelector('[data-content]');
   const title = panel.querySelector('[data-title]');
-  let view = 'boat', tab = 'letters', entryIndex = 0, sheetIndex = 0;
+  let view = 'boat', tab = 'letters', entryIndex = 0;
   let seenSailing = false;
   const button = (text, fn, disabled=false) => {
     const b=document.createElement('button');b.type='button';b.textContent=text;b.disabled=disabled;
@@ -406,50 +414,95 @@ document.head.append(boatHudStyle);
   }
   function renderJournal() {
     if(!state.log){hint('航海日誌還留在船上。');return;}
-    hint(`尚有 ${state.pagesRemaining} 頁空白紙。日誌每頁文字會自動保存在這台裝置。`);
+    hint(`共 ${state.pageCapacity} 頁，剩 ${state.pagesRemaining} 頁空白。日誌每頁文字會自動保存在這台裝置。`);
     const bar=tools(content);
     bar.append(button('寫新的一頁',()=>{
-      if(state.pagesRemaining<=0 || state.entries.length>=TOTAL_PAGES)return;
+      if(state.pagesRemaining<=0)return;
       state.pagesRemaining--;state.entries.unshift({id:newId(),text:'',at:Date.now()});
-      entryIndex=0;persist();render();
-    },state.pagesRemaining===0 || state.entries.length>=TOTAL_PAGES));
+      if (!persist()) { state.entries.shift(); state.pagesRemaining++; hint('儲存失敗，未新增頁面。'); return; }
+      entryIndex=0;render();
+    },state.pagesRemaining===0));
     bar.append(button('取出一張空白紙',()=>{
-      if(state.pagesRemaining<=0 || state.sheets.length>=TOTAL_PAGES)return;
+      if(state.pagesRemaining<=0)return;
       state.pagesRemaining--;state.sheets.unshift({id:newId(),text:'',at:Date.now()});
-      sheetIndex=0;persist();tab='sheets';render();
-    },state.pagesRemaining===0 || state.sheets.length>=TOTAL_PAGES));
+      if (!persist()) { state.sheets.shift(); state.pagesRemaining++; hint('儲存失敗，未取出紙張。'); return; }
+      tab='sheets';render();
+    },state.pagesRemaining===0));
     if(state.entries.length===0){hint('這本日誌目前還沒有寫過的頁面。');return;}
     entryIndex=Math.min(entryIndex,state.entries.length-1);
     const entry=state.entries[entryIndex];
-    const r=row(`第 ${state.entries.length-entryIndex} 頁`,`${entryIndex+1} / ${state.entries.length}`);
+    const r=row(`第 ${state.entries.length-entryIndex} 頁`,'');
     const box=el('textarea');box.maxLength=MAX_TEXT;
     box.value=entry.text;box.placeholder='在這一頁留下文字……';
     box.setAttribute('aria-label','航海日誌內容');
     box.addEventListener('input',()=>{entry.text=box.value;persist();});
     r.append(box);
     const turn=tools(r);
-    turn.append(button('←',()=>{entryIndex--;render();},entryIndex===0));
-    turn.append(button('→',()=>{entryIndex++;render();},entryIndex>=state.entries.length-1));
+    turn.append(button('上一頁',()=>{entryIndex++;render();},entryIndex>=state.entries.length-1));
+    turn.append(button('下一頁',()=>{entryIndex--;render();},entryIndex===0));
   }
+  function packSheet(sheet) {
+    const empty = state.bottles.find(b => !b.text);
+    if (!empty || !sheet.text.trim() || !state.sheets.includes(sheet)) return;
+    const next = { ...state,
+      sheets: state.sheets.filter(s => s !== sheet),
+      bottles: state.bottles.map(b => b === empty ? { ...b, text: sheet.text } : b)
+    };
+    if (!persistState(next)) { hint('裝瓶未能儲存，紙條仍在背包裡。'); return; }
+    Object.assign(state, next);
+    tab = 'bottles';
+    render();
+  }
+
+  function launchMessage(id, x, z) {
+    const bottle = state.bottles.find(b => b.id === id);
+    if (!access.isSailing() || !bottle?.text.trim() || !Number.isFinite(x) || !Number.isFinite(z)) return null;
+    const message = { id: newId(), bottleId: id, text: bottle.text, x, z };
+    const next = { ...state, bottles: state.bottles.filter(b => b !== bottle),
+      afloat: [...state.afloat, message] };
+    if (!persistState(next)) return null;
+    Object.assign(state, next);
+    return message;
+  }
+
   function renderSheets() {
     if(!state.log){hint('取得航海日誌後，才能從裡面取出紙張。');return;}
     if(!state.sheets.length){hint('背包裡沒有取出的紙張。可以從航海日誌取一頁。');
       tools(content).append(button('打開航海日誌',()=>{tab='journal';render();}));return;}
-    sheetIndex=Math.min(sheetIndex,state.sheets.length-1);
-    const sheet=state.sheets[sheetIndex];
-    const r=row(`取出的紙張 ${sheetIndex+1} / ${state.sheets.length}`,'可以保持空白，也可以先寫好文字；未來再放進漂流瓶。');
-    const box=el('textarea');box.maxLength=MAX_TEXT;box.value=sheet.text;
-    box.placeholder='想寫給誰，或單純留下什麼……';
-    box.setAttribute('aria-label','紙張文字');
-    box.addEventListener('input',()=>{sheet.text=box.value;persist();});
-    r.append(box);
-    const turn=tools(r);
-    turn.append(button('←',()=>{sheetIndex--;render();},sheetIndex===0));
-    turn.append(button('→',()=>{sheetIndex++;render();},sheetIndex>=state.sheets.length-1));
+    for (const [index, sheet] of state.sheets.entries()) {
+      const r=row(`取出的紙張 ${index+1}`,'寫下想讓它帶走的話。');
+      const box=el('textarea');box.maxLength=MAX_TEXT;box.value=sheet.text;
+      box.placeholder='想寫給誰，或單純留下什麼……';
+      box.setAttribute('aria-label','紙張文字');
+      r.append(box);
+      const empty = state.bottles.some(b => !b.text);
+      const pack = button('放入空瓶', () => packSheet(sheet), !empty || !sheet.text.trim());
+      tools(r).append(pack);
+      if (!empty) r.append(el('p','vb-hint','先從海上撿一個漂流瓶。收藏瓶中信後，也會得到空瓶。'));
+      const status = el('p','vb-hint','');
+      status.setAttribute('role','status');
+      r.append(status);
+      box.addEventListener('input', () => {
+        sheet.text = box.value;
+        status.textContent = persist() ? '' : '文字尚未儲存，請先複製備份。';
+        pack.disabled = !empty || !sheet.text.trim();
+      });
+    }
   }
   function renderBottles() {
     if(!state.bottles.length){hint('背包裡還沒有瓶子。以後出航時，可能會撿到漂流瓶或空瓶。');return;}
-    state.bottles.forEach((b,i)=>row(`瓶子 ${i+1}`,b.text?'裡面放著一張紙。':'空瓶子'));
+    for (const [i, bottle] of state.bottles.entries()) {
+      const r = row(`瓶子 ${i+1}`, bottle.text ? '已裝入紙條' : '空瓶');
+      if (!bottle.text) {
+        tools(r).append(button('選擇紙張', () => { tab='sheets'; render(); }));
+        continue;
+      }
+      r.append(el('div','vb-paper',bottle.text));
+      tools(r).append(button('投回大海', () => {
+        if (!window.VBDriftBottles?.releaseBottle(bottle.id)) hint('未能投出，瓶子仍在背包裡。');
+      }, !access.isSailing()));
+      if (!access.isSailing()) r.append(el('p','vb-hint','上船後即可投回大海。'));
+    }
   }
   function renderBag() {
     hint('這些物品可以帶離小帆船，隨時回來查看。');
@@ -472,13 +525,77 @@ document.head.append(boatHudStyle);
     else if(view==='letter')renderFirstLetter();
     else renderFoundLetter();
   }
-  function close() {panel.hidden=true;arrows.style.pointerEvents='';}
+  // Project the hull, mast and sail after the camera has moved for this frame.
+  const shipParts = boat.art.children.filter(m => m.isMesh && m.material.opacity > 0);
+  const projected = new T3.Vector3();
+  function placeBesideBoat() {
+    if (panel.hidden) return;
+    if (!access.isSailing()) {
+      if (panel.hasAttribute('data-anchored')) {
+        panel.removeAttribute('data-anchored');
+        for (const prop of ['left','top','max-height']) panel.style.removeProperty(prop);
+      }
+      return;
+    }
+    panel.dataset.anchored = '';
+    const viewport = cv.getBoundingClientRect();
+    const toX = x => viewport.left + (1 + x) * viewport.width / 2;
+    const toY = y => viewport.top + (1 - y) * viewport.height / 2;
+    let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+    cam.updateMatrixWorld();
+    boat.root.updateWorldMatrix(true, true);
+    for (const mesh of shipParts) {
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      const {min, max} = mesh.geometry.boundingBox;
+      for (let i = 0; i < 8; i++) {
+        projected.set(i & 1 ? max.x : min.x, i & 2 ? max.y : min.y, i & 4 ? max.z : min.z)
+          .applyMatrix4(mesh.matrixWorld).project(cam);
+        if (projected.z < -1 || projected.z > 1) continue;
+        const x = toX(projected.x), y = toY(projected.y);
+        left = Math.min(left,x); right = Math.max(right,x);
+        top = Math.min(top,y); bottom = Math.max(bottom,y);
+      }
+    }
+    if (!Number.isFinite(left)) return;
+    const gap = 12;
+    const width = panel.offsetWidth;
+    const minX = viewport.left + gap;
+    const maxX = Math.max(minX, viewport.right - gap - width);
+    const minY = Math.max(viewport.top + gap, exitButton.getBoundingClientRect().bottom + gap);
+    const controlTop = arrows.offsetHeight ? arrows.getBoundingClientRect().top : viewport.bottom;
+    const maxY = Math.max(minY + 64, Math.min(controlTop, viewport.bottom) - gap);
+    let x, y;
+    let heightLimit = maxY - minY;
+    const beside = right + gap <= maxX || left - gap - width >= minX;
+    if (beside) {
+      x = right + gap <= maxX ? right + gap : left - gap - width;
+    } else {
+      // A narrow screen can fit the panel above or below the boat.
+      x = (left + right - width) / 2;
+      const above = top - gap - minY, below = maxY - bottom - gap;
+      heightLimit = Math.min(heightLimit, Math.max(100, above, below));
+      y = above >= below ? top - gap : bottom + gap;
+    }
+    panel.style.maxHeight = Math.round(heightLimit) + 'px';
+    const height = panel.offsetHeight;
+    if (beside) y = (top + bottom - height) / 2;
+    else if (top - gap - minY >= maxY - bottom - gap) y -= height;
+    panel.style.left = Math.round(Math.max(minX, Math.min(maxX, x))) + 'px';
+    panel.style.top = Math.round(Math.max(minY, Math.min(maxY - height, y))) + 'px';
+  }
+
+  const renderWorldItems = window.worldItemsRenderStep;
+  window.worldItemsRenderStep = (...args) => {
+    renderWorldItems?.(...args);
+    placeBesideBoat();
+  };
+  function close() {panel.hidden=true;}
   function open(which='bag') {
     if(which==='boat' && !access.isSailing())return;
     if(which==='bag' && !state.bag)return;
     view=which;tab='letters';
     if(access.isSailing())access.pauseControls?.();
-    render();panel.hidden=false;arrows.style.pointerEvents='none';
+    render();panel.hidden=false;placeBesideBoat();
   }
   cabinButton.addEventListener('click',()=>{
     if(!access.isSailing())return;
@@ -494,6 +611,8 @@ document.head.append(boatHudStyle);
   // 船艙打開後，鍵盤不會同時控制帆船或觸發其他球場操作。
   window.addEventListener('keydown',e=>{
     if(panel.hidden)return;
+    if(access.isSailing() && /^(arrow(up|down|left|right)|[wasd])$/i.test(e.key) &&
+        !['TEXTAREA','INPUT','SELECT'].includes(document.activeElement?.tagName)) { close(); return; }
     if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();close();return;}
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d','W','A','S','D',' ','Enter'].includes(e.key)){
       if(!['TEXTAREA','INPUT'].includes(document.activeElement?.tagName))e.preventDefault();
@@ -565,6 +684,7 @@ document.head.append(boatHudStyle);
   isOpen: () => !panel.hidden,
 
   collectDriftBottle,
+  launchMessage,
     addLetter:(id,text,sender='')=>{
       if(!state.bag || typeof id!=='string' || !id || typeof text!=='string')return false;
       if(state.letters.some(l=>l.id===id))return false;
@@ -577,7 +697,7 @@ document.head.append(boatHudStyle);
       state.bottles.push({id:limit(id,70),text:limit(text)});
       return persist();
     },
-    // 只提供讀取，目前不消耗紙張；第三／四階段再加上確認裝瓶流程。
+
     hasCollectedBottle: id =>
   state.collectedBottleIds.includes(id),
 
