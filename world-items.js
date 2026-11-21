@@ -164,6 +164,14 @@
       storageOnly: !!opts.onPicnic || id === 'sailboat',
       parts: {},
       interact: (...args) => {
+        if (o.arrival || !active(o)) return;
+        if (organizing && id !== 'cart') {
+          if (!o.fixed) {
+            selected = o;
+            renderStorage();
+          }
+          return;
+        }
         markTouched(id);
         if (typeof interact === 'function') interact(...args);
       }
@@ -171,14 +179,7 @@
 
     root.userData.worldItem = id;
 
-    root.userData.act = () => {
-      if (o.arrival || o.stored || !o.unlocked) return;
-      if (organizing && id !== 'cart') return;
-
-      if (typeof o.interact === 'function') {
-        o.interact(o);
-      }
-    };
+    root.userData.act = () => o.interact(o);
 
     build(o);
     root.visible = false;
@@ -2076,8 +2077,6 @@ window.worldBirthdayCatReaction = () => {
     cameraMode =
       cameraMode === 'boat' ? 'orbit' : 'boat';
 
-    if (organizing) toggleOrganizer();
-
     updateBoatControls();
 
     if (cameraMode === 'boat') {
@@ -2363,7 +2362,6 @@ if (typeof horizonHills !== 'undefined') {
     #vbStoreBox h4{margin:14px 0 8px;font-size:13px;opacity:.9;letter-spacing:.1em}
     #vbStoreBox .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
     #vbStoreBox .hint{font-size:12px;opacity:.85;line-height:1.6;margin:0 0 10px}
-    #vbStoreBox select{width:100%;padding:7px;font:inherit;margin-bottom:8px}
     #vbStoreBox .sel{padding:8px 10px;border-radius:12px;background:#e0a176;color:#1d2a50;font-weight:700}
     #vbStoreBox .tools{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
     #vbStoreBox .stored{display:flex;flex-wrap:wrap;gap:6px}
@@ -2719,24 +2717,8 @@ function resetSelectedPosition() {
     head.append(title, done);
 
     const hint = el('p', 'hint');
-    hint.textContent =
-  '點場上的物件，或從清單選取。裁判椅可拖曳移位。';
-
-hint.style.whiteSpace = 'pre-line';
+    hint.textContent = '點選場上的物件後，按收納鍵收進車裡。裁判椅可拖曳移位。';
     storeBox.append(head, hint);
-
-    const picker = el('select');
-    picker.setAttribute('aria-label', '選擇場上物件');
-    picker.add(new Option('選擇場上物件', ''));
-    for (const o of list) {
-      if (active(o) && !o.fixed && !o.arrival) picker.add(new Option(o.name, o.id));
-    }
-    picker.value = selected?.id || '';
-    picker.onchange = () => {
-      selected = byId.get(picker.value) || null;
-      renderStorage();
-    };
-    storeBox.append(picker);
 
     if (selected && active(selected)) {
       const s = el('div', 'sel');
@@ -4048,7 +4030,6 @@ let lastInput = 0;
   function finishArrival(o) {
     o.arrival = null;
     o.root.position.y = 0;
-    if (organizing) renderStorage();
     if (!VB_IS_DEV && !seen[o.id]) {
       seen[o.id] = true;
       save('vb-items-seen', seen);
