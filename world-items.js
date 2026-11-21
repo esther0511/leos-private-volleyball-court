@@ -1810,69 +1810,7 @@ window.worldTestMachineStrike = kind => {
   }
 
   create('cat', o => {
-    const fur = 0x1f2230, mat = material(fur), P = o.parts;
-
-    P.pose = new T3.Group();
-    o.art.add(P.pose);
-
-    // 細長的身體
-    P.body = new T3.Mesh(new T3.SphereGeometry(.3, 16, 12), mat);
-    P.body.scale.set(1.9, .5, .52);
-    P.body.position.set(0, .42, 0);
-    P.pose.add(P.body);
-
-    // 頭、耳朵、眼睛、嘴
-    P.head = new T3.Group();
-    P.head.position.set(.56, .55, 0);
-    const skull = new T3.Mesh(new T3.SphereGeometry(.18, 16, 12), mat);
-    skull.scale.set(1.05, .95, .95);
-    P.head.add(skull);
-
-    P.ears = [-1, 1].map(s => {
-      const g = new T3.Group();
-      g.position.set(-.02, .15, s * .09);
-      const ear = new T3.Mesh(new T3.ConeGeometry(.065, .16, 4), mat);
-      ear.position.y = .07;
-      g.add(ear);
-      P.head.add(g);
-      return g;
-    });
-
-    P.eyes = [-1, 1].map(s => orb(P.head, .028, .15, .04, s * .07, 0xf1d578, 8, 6));
-
-    P.mouth = new T3.Mesh(new T3.SphereGeometry(.035, 8, 6), material(0x5a1f2b));
-    P.mouth.position.set(.17, -.05, 0);
-    P.mouth.scale.set(1, .2, 1);
-    P.head.add(P.mouth);
-
-    // 生日派對帽（只有生日彩蛋時出現）
-    P.hat = new T3.Group();
-    const cone = new T3.Mesh(new T3.ConeGeometry(.09, .22, 8), material(0xe0a176));
-    cone.position.y = .26;
-    P.hat.add(cone, orb(P.hat, .03, 0, .38, 0, 0xffffff, 8, 6));
-    P.hat.visible = false;
-    P.head.add(P.hat);
-    P.pose.add(P.head);
-
-    // 四條細腿（各自擺動）
-    P.legs = [[.36, -.09], [.36, .09], [-.38, -.09], [-.38, .09]].map(([x, z]) => {
-      const g = new T3.Group();
-      g.position.set(x, .38, z);
-      cyl(g, .035, .03, .38, 0, -.19, 0, fur, 8);
-      P.pose.add(g);
-      return g;
-    });
-
-    // 尾巴
-    P.tail = new T3.Group();
-    P.tail.position.set(-.55, .5, 0);
-    const t1 = cyl(P.tail, .03, .026, .5, -.12, .2, 0, fur, 8);
-    t1.rotation.z = .5;
-    const t2 = cyl(P.tail, .026, .02, .3, -.255, .57, 0, fur, 8);
-    t2.rotation.z = .1;
-    P.pose.add(P.tail);
-
-    P.k = { h: .2, hy: .26 };
+    VBCatModel.build(o.art, o.parts);
 
     clickZone(o, 1.6, 1.2, 1.6, 0, .5, 0, () => o.interact(o));
   }, o => {
@@ -1943,41 +1881,17 @@ window.worldTestMachineStrike = kind => {
     }
     o.root.position.set(o.x, 0, o.z);
 
-    // 姿勢：睡覺時蜷伏，其他時候站著
     const sleeping = C.state === 'sleep', walking = C.state === 'walk';
-    const k = P.k, L = Math.min(1, dt * 5);
-    k.h += ((sleeping ? .2 : .42) - k.h) * L;
-    k.hy += ((sleeping ? .26 : .55) - k.hy) * L;
-
-    P.body.position.y = k.h;
-    P.body.scale.y = sleeping ? .42 : .5;
-    P.head.position.y = k.hy;
-    P.legs.forEach((g, i) => {
-      g.position.y = k.h - .04;
-      g.scale.y = Math.max(.08, (k.h - .04) / .38);
-      g.rotation.z = walking ? Math.sin(now * 7 + (i === 1 || i === 2 ? Math.PI : 0)) * .5 : 0;
-    });
-
     // 動作進度 0 → 1 → 0
     const s = C.actT > 0 ? Math.sin(Math.PI * (1 - C.actT / C.actDur)) : 0;
     const act = C.actT > 0 ? C.act : '';
-
-    P.pose.rotation.z = act === 'stretch' ? -.28 * s : 0;
-    P.pose.scale.x = act === 'stretch' ? 1 + .1 * s : 1;
-    P.head.rotation.z = (act === 'yawn' ? .45 * s : 0) + (act === 'meow' ? .25 * s : 0) + (party ? .5 : 0) + (sleeping ? -.5 : 0);
-    P.mouth.scale.y = .2 + (act === 'yawn' ? 2.4 * s : 0) + (act === 'meow' ? 1.6 * Math.abs(Math.sin(now * 14)) : 0);
-
-    P.tail.rotation.y = act === 'tail' || party ? Math.sin(now * 10) * .55 * (party ? 1 : s) : Math.sin(now * 1.5) * .15;
-    P.tail.rotation.z = act === 'stretch' ? .35 * s : 0;
-    P.ears.forEach((e, i) => { e.rotation.x = act === 'ears' ? Math.sin(now * 25 + i * 2) * .4 * s : 0; });
 
     // 眨眼：睡覺、打哈欠時閉眼
     C.blink -= dt;
     if (C.blink < -.12) C.blink = rnd(2.5, 6);
     const closed = sleeping || act === 'yawn' || (C.blink < 0 && C.blink > -.12);
-    P.eyes.forEach(e => { e.scale.y = closed ? .1 : 1; });
-
-    P.hat.visible = party;
+    const standing = C.state === 'idle' && !act && !party && C.t > C.wait - 1.4;
+    VBCatModel.pose(P, { sleeping, walking, standing, party, closed, act, s }, now, dt);
   }
 // ===== 生日彩蛋：已解鎖黑貓的特殊反應 =====
 
