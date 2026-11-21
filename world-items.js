@@ -1270,9 +1270,14 @@ function machineStrike(spike) {
   const targetZ =
     rnd(-3, 3);
 
-  // 一般擊球較柔和，殺球較快速
-  const duration =
-    spike ? .56 : 1.26;
+  if (spike) {
+    beginSpikeFlight(ball.position.clone(), new T3.Vector3(targetX, BR, targetZ), true);
+    playSoftImpact(1, true);
+    machineShowCue('殺球！');
+    return;
+  }
+
+  const duration = 1.26;
 
   // 沿用原本球場的重力系統
   bv.set(
@@ -1288,9 +1293,7 @@ function machineStrike(spike) {
 
   );
 
-  machineShowCue(
-    spike ? '殺球！' : '擊球！'
-  );
+  machineShowCue('擊球！');
 
   sfxSpike();
 

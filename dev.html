@@ -226,7 +226,9 @@
   function showDay(g) {
     const day = Number(visitDay.value);
     g.setWorldPreviewDay(day);
+    document.querySelector('.machine-tools').open = day === 7;
     document.querySelector('#dayHint').textContent = ({
+      7: '按「特殊殺球效果」試打一次，可重播比較出手聲、尾跡與落點。',
       10: '點野餐墊上的酒杯，看氣泡浮起。點旁邊的酒瓶，會彈開軟木塞並倒酒。',
       14: '點場邊的黑貓，看牠醒來或做出小動作。可以多點幾次，看看不同的反應。'
     })[day] || '選擇天數後，直接點球場裡的物件。要測試登場過程，再按「測試殺球解鎖」。';
@@ -489,8 +491,10 @@ for (const [id, kind, label] of [
 
         }
 
-        const ok =
-          g.worldTestMachineStrike(kind);
+        if (window.matchMedia('(max-width: 760px)').matches) {
+          preview.scrollIntoView({ block: 'start' });
+        }
+        const ok = g.worldTestMachineStrike(kind);
 
         report(
 

@@ -998,6 +998,24 @@ const rings=[];let shake=0;
 const G=16;
 // 指定落點的殺球飛行狀態
 let spikeFlight = null;
+const machineTrail = new T3.Mesh(
+  new T3.ConeGeometry(.13, 1, 12),
+  new T3.MeshBasicMaterial({ color: 0xfffaf0, transparent: true, opacity: .62, depthWrite: false })
+);
+const trailAxis = new T3.Vector3();
+const trailUp = new T3.Vector3(0, 1, 0);
+machineTrail.visible = false;
+sc.add(machineTrail);
+
+function addSpikeRing(p, inner, outer, color) {
+  const r = new T3.Mesh(new T3.RingGeometry(inner, outer, 32),
+    new T3.MeshBasicMaterial({ color, transparent: true, side: T3.DoubleSide, depthWrite: false }));
+  r.rotation.x = -PI / 2;
+  r.position.set(p.x, .06, p.z);
+  sc.add(r);
+  rings.push({ r, t: 0 });
+}
+
 let hover = null;
 let glowA = 0;
 
@@ -1494,10 +1512,6 @@ function startSpike(point) {
     point.z
   );
 
-  const dist = Math.hypot(
-    to.x - from.x,
-    to.z - from.z
-  );
 
   // 算出球穿過球網所在平面的時間比例
   const cross = -from.x / (to.x - from.x);
@@ -1525,25 +1539,20 @@ if (netCrossY < minNetY) {
 
   return;
 }
-  // 建立殺球飛行資料
+  beginSpikeFlight(from, to);
+  sfxWhoosh();
+  popText('殺球！');
+}
+
+function beginSpikeFlight(from, to, machine = false) {
+  const dist = Math.hypot(to.x - from.x, to.z - from.z);
+  const cross = T3.MathUtils.clamp(-from.x / (to.x - from.x), .01, .99);
+  // 練習托球位置可變。僅在直線會擦網時，略抬高中段球路。
+  const clearance = 2.43 + BR + .12 - T3.MathUtils.lerp(from.y, to.y, cross);
+  const lift = machine ? Math.max(0, clearance) / (4 * cross * (1 - cross)) : 0;
   spikeFlight = {
-    from,
-    to,
-    elapsed: 0,
-
-   // 殺球飛行時間
-duration: Math.max(
-  0.42,
-  Math.min(0.65, dist / 18)
-),
-
-    cross: Math.max(
-      0.03,
-      Math.min(0.97, cross)
-    ),
-
-    // 球經過球網時的安全高度
-    netY: 2.43 + BR + 0.16 + (from.y - 3) * 0.45
+    from, to, machine, cross, lift, elapsed: 0,
+    duration: T3.MathUtils.clamp(dist / 18, .42, .65)
   };
 
   b.armed = 0;
@@ -1553,8 +1562,6 @@ duration: Math.max(
   bv.set(0, 0, 0);
   b.sq = 0.2;
   hover = null;
-  sfxWhoosh();
-  popText('殺球！');
 }
 
 
@@ -1646,6 +1653,7 @@ if (
 }
 function stepBall(dt){
   const p=ball.position;
+  machineTrail.visible = false;
   // 指定落點殺球
 if (spikeFlight) {
 
@@ -1671,6 +1679,20 @@ p.lerpVectors(
   progress
 );
 
+  if (f.machine) {
+    p.y += 4 * f.lift * progress * (1 - progress);
+    if (progress > Math.max(.48, f.cross) && u < 1) {
+      trailAxis.subVectors(f.from, f.to);
+      trailAxis.y -= 4 * f.lift * (1 - 2 * progress);
+      trailAxis.normalize();
+      const length = Math.min(1.5, (progress - Math.max(.48, f.cross)) * 9);
+      machineTrail.visible = true;
+      machineTrail.scale.y = length;
+      machineTrail.position.copy(p).addScaledVector(trailAxis, BR * .7 + length / 2);
+      machineTrail.quaternion.setFromUnitVectors(trailUp, trailAxis);
+    }
+  }
+
   // 保留排球旋轉
   ball.rotation.z += dt * 8;
 
@@ -1680,7 +1702,7 @@ p.lerpVectors(
     spikeFlight = null;
 
     // 恢復原本的殺球落地特效與反彈
-    b.sp = true;
+    b.sp = f.machine ? 'machine' : true;
 
     bv.set(
       (f.to.x - f.from.x) / f.duration * 0.22,
@@ -1714,17 +1736,27 @@ if(p.y<=BR){p.y=BR;b.armed=0;
 if (typeof window.worldMachineOnBallGround === 'function') {
   window.worldMachineOnBallGround();
 }
-    if(b.sp){b.sp=false;bv.y=-bv.y*.85;b.sq=.6;shake=1.4;netAmp=.35;sfxSpike();
+    if (b.sp) {
+      const machineImpact = b.sp === 'machine';
+      b.sp = false;
+      bv.y = -bv.y * .85;
+      b.sq = .6;
+      shake = 1.4;
+      netAmp = .35;
+      sfxSpike();
+      if (!machineImpact && typeof window.worldOnValidSpike === 'function') {
+        window.worldOnValidSpike();
+      }
+      addSpikeRing(p, .4, .6, 0xffffff);
+      if (machineImpact) addSpikeRing(p, .73, .78, 0xffdc91);
+    } else if (bv.y < -2.5) {
+      sfxBounce(Math.min(1, -bv.y / 12));
+      bv.y *= -.72;
+      b.sq = .22;
+    } else {
+      bv.y = 0;
+    }
 
-if (typeof window.worldOnValidSpike === 'function') {
-  window.worldOnValidSpike();
-}
-
-const r=new T3.Mesh(new T3.RingGeometry(.4,.6,32),new T3.MeshBasicMaterial({color:0xffffff,transparent:true,side:T3.DoubleSide}));r.rotation.x=-PI/2;r.position.set(p.x,.06,p.z);sc.add(r);rings.push({r,t:0})}
-      else if(bv.y<-2.5)
-      {sfxBounce(Math.min(1,-
-      bv.y/12));bv.y*=-.72;b.sq=.22}else bv.y=0;
-                
 // 排球落地後逐漸失去水平動能
 const friction = Math.exp(-3.8 * dt);
 
@@ -3548,7 +3580,7 @@ stars.forEach(o => {
   // 生日當下：讓原有星星移動成文字
 // 結束後返回夜空原本的位置
 moveBirthdayStars();
-  for(let i=rings.length-1;i>=0;i--){const q=rings[i];q.t+=dt*1.8;q.r.scale.setScalar(1+q.t*5);q.r.material.opacity=Math.max(0,1-q.t);if(q.t>=1){sc.remove(q.r);rings.splice(i,1)}}
+  for(let i=rings.length-1;i>=0;i--){const q=rings[i];q.t+=dt*1.8;q.r.scale.setScalar(1+q.t*5);q.r.material.opacity=Math.max(0,1-q.t);if(q.t>=1){sc.remove(q.r);q.r.geometry.dispose();q.r.material.dispose();rings.splice(i,1)}}
 
   
   if (typeof window.vbRoamStep === 'function') {
@@ -4119,7 +4151,7 @@ let impactAudioCtx = null;
 let lastImpactTime = 0;
 
 // 柔和、低沉的球體撞擊聲
-function playSoftImpact(power = 0.5) {
+function playSoftImpact(power = 0.5, crisp = false) {
 
   const AudioClass =
     window.AudioContext || window.webkitAudioContext;
@@ -4143,7 +4175,7 @@ function playSoftImpact(power = 0.5) {
     ctx.resume().catch(() => {});
   }
 
-  const duration = 0.13;
+  const duration = crisp ? .065 : .13;
   const length = Math.ceil(ctx.sampleRate * duration);
 
   const buffer = ctx.createBuffer(
@@ -4166,7 +4198,7 @@ function playSoftImpact(power = 0.5) {
   // 低通濾波，讓聲音更悶
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.value = 320;
+  filter.frequency.value = crisp ? 2300 : 320;
   filter.Q.value = 0.7;
 
   const gain = ctx.createGain();
