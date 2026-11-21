@@ -231,17 +231,23 @@ function positionRainbowInSky(framePreview = false) {
       bearing.set(dx / distance, 0, dz / distance);
     }
   }
-  center.x = cam.position.x + bearing.x * depth;
-  center.z = cam.position.z + bearing.z * depth;
+  // 依參考圖讓左肩穿過低雲，把弧頂抬高並往右側山脊展開。
+  const cloudElevation = Math.atan2(topY - cam.position.y, depth);
+  topY += depth * .06;
+  const viewHalfWidth = depth * Math.tan(T3.MathUtils.degToRad(cam.fov / 2)) * cam.aspect;
+  const halfSpan = Math.min(depth * .325, viewHalfWidth * .85);
+  const shiftRight = Math.min(halfSpan * .42, viewHalfWidth * .93 - halfSpan);
+  center.x = cam.position.x + bearing.x * depth - bearing.z * shiftRight;
+  center.z = cam.position.z + bearing.z * depth + bearing.x * shiftRight;
   const yaw = Math.atan2(-bearing.x, -bearing.z);
   const heightScale = Math.max(.01, (topY - center.y) / rainbowRadius);
   // 幾何中心原在局部 z = -37。色帶與點擊區共用同一組變換。
   for (const target of [weatherRainbow, rainbowHit]) {
     target.position.copy(center).addScaledVector(bearing, -37);
     target.rotation.y = yaw;
-    target.scale.set(heightScale * 1.3 / 1.8, heightScale, 1);
+    target.scale.set(halfSpan / rainbowRadius, heightScale, 1);
   }
-  return Math.atan2(topY - cam.position.y, depth);
+  return cloudElevation;
 }
 
 // ===== 判斷是否白天 =====
