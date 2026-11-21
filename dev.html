@@ -292,7 +292,12 @@ for (const id of [
 
     if (scene && items && !firstDaySynced) {
       firstDaySynced = true;
-      try { showDay(g); }
+      try {
+        showDay(g);
+        if (new URLSearchParams(location.search).get('weather') === 'rainbow') {
+          document.querySelector('#testRainbow').click();
+        }
+      }
       catch (e) { report('天數同步失敗，請檢查瀏覽器控制台。', 'error'); }
     }
 

@@ -117,10 +117,11 @@ const rainbowColors = [
 ];
 
 const rainbowBands = [];
+const rainbowRadius = 20;
 
 for (let i = 0; i < rainbowColors.length; i++) {
 
-  const radius = 20 - i * .24;
+  const radius = rainbowRadius - i * .24;
   const points = [];
 
   for (let j = 0; j <= 48; j++) {
@@ -195,62 +196,52 @@ rainbowHit.userData.act = () => {
 
 sc.add(rainbowHit);
 hitList.push(rainbowHit);
-// ===== 將彩虹放在視線前方的遠處天空 =====
-
-// ===== 將彩虹放在遠方山巒後面 =====
-
-function positionRainbowInSky() {
-
-  // 取得玩家觀看的水平方向
-  const dir = new T3.Vector3();
-
-  cam.getWorldDirection(dir);
-  dir.y = 0;
-
-  if (dir.lengthSq() < .0001) {
-    dir.set(0, 0, -1);
+// 彩虹位於山後，依雲底在玩家眼中的仰角決定大小。
+function positionRainbowInSky(framePreview = false) {
+  let lowest = null;
+  for (const cloud of clouds) {
+    for (const { m, s } of cloud.parts) {
+      const base = m.getWorldPosition(new T3.Vector3());
+      // 採用雲恢復原形後的厚度，避免點雲時暫時縮小改變弧頂高度。
+      base.y -= m.geometry.parameters.radius * s.y;
+      if (!lowest || base.y < lowest.y) lowest = base;
+    }
   }
 
-  dir.normalize();
-
-  // 彩虹的正面朝向攝影機
-  const yaw = Math.atan2(
-    -dir.x,
-    -dir.z
-  );
-
-  // 以球場中心作基準，
-  // 放在原本山巒圈之外
-  const center = dir.clone()
-    .multiplyScalar(155);
-
-  // 彩虹兩端埋入地平線
+  if (framePreview && lowest) {
+    ct.th = cs.th = Math.atan2(tgtP.x - lowest.x, tgtP.z - lowest.z);
+    camStep();
+  }
+  const bearing = cam.getWorldDirection(new T3.Vector3());
+  bearing.y = 0;
+  if (bearing.lengthSq() < .0001) bearing.set(0, 0, -1);
+  bearing.normalize();
+  const center = bearing.clone().multiplyScalar(155);
   center.y = -12;
-
-  // 原本彩虹幾何中心在 z = -37
-  const offset = new T3.Vector3(0, 0, -37)
-    .applyAxisAngle(
-      new T3.Vector3(0, 1, 0),
-      yaw
-    );
-
-  const origin = center.sub(offset);
-
-  // 彩虹與點擊區必須使用相同變換
-  for (const target of [
-    weatherRainbow,
-    rainbowHit
-  ]) {
-
-    target.position.copy(origin);
-    target.rotation.y = yaw;
-
-    // 增加拱形高度，
-    // 底部藏在山後，頂部露出天空
-    target.scale.set(1.3, 1.8, 1);
-
+  const depth = Math.hypot(center.x - cam.position.x, center.z - cam.position.z);
+  let topY = center.y + rainbowRadius * 1.8;
+  if (lowest) {
+    const dx = lowest.x - cam.position.x, dz = lowest.z - cam.position.z;
+    const distance = Math.max(1, Math.hypot(dx, dz));
+    topY = cam.position.y + (lowest.y - cam.position.y) * depth / distance;
+    // 最低的雲在眼前時讓弧頂接上它，其他方向則維持玩家原來的視線。
+    const halfFov = Math.atan(Math.tan(T3.MathUtils.degToRad(cam.fov / 2)) * cam.aspect);
+    const nearCenter = Math.cos(Math.min(halfFov * .55, Math.PI / 9));
+    if (dx * bearing.x + dz * bearing.z >= nearCenter * distance) {
+      bearing.set(dx / distance, 0, dz / distance);
+    }
   }
-
+  center.x = cam.position.x + bearing.x * depth;
+  center.z = cam.position.z + bearing.z * depth;
+  const yaw = Math.atan2(-bearing.x, -bearing.z);
+  const heightScale = Math.max(.01, (topY - center.y) / rainbowRadius);
+  // 幾何中心原在局部 z = -37。色帶與點擊區共用同一組變換。
+  for (const target of [weatherRainbow, rainbowHit]) {
+    target.position.copy(center).addScaledVector(bearing, -37);
+    target.rotation.y = yaw;
+    target.scale.set(heightScale * 1.3 / 1.8, heightScale, 1);
+  }
+  return Math.atan2(topY - cam.position.y, depth);
 }
 
 // ===== 判斷是否白天 =====
@@ -318,7 +309,12 @@ window.worldTestWeather = kind => {
     weather.rainbowTime = 25;
     weather.rainbowPulse = 1;
 
-    positionRainbowInSky();
+    const orbitPreview = window.worldCameraMode?.() === 'orbit';
+    const elevation = positionRainbowInSky(orbitPreview);
+    // 在開發者頁面按測試時，同時看見山稜和弧頂。
+    if (orbitPreview) {
+      ct.tilt = Math.PI / 2 - ct.ph + elevation / 2;
+    }
   } else if (kind === 'clear') {
 
     weather.kind = 'none';
