@@ -265,40 +265,6 @@ const wet = [
   makeShore(-1, true)
 ];
 
-    return {
-      mesh,
-      divisions
-    };
-  }
-
-  const sand = [
-    makeShore(1, false),
-    makeShore(-1, false)
-  ];
-
-  const wet = [
-    makeShore(1, true),
-    makeShore(-1, true)
-  ];
-
-  // 海灣內側沙地
-  const beachTip = new T3.Mesh(
-    new T3.CircleGeometry(1, 48),
-    new T3.MeshBasicMaterial({
-      color: 0xe9d7ad,
-      side: T3.DoubleSide,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false
-    })
-  );
-
-  beachTip.rotation.x = -Math.PI / 2;
-  beachTip.position.set(-24.8, .061, 14);
-  beachTip.scale.set(7.5, 5.2, 1);
-  beachTip.visible = false;
-
-  sc.add(beachTip);
 
   // ====================================
   // 四、小帆船停靠岩石
@@ -633,7 +599,7 @@ const wet = [
       if (!access.isSailing()) return;
 
       if (!cabin.getState().bag) {
-        cabin.takeItem?.('bag');
+        if (!cabin.takeItem('bag')) return notify('背包未能儲存，請再試一次。');
         notify('取得防水背包。');
       }
 
@@ -674,7 +640,7 @@ const wet = [
     () => {
       if (!access.isSailing()) return;
 
-      cabin.takeItem?.('letter');
+      if (!cabin.takeItem('letter')) return notify('信封未能儲存，請再試一次。');
       cabin.openBoatLetter?.();
     }
   );
@@ -722,7 +688,7 @@ const wet = [
     () => {
       if (!access.isSailing()) return;
 
-      cabin.takeItem?.('log');
+      if (!cabin.takeItem('log')) return notify('日誌未能儲存，請再試一次。');
 
       if (cabin.getState().bag) {
         cabin.openBackpackTab?.('journal');
@@ -1202,6 +1168,8 @@ const wet = [
       notify('先點擊船上的防水背包。');
       return false;
     }
+
+    if (bottles.some(b => !b.taken && b.mode !== 'idle')) return false;
 
     o.mode = 'opening';
     o.age = 0;
@@ -1717,6 +1685,10 @@ const wet = [
 
       // 拾取動畫
       if (o.mode === 'opening') {
+        if (!access.isSailing() || cabin.isOpen()) {
+          resetBottle(o);
+          continue;
+        }
 
         o.age += dt;
 

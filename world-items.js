@@ -2141,7 +2141,7 @@ window.worldBirthdayCatReaction = () => {
     updateBoatControls();
 
     if (cameraMode === 'boat') {
-      popText('方向鍵／WASD 操控帆船，按返回離船');
+      popText('WASD 或螢幕方向鍵操控帆船，按返回離船');
     }
 
   }, {
@@ -3114,15 +3114,7 @@ const p = nearest(
 
     const k = e.key.toLowerCase();
 
-    if (
-      [
-        'arrowup',
-        'arrowdown',
-        'arrowleft',
-        'arrowright',
-        'w', 'a', 's', 'd', 'shift'
-      ].includes(k)
-    ) {
+    if (['w', 'a', 's', 'd'].includes(k)) {
       pressed.add(k);
       e.preventDefault();
     }
@@ -3135,7 +3127,10 @@ const p = nearest(
 
   window.addEventListener(
     'keyup',
-    e => pressed.delete(e.key.toLowerCase())
+    e => {
+      const key = e.key.toLowerCase();
+      if (['w', 'a', 's', 'd'].includes(key)) pressed.delete(key);
+    }
   );
 
   window.addEventListener(
@@ -4890,17 +4885,17 @@ if (
   cameraMode === 'boat' &&
   !boatPanelOpen
 ) {
-  const boosting = pressed.has('shift');
+
 
           boatSpeed +=
-              (forward ? (boosting ? 8.5 : 5) : 0) * dt;
+              (forward ? 5 : 0) * dt;
 
           boatSpeed -=
               (backward ? 4 : 0) * dt;
 
           boatSpeed = Math.max(
               -1.8,
-              Math.min(boosting ? 7.8 : 5, boatSpeed)
+              Math.min(5, boatSpeed)
             );
 
           if (left) boatHeading += 1.25 * dt;

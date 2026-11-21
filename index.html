@@ -3568,6 +3568,7 @@ camStep();
   }
   
   R.render(sc, cam);
+  if (VB_IS_DEV && !cv.dataset.rendered) cv.dataset.rendered = '1';
   requestAnimationFrame(frame);
   }
 requestAnimationFrame(frame);
