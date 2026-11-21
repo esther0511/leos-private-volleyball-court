@@ -237,6 +237,7 @@ uiMenu.append(sticksButton, tipsButton);
   }
 
   function refreshUiButtons() {
+    document.documentElement.classList.toggle('vb-sticks-enabled', uiPrefs.sticks);
 
   sticksButton.textContent =
     `搖桿 ${uiPrefs.sticks ? '開' : '關'}`;
