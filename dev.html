@@ -37,8 +37,6 @@
   section { margin-top: 23px; padding-top: 21px; border-top: 1px solid var(--stroke); }
   .section-label { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
   h2 { margin: 0; font-size: 15px; letter-spacing: .04em; }
-  .related { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; }
-  .related a { color: #d7e7ff; text-underline-offset: 3px; padding-block: 4px; font-size: 14px; }
   .machine-tools { margin-top: 14px; border-top: 1px solid var(--stroke); padding-top: 10px; }
   .machine-tools summary { cursor: pointer; font-size: 14px; font-weight: 600; padding-block: 5px; }
   .button-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -88,7 +86,7 @@
         <div class="section-label"><h2>造訪天數與解鎖</h2></div>
         <select id="visitDay" aria-label="選擇預覽造訪天數">
           <option value="1">第 1 天・原始球場</option>
-          <option value="2">第 2 天・水瓶／毛巾</option>
+          <option value="2">第 2 天・水瓶</option>
           <option value="3">第 3 天・排球車</option>
           <option value="5">第 5 天・裁判椅</option>
           <option value="7">第 7 天・發球機</option>
@@ -98,11 +96,7 @@
           <option value="30">12/24・小帆船（開發預覽）</option>
         </select>
         <button id="testSpikeUnlock" class="primary space-top" type="button">測試殺球解鎖</button>
-        <p class="note">選擇天數可直接預覽。測試殺球解鎖時，物件會在有效殺球後降落。</p>
-        <div class="related">
-          <a href="./cat-preview.html" target="_blank" rel="noopener">旋轉查看黑貓 ↗</a>
-          <a href="https://raw.githack.com/esther0511/leos-private-volleyball-court/1b39f6a7c172b1f148e4ba586636f7b77c85e3de/dev.html" target="_blank" rel="noopener">香檳試玩版（選第 10 天） ↗</a>
-        </div>
+        <p class="note" id="dayHint">選擇天數後，直接點球場裡的物件。要測試登場過程，再按「測試殺球解鎖」。</p>
         <details class="machine-tools">
           <summary>第 7 天・發球機測試</summary>
           <button id="testMachine" class="secondary space-top" type="button">開啟擊球練習</button>
@@ -224,6 +218,20 @@
   const preview = document.querySelector('#preview');
   const status = document.querySelector('#status');
   const visitDay = document.querySelector('#visitDay');
+  const requestedDay = new URLSearchParams(location.search).get('day');
+  if ([...visitDay.options].some(option => option.value === requestedDay)) {
+    visitDay.value = requestedDay;
+  }
+
+  function showDay(g) {
+    const day = Number(visitDay.value);
+    g.setWorldPreviewDay(day);
+    document.querySelector('#dayHint').textContent = ({
+      10: '點野餐墊上的酒杯，看氣泡浮起。點旁邊的酒瓶，會彈開軟木塞並倒酒。',
+      14: '點場邊的黑貓，看牠醒來或做出小動作。可以多點幾次，看看不同的反應。'
+    })[day] || '選擇天數後，直接點球場裡的物件。要測試登場過程，再按「測試殺球解鎖」。';
+  }
+
   const sceneState = document.querySelector('#sceneState');
   const itemsState = document.querySelector('#itemsState');
   const roamState = document.querySelector('#roamState');
@@ -284,7 +292,7 @@ for (const id of [
 
     if (scene && items && !firstDaySynced) {
       firstDaySynced = true;
-      try { g.setWorldPreviewDay(Number(visitDay.value)); }
+      try { showDay(g); }
       catch (e) { report('天數同步失敗，請檢查瀏覽器控制台。', 'error'); }
     }
 
@@ -357,7 +365,7 @@ for (const id of [
       return;
     }
     try {
-      g.setWorldPreviewDay(Number(visitDay.value));
+      showDay(g);
       report(`已切換至第 ${visitDay.value} 天；可直接預覽物件。`, 'success');
     } catch (e) {
       report('切換天數失敗，請檢查 JavaScript 錯誤。', 'error');
@@ -412,7 +420,7 @@ document.querySelector('#testMachine')
     if (Number(visitDay.value) < 7) {
 
       visitDay.value = '7';
-      g.setWorldPreviewDay(7);
+      showDay(g);
 
       report(
         '已切換至第 7 天。請等發球機降落完成，再按一次測試。'
@@ -472,7 +480,7 @@ for (const [id, kind, label] of [
         if (Number(visitDay.value) < 7) {
 
           visitDay.value = '7';
-          g.setWorldPreviewDay(7);
+          showDay(g);
 
         }
 

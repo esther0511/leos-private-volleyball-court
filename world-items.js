@@ -1654,6 +1654,22 @@ window.worldTestMachineStrike = kind => {
     o.parts.wine.material.opacity = .70;
     o.parts.wine.material.depthWrite = false;
 
+    const bubbles = new T3.Group();
+    bubbles.position.set(gx, 0, gz);
+    const bubbleShape = new T3.SphereGeometry(1, 8, 6);
+    const bubbleMaterial = new T3.MeshBasicMaterial({ color: 0xfff6cf });
+    for (let i = 0; i < 10; i++) {
+      const bubble = new T3.Mesh(bubbleShape, bubbleMaterial);
+      bubble.raycast = () => {}; // 氣泡只負責顯示，點擊交給杯子。
+      const angle = i * 2.4;
+      bubble.position.set(.038 * Math.cos(angle), 0, .038 * Math.sin(angle));
+      bubbles.add(bubble);
+    }
+    bubbles.visible = false;
+    o.art.add(bubbles);
+    o.parts.bubbles = bubbles;
+    o.parts.bubbleTime = 0;
+
     o.parts.gx = gx;
     o.parts.gz = gz;
 
@@ -1759,24 +1775,19 @@ window.worldTestMachineStrike = kind => {
     o.parts.pourTime = -1;
 
 
-    // 點酒瓶或酒杯，都能觸發倒酒
-    clickZone(
-      o,
-      .62, 1.45, .62,
-      gx, .75, gz,
-      () => o.interact(o)
-    );
+    clickZone(o, .50, 1.40, .50, gx, .72, gz, () => o.interact(o, 'glass'));
+    const bottleZone = clickZone(o, .55, 1.52, .55, 0, .78, 0, () => o.interact(o, 'bottle'));
+    bottle.add(bottleZone);
 
-    clickZone(
-      o,
-      .72, 1.70, .72,
-      bx, .83, bz,
-      () => o.interact(o)
-    );
-
-  }, o => {
-
+  }, (o, target) => {
     const P = o.parts;
+    if (organizing) return;
+    if (target === 'glass') {
+      P.bubbleTime = 0;
+      P.bubbles.visible = true;
+      return;
+    }
+    if (target !== 'bottle') return;
 
     // 動畫播放期間不重複觸發
     if (P.pourTime >= 0) return;
@@ -1815,7 +1826,8 @@ window.worldTestMachineStrike = kind => {
     clickZone(o, 1.6, 1.2, 1.6, 0, .5, 0, () => o.interact(o));
   }, o => {
     // 無反應、喵、打哈欠、伸懶腰、動尾巴、動耳朵
-    const acts = [['none', 0], ['meow', 1], ['yawn', 2], ['stretch', 2.2], ['tail', 2], ['ears', 1.6]];
+    const acts = [['meow', 1], ['yawn', 2], ['stretch', 2.2], ['tail', 2], ['ears', 1.6]];
+    if (!VB_IS_DEV) acts.push(['none', 0]);
     const [name, dur] = acts[Math.floor(Math.random() * acts.length)];
 
     CAT.act = name;
@@ -2203,7 +2215,7 @@ if (typeof horizonHills !== 'undefined') {
 }
   }
 
-  function syncDay(day) {
+  function syncDay(day, readyInScene = false) {
     for (const o of list) {
       // 小帆船正式版於 2026/12/24 開放
       // 開發版仍使用第 30 天進行測試
@@ -2239,7 +2251,7 @@ if (typeof horizonHills !== 'undefined') {
 
         o.root.rotation.y = o.rot;
 
-        const first = VB_IS_DEV || !seen[o.id];
+        const first = VB_IS_DEV ? !readyInScene : !seen[o.id];
 
         if (first && !o.stored) {
           if (VB_IS_DEV) {
@@ -4348,6 +4360,12 @@ window.setWorldPreviewDay = day => {
     n > 365
   ) return;
 
+  const readyInScene = n === 10 || n === 14;
+  if (readyInScene) {
+    window.worldExitSpecialView();
+    if (organizing) toggleOrganizer();
+  }
+
   // 找出這一天新解鎖的物件
   const newItems = list.filter(
     o => o.day === n
@@ -4375,6 +4393,22 @@ window.setWorldPreviewDay = day => {
   ct.ph = harborView.ph;
   ct.d = harborView.d;
   ct.tilt = 0;
+
+  } else if (readyInScene) {
+    const item = byId.get(n === 10 ? 'picnic' : 'cat');
+    if (n === 10) {
+      const { gx, gz, bx, bz } = item.parts;
+      tgtP.set((gx + bx) / 2, 0, (gz + bz) / 2);
+      item.root.localToWorld(tgtP);
+      tgtP.y = 1;
+      ct.th = item.rot + .15;
+    } else {
+      tgtP.set(item.x, 1, item.z);
+      ct.th = item.parts.pose.rotation.y + 2.15;
+    }
+    ct.ph = 1.31;
+    ct.d = 8;
+    ct.tilt = 0;
 
   } else if (newItems.length > 0) {
 
@@ -4416,7 +4450,7 @@ if (reveal) {
 }
 
 list.forEach(o => {
-  if (o.pending) {
+  if (o.pending || (readyInScene && o.day <= n && o.arrival)) {
     o.pending = false;
     o.arrival = null;
     o.root.position.y = 0;
@@ -4427,7 +4461,7 @@ list.forEach(o => {
 VB_DEV_STATE.visitDay = n;
 
 currentDay = -1;
-syncDay(n);
+syncDay(n, readyInScene);
 currentDay = n;
 
 
@@ -4594,6 +4628,19 @@ if (
       if (o.id === 'picnic' && o.parts.bottle) {
 
         const P = o.parts;
+
+        if (P.bubbles.visible) {
+          P.bubbleTime += dt;
+          const surface = P.wine.position.y + .08 * P.wine.scale.y;
+          P.bubbles.children.forEach((bubble, i) => {
+            const progress = (P.bubbleTime - i * .055) / .82;
+            bubble.visible = progress >= 0 && progress < 1;
+            if (!bubble.visible) return;
+            bubble.position.y = surface - .035 + (1.37 - surface) * progress;
+            bubble.scale.setScalar((.012 + .003 * (i % 3)) * (1 - progress ** 4));
+          });
+          if (P.bubbleTime >= 1.32) P.bubbles.visible = false;
+        }
 
         if (P.pourTime >= 0) {
 
