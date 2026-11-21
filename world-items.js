@@ -1654,6 +1654,22 @@ window.worldTestMachineStrike = kind => {
     o.parts.wine.material.opacity = .70;
     o.parts.wine.material.depthWrite = false;
 
+    const bubbles = new T3.Group();
+    bubbles.position.set(gx, 0, gz);
+    const bubbleShape = new T3.SphereGeometry(1, 8, 6);
+    const bubbleMaterial = new T3.MeshBasicMaterial({ color: 0xfff6cf });
+    for (let i = 0; i < 10; i++) {
+      const bubble = new T3.Mesh(bubbleShape, bubbleMaterial);
+      bubble.raycast = () => {}; // 氣泡只負責顯示，點擊交給杯子。
+      const angle = i * 2.4;
+      bubble.position.set(.038 * Math.cos(angle), 0, .038 * Math.sin(angle));
+      bubbles.add(bubble);
+    }
+    bubbles.visible = false;
+    o.art.add(bubbles);
+    o.parts.bubbles = bubbles;
+    o.parts.bubbleTime = 0;
+
     o.parts.gx = gx;
     o.parts.gz = gz;
 
@@ -1759,24 +1775,19 @@ window.worldTestMachineStrike = kind => {
     o.parts.pourTime = -1;
 
 
-    // 點酒瓶或酒杯，都能觸發倒酒
-    clickZone(
-      o,
-      .62, 1.45, .62,
-      gx, .75, gz,
-      () => o.interact(o)
-    );
+    clickZone(o, .50, 1.40, .50, gx, .72, gz, () => o.interact(o, 'glass'));
+    const bottleZone = clickZone(o, .55, 1.52, .55, 0, .78, 0, () => o.interact(o, 'bottle'));
+    bottle.add(bottleZone);
 
-    clickZone(
-      o,
-      .72, 1.70, .72,
-      bx, .83, bz,
-      () => o.interact(o)
-    );
-
-  }, o => {
-
+  }, (o, target) => {
     const P = o.parts;
+    if (organizing) return;
+    if (target === 'glass') {
+      P.bubbleTime = 0;
+      P.bubbles.visible = true;
+      return;
+    }
+    if (target !== 'bottle') return;
 
     // 動畫播放期間不重複觸發
     if (P.pourTime >= 0) return;
@@ -4594,6 +4605,19 @@ if (
       if (o.id === 'picnic' && o.parts.bottle) {
 
         const P = o.parts;
+
+        if (P.bubbles.visible) {
+          P.bubbleTime += dt;
+          const surface = P.wine.position.y + .08 * P.wine.scale.y;
+          P.bubbles.children.forEach((bubble, i) => {
+            const progress = (P.bubbleTime - i * .055) / .82;
+            bubble.visible = progress >= 0 && progress < 1;
+            if (!bubble.visible) return;
+            bubble.position.y = surface - .035 + (1.37 - surface) * progress;
+            bubble.scale.setScalar((.012 + .003 * (i % 3)) * (1 - progress ** 4));
+          });
+          if (P.bubbleTime >= 1.32) P.bubbles.visible = false;
+        }
 
         if (P.pourTime >= 0) {
 
