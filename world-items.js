@@ -243,6 +243,30 @@ o.parts.waterSurface.material.depthWrite = false;
     puddle.scale.set(.001, .001, 1);
     o.root.add(puddle);
     o.parts.puddle = puddle;
+    const grass = puddle.clone();
+    grass.material = puddle.material.clone();
+    grass.material.color.setHex(0x59a86e);
+    grass.position.y -= .008;
+    grass.visible = false;
+    o.root.add(grass);
+    o.parts.grass = grass;
+
+    const stream = cyl(o.root, .022, .032, 1, 0, 0, 0, 0x84d2e5);
+    stream.visible = false;
+    o.parts.stream = stream;
+    const up = new T3.Vector3(0, 1, 0);
+    const mouth = new T3.Vector3();
+    const delta = new T3.Vector3();
+    o.parts.updateStream = flow => {
+      stream.visible = flow > .001;
+      if (!stream.visible) return;
+      o.art.updateMatrix();
+      mouth.set(0, .83, 0).applyMatrix4(o.art.matrix);
+      delta.subVectors(puddle.position, mouth);
+      stream.position.copy(mouth).addScaledVector(delta, .5);
+      stream.scale.set(flow, delta.length(), flow);
+      stream.quaternion.setFromUnitVectors(up, delta.normalize());
+    };
 
     const clover = new T3.Group();
 
@@ -2607,7 +2631,7 @@ function cartIconButton(icon, label, handler) {
   return b;
 }
   let selected = null;
-  const RADIUS = { bottle: .6, towel: 1.1, cart: 1.5, picnic: 2.9, machine: 1.8 };
+  const RADIUS = { bottle: .6, cart: 1.5, picnic: 2.9, machine: 1.8 };
  
   const selRing = new T3.Mesh(
     new T3.RingGeometry(1.05, 1.25, 48),
@@ -2676,8 +2700,7 @@ function resetSelectedPosition() {
     for (const b of list) {
       if (b === o || !active(b) || b.bound || b.id === 'sailboat' || b.id === 'cat') continue;
 
-      const pair = (o.id === 'bottle' && b.id === 'towel') || (o.id === 'towel' && b.id === 'bottle');
-      const gap = pair ? 1.0 : (o.id === 'picnic' || b.id === 'picnic') ? 3.8 : 1.75;
+      const gap = (o.id === 'picnic' || b.id === 'picnic') ? 3.8 : 1.75;
 
       if (Math.hypot(x - b.x, z - b.z) < gap) return false;
     }
@@ -3976,7 +3999,7 @@ cv.addEventListener('dblclick', e => {
     // ===== 新物件送達 =====
 
   const touched = load('vb-items-touched', {});
-  const TOP = { bottle: 1.9, towel: 1.2, cart: 2.6, chair: 5.3, machine: 2.8, picnic: 1.9, cat: 1.6, basket: 1.7, sailboat: 3.6 };
+  const TOP = { bottle: 1.9, cart: 2.6, chair: 5.3, machine: 2.8, picnic: 1.9, cat: 1.6, basket: 1.7, sailboat: 3.6 };
   const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
   function markTouched(id) {
@@ -4629,19 +4652,26 @@ if (o.id === 'bottle') {
 
   const P = o.parts;
   if (P.spillTime >= 0) {
-    P.spillTime = Math.min(5.8, P.spillTime + dt);
+    P.spillTime += dt;
     const smooth = x => {x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
-    const fall = smooth(P.spillTime / 1.05);
-    const capOpen = smooth((P.spillTime - .73) / .7);
+    const remaining = 1 - smooth((P.spillTime - 8.5) / 1.5);
+    const fall = remaining * smooth(P.spillTime / 1.05);
+    const capOpen = remaining * smooth((P.spillTime - .73) / .7);
     const pour = smooth((P.spillTime - 1.08) / 1.20);
-    const bloom = smooth((P.spillTime - 2.15) / 1.55);
+    const bloom = remaining * smooth((P.spillTime - 2.15) / 1.55);
     o.art.rotation.z = -Math.PI / 2 * .92 * fall;
     o.art.position.y = .22 * fall;
     P.cap.rotation.z = -1.45 * capOpen;
     P.puddle.scale.set(.001 + .68 * pour, .001 + .38 * pour, 1);
     P.clover.scale.setScalar(Math.max(.001, bloom));
+    P.puddle.visible = pour > .001;
+    P.grass.visible = bloom > .001;
+    P.grass.scale.set(.92 * bloom, .54 * bloom, 1);
+    P.updateStream(smooth((P.spillTime - 1.08) / .3) *
+      (1 - smooth((P.spillTime - 2.4) / .5)));
     if (P.water) P.water.scale.y = Math.max(.2, 1 - .75 * pour);
     if (P.waterSurface) P.waterSurface.visible = pour < .98;
+    if (P.spillTime >= 10) P.spillTime = -1;
   } else {
     o.art.rotation.z = Math.sin(o.time * 17) * t * .11;
     if (P.water) P.water.scale.y = 1 + slosh * .012;
