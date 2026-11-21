@@ -220,15 +220,18 @@ o.parts.waterSurface.material.depthWrite = false;
 
     for (let i = 0; i < 4; i++) cub(o.art, .09, .014, .01, 0, .2 + i * .14, .222, 0xffffff);
 
-    // 整個瓶蓋以側邊為轉軸：倒地後蓋子能掀開。
+    // 轉軸固定在瓶口左緣，蓋子從瓶口上方向外掀開。
+    const rimRadius = shell.geometry.parameters.radiusTop;
     const cap = new T3.Group();
-    cap.position.set(-.16, .82, 0);
+    cap.position.set(-rimRadius, shell.position.y + shell.geometry.parameters.height / 2, 0);
     o.art.add(cap);
-    cyl(cap, .17, .2, .08, .16, .03, 0, 0x355c97, 22);
-    cyl(cap, .13, .15, .13, .16, .14, 0, 0x355c97, 22);
-    cyl(cap, .045, .06, .1, .16, .26, 0, 0xe0a176, 12);
+    const hinge = cyl(o.art, .04, .04, .08, cap.position.x, cap.position.y, 0, 0x355c97, 16);
+    hinge.rotation.x = Math.PI / 2;
+    cyl(cap, .17, .2, .08, rimRadius, .04, 0, 0x355c97, 22);
+    cyl(cap, .13, .15, .13, rimRadius, .15, 0, 0x355c97, 22);
+    cyl(cap, .045, .06, .1, rimRadius, .27, 0, 0xe0a176, 12);
     const loop = new T3.Mesh(new T3.TorusGeometry(.1, .02, 6, 16), material(0xe0a176));
-    loop.position.set(.30, .16, 0);
+    loop.position.set(rimRadius + .14, .17, 0);
     cap.add(loop);
     o.parts.cap = cap;
     o.parts.spillTime = -1;
@@ -4636,7 +4639,7 @@ if (o.id === 'bottle') {
     const bloom = smooth((P.spillTime - 2.15) / 1.55);
     o.art.rotation.z = -Math.PI / 2 * .92 * fall;
     o.art.position.y = .22 * fall;
-    P.cap.rotation.z = -1.45 * capOpen;
+    P.cap.rotation.z = 1.45 * capOpen;
     P.puddle.scale.set(.001 + .68 * pour, .001 + .38 * pour, 1);
     P.clover.scale.setScalar(Math.max(.001, bloom));
     if (P.water) P.water.scale.y = Math.max(.2, 1 - .75 * pour);
