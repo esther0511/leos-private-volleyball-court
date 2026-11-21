@@ -11,6 +11,8 @@
     chair: 5,
     machine: 7,
     picnic: 10,
+    glass: 10,
+    champagne: 10,
     cat: 14,
     basket: 15,
     sailboat: 30
@@ -21,7 +23,9 @@
     cart: '排球車',
     chair: '裁判椅',
     machine: '發球機',
-    picnic: '野餐墊與酒杯',
+    picnic: '野餐墊',
+    glass: '酒杯',
+    champagne: '香檳',
     cat: '黑貓',
     basket: '野餐籃',
     sailboat: '小帆船'
@@ -34,6 +38,8 @@
     chair: [1.0, 10.5],
     machine: [-14.5, -4],
     picnic: [16, 13.2],
+    glass: [16, 13.2],
+    champagne: [16, 13.2],
     cat: [12.4, -15],
     basket: [16, 13.2],
     sailboat: [-38, 14]
@@ -153,7 +159,9 @@
       noStore: !!opts.noStore,
       rot: 0,
       pending: false,
-      bound: opts.bound || null,
+      // 野餐配件沿用墊子的擺放位置，各自記錄收納狀態。
+      onPicnic: !!opts.onPicnic,
+      storageOnly: !!opts.onPicnic || id === 'sailboat',
       parts: {},
       interact: (...args) => {
         markTouched(id);
@@ -307,6 +315,7 @@ o.parts.clover = clover;
   }, o => {
     // 再次點擊可重播「傾倒 → 流水 → 長出四葉草」。
     o.parts.spillTime = 0;
+    o.parts.resetAt = 0;
     o.parts.cap.rotation.z = 0;
     if (o.parts.waterSurface) o.parts.waterSurface.visible = true;
     o.parts.puddle.scale.set(.001, .001, 1);
@@ -408,11 +417,10 @@ volley(o.art, 0, 1.31, -.2, .27);
     if (organizing) toggleOrganizer();
 
     if (cameraMode === 'chair') {
+      chairLook.yaw = -byId.get('chair').rot;
       popText('裁判視角：雙擊空白處返回');
     }
 
-  }, {
-    fixed: true
   });
   
   // ===== 第 7 天：發球機／接球練習 =====
@@ -1628,6 +1636,9 @@ window.worldTestMachineStrike = kind => {
     rug.rotation.x = -Math.PI / 2;
     rug.position.y = .048;
     o.art.add(rug);
+  });
+
+  create('glass', o => {
 
     const glass = new T3.MeshPhongMaterial({
       color: 0xf0ffff, transparent: true, opacity: .4,
@@ -1677,6 +1688,14 @@ window.worldTestMachineStrike = kind => {
     o.parts.gz = gz;
 
 
+    clickZone(o, .50, 1.40, .50, gx, .72, gz, () => o.interact(o));
+  }, o => {
+    if (organizing) return;
+    o.parts.bubbleTime = 0;
+    o.parts.bubbles.visible = true;
+  }, { onPicnic: true });
+
+  create('champagne', o => {
     // ===== 香檳酒瓶：常見的深綠色瓶型 =====
 
     const bx = 1.7;
@@ -1778,20 +1797,12 @@ window.worldTestMachineStrike = kind => {
     o.parts.pourTime = -1;
 
 
-    clickZone(o, .50, 1.40, .50, gx, .72, gz, () => o.interact(o, 'glass'));
-    const bottleZone = clickZone(o, .55, 1.52, .55, 0, .78, 0, () => o.interact(o, 'bottle'));
+    const bottleZone = clickZone(o, .55, 1.52, .55, 0, .78, 0, () => o.interact(o));
     bottle.add(bottleZone);
 
-  }, (o, target) => {
-    const P = o.parts;
+  }, o => {
     if (organizing) return;
-    if (target === 'glass') {
-      P.bubbleTime = 0;
-      P.bubbles.visible = true;
-      return;
-    }
-    if (target !== 'bottle') return;
-
+    const P = o.parts;
     // 動畫播放期間不重複觸發
     if (P.pourTime >= 0) return;
 
@@ -1806,7 +1817,7 @@ window.worldTestMachineStrike = kind => {
 
     P.cork.rotation.set(0, 0, 0);
 
-  });
+  }, { onPicnic: true });
 
 
   // ===== 第 14 天：睡覺的黑貓 =====
@@ -1996,10 +2007,7 @@ window.worldBirthdayCatReaction = () => {
     clickZone(o, 1.5, 1.3, 1.1, cx, .6, cz, () => o.interact(o));
   }, o => {
     o.open = !o.open;
-  }, {
-    fixed: true,
-    bound: 'picnic'
-  });
+  }, { onPicnic: true });
 
   // ===== 第 30 天：水域與小帆船 =====
 
@@ -2077,8 +2085,6 @@ window.worldBirthdayCatReaction = () => {
       popText('使用方向鍵或 WASD 航行，拖曳畫面環顧。');
     }
 
-  }, {
-    fixed: true
   });
 
   // ===== 造訪日期紀錄 =====
@@ -2124,6 +2130,14 @@ window.worldBirthdayCatReaction = () => {
 
   const seen = load('vb-items-seen', {});
   const layout = load('vb-item-layout', {});
+  // 舊存檔只記整組野餐用品。拆成各自的狀態後，往後可分開取放。
+  for (const id of ['glass', 'champagne', 'basket']) {
+    if (!layout[id] && layout.picnic) layout[id] = { ...layout.picnic };
+  }
+  if (seen.picnic) {
+    seen.glass = true;
+    seen.champagne = true;
+  }
 
   function recordVisit() {
     if (VB_IS_DEV) return;
@@ -2190,14 +2204,7 @@ window.worldBirthdayCatReaction = () => {
   }
 
   function active(o) {
-    const picnic = byId.get('picnic');
-
-    return (
-      o.unlocked &&
-      !o.stored &&
-      !o.pending &&
-      (!o.bound || (picnic.unlocked && !picnic.stored))
-    );
+    return o.unlocked && !o.stored && !o.pending;
   }
 
   function refreshVisibility() {
@@ -2356,6 +2363,7 @@ if (typeof horizonHills !== 'undefined') {
     #vbStoreBox h4{margin:14px 0 8px;font-size:13px;opacity:.9;letter-spacing:.1em}
     #vbStoreBox .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
     #vbStoreBox .hint{font-size:12px;opacity:.85;line-height:1.6;margin:0 0 10px}
+    #vbStoreBox select{width:100%;padding:7px;font:inherit;margin-bottom:8px}
     #vbStoreBox .sel{padding:8px 10px;border-radius:12px;background:#e0a176;color:#1d2a50;font-weight:700}
     #vbStoreBox .tools{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
     #vbStoreBox .stored{display:flex;flex-wrap:wrap;gap:6px}
@@ -2546,7 +2554,7 @@ function cartIconButton(icon, label, handler) {
   return b;
 }
   let selected = null;
-  const RADIUS = { bottle: .6, towel: 1.1, cart: 1.5, picnic: 2.9, machine: 1.8 };
+  const RADIUS = { bottle: .6, towel: 1.1, cart: 1.5, picnic: 2.9, glass: .34, champagne: .38, machine: 1.8 };
  
   const selRing = new T3.Mesh(
     new T3.RingGeometry(1.05, 1.25, 48),
@@ -2563,7 +2571,13 @@ function cartIconButton(icon, label, handler) {
   }
 
   function saveLayout(o) {
-    layout[o.id] = { x: o.x, z: o.z, stored: o.stored, rot: o.rot || 0 };
+    const [x, z] = o.id === 'sailboat' ? POS.sailboat : [o.x, o.z];
+    layout[o.id] = { x, z, stored: o.stored, rot: o.rot || 0 };
+    if (o.id === 'picnic') {
+      for (const id of ['glass', 'champagne', 'basket']) {
+        if (!layout[id]) layout[id] = { x, z, stored: byId.get(id).stored, rot: o.rot };
+      }
+    }
     save('vb-item-layout', layout);
   }
 
@@ -2613,7 +2627,7 @@ function resetSelectedPosition() {
     if (TREE_POS.some(([a, b]) => Math.hypot(x - a, z - b) < 2.2)) return false;
 
     for (const b of list) {
-      if (b === o || !active(b) || b.bound || b.id === 'sailboat' || b.id === 'cat') continue;
+      if (b === o || !active(b) || b.onPicnic || b.id === 'sailboat' || b.id === 'cat') continue;
 
       const pair = (o.id === 'bottle' && b.id === 'towel') || (o.id === 'towel' && b.id === 'bottle');
       const gap = pair ? 1.0 : (o.id === 'picnic' || b.id === 'picnic') ? 3.8 : 1.75;
@@ -2642,7 +2656,23 @@ function resetSelectedPosition() {
   // ===== 面板內容 =====
 
   function storeSelected() {
-    if (!selected) return;
+    if (!selected || !active(selected) || selected.fixed || selected.noStore || selected.arrival) return;
+    if (selected.id === 'glass') {
+      selected.parts.bubbles.visible = false;
+    }
+    if (selected.id === 'champagne') {
+      const cup = byId.get('glass').parts;
+      const bottle = byId.get('champagne').parts;
+      cup.wine.scale.y = 1;
+      cup.wine.position.y = .66;
+      bottle.pourTime = -1;
+      bottle.stream.visible = false;
+      bottle.bottle.position.set(bottle.bx, 0, bottle.bz);
+      bottle.bottle.rotation.z = 0;
+      bottle.cork.visible = true;
+      bottle.cork.position.set(bottle.bx, 1.45, bottle.bz);
+      bottle.cork.rotation.z = 0;
+    }
     selected.stored = true;
     selected.arrival = null;
     saveLayout(selected);
@@ -2653,8 +2683,15 @@ function resetSelectedPosition() {
 
   function putBack(o) {
     o.stored = false;
-    const p = nearest(o, o.x, o.z);
-    o.x = p.x; o.z = p.z;
+    if (o.id === 'sailboat') {
+      [o.x, o.z] = POS.sailboat;
+      boatHeading = harborHeading;
+      boatSpeed = 0;
+    } else if (!o.onPicnic && !legal(o, o.x, o.z)) {
+      const p = nearest(o, o.x, o.z);
+      o.x = p.x;
+      o.z = p.z;
+    }
     place(o);
     saveLayout(o);
     selected = o;
@@ -2683,10 +2720,23 @@ function resetSelectedPosition() {
 
     const hint = el('p', 'hint');
     hint.textContent =
-  '拖曳物件以移動位置。\n點選物件後可旋轉或收納。';
+  '點場上的物件，或從清單選取。裁判椅可拖曳移位。';
 
 hint.style.whiteSpace = 'pre-line';
     storeBox.append(head, hint);
+
+    const picker = el('select');
+    picker.setAttribute('aria-label', '選擇場上物件');
+    picker.add(new Option('選擇場上物件', ''));
+    for (const o of list) {
+      if (active(o) && !o.fixed && !o.arrival) picker.add(new Option(o.name, o.id));
+    }
+    picker.value = selected?.id || '';
+    picker.onchange = () => {
+      selected = byId.get(picker.value) || null;
+      renderStorage();
+    };
+    storeBox.append(picker);
 
     if (selected && active(selected)) {
       const s = el('div', 'sel');
@@ -2696,7 +2746,7 @@ hint.style.whiteSpace = 'pre-line';
       const tools = el('div', 'tools');
 
 // 第一列：左轉、恢復初始位置、右轉
-tools.append(
+if (!selected.storageOnly) tools.append(
 
   cartIconButton(
     'left',
@@ -2776,8 +2826,9 @@ renderStorage();
 
   window.addEventListener('keydown', e => {
     if (!organizing || !selected) return;
-    if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
     const k = e.key.toLowerCase();
+    if (selected.storageOnly) return;
     if (k === 'q') rotateSelected(-1);
     if (k === 'e') rotateSelected(1);
   });
@@ -2855,6 +2906,7 @@ if (!drag || drag.id !== e.pointerId) return;
 
 e.stopImmediatePropagation();
 e.preventDefault();
+if (drag.o.storageOnly) return;
 
 // 單純點擊只選取，超過 6px 才開始拖曳
 if (!drag.moved) {
@@ -3555,6 +3607,7 @@ window.addEventListener('keydown', e => {
 
 function updateSky(dt) {
 
+  sagSky.position.set(sagChair.x, 84, sagChair.z - 160);
   sagState.night = sagEase(
     (starV - .12) / .58
   );
@@ -3995,6 +4048,7 @@ let lastInput = 0;
   function finishArrival(o) {
     o.arrival = null;
     o.root.position.y = 0;
+    if (organizing) renderStorage();
     if (!VB_IS_DEV && !seen[o.id]) {
       seen[o.id] = true;
       save('vb-items-seen', seen);
@@ -4400,7 +4454,8 @@ window.setWorldPreviewDay = day => {
   } else if (readyInScene) {
     const item = byId.get(n === 10 ? 'picnic' : 'cat');
     if (n === 10) {
-      const { gx, gz, bx, bz } = item.parts;
+      const { gx, gz } = byId.get('glass').parts;
+      const { bx, bz } = byId.get('champagne').parts;
       tgtP.set((gx + bx) / 2, 0, (gz + bz) / 2);
       item.root.localToWorld(tgtP);
       tgtP.y = 1;
@@ -4504,18 +4559,13 @@ currentDay = n;
 }
 
     const picnic = byId.get('picnic');
-    const basket = byId.get('basket');
-
-    // 野餐籃跟著野餐墊
-    basket.root.position.x =
-      picnic.root.position.x;
-
-    basket.root.position.z =
-      picnic.root.position.z; basket.root.rotation.y = picnic.root.rotation.y;
-
-    if (!basket.arrival) {
-      basket.root.position.y =
-        picnic.root.position.y;
+    for (const o of list) {
+      if (!o.onPicnic) continue;
+      o.x = picnic.x;
+      o.z = picnic.z;
+      o.root.position.x = picnic.root.position.x;
+      o.root.position.z = picnic.root.position.z;
+      o.root.rotation.y = picnic.root.rotation.y;
     }
 
     refreshVisibility();
@@ -4565,7 +4615,7 @@ if (o.arrival) {
         o.parts.inner.position.y += ((o.open ? .34 : .12) - o.parts.inner.position.y) * Math.min(1, dt * 5);
       }
 
-      if (o.bound) continue;
+
 
       o.time = Math.max(
         0,
@@ -4582,7 +4632,7 @@ if (o.id === 'bottle') {
 
   const P = o.parts;
   if (P.spillTime >= 0) {
-    P.spillTime = Math.min(5.8, P.spillTime + dt);
+    P.spillTime += dt;
     const smooth = x => {x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
     const fall = smooth(P.spillTime / 1.05);
     const capOpen = smooth((P.spillTime - .73) / .7);
@@ -4595,6 +4645,21 @@ if (o.id === 'bottle') {
     P.clover.scale.setScalar(Math.max(.001, bloom));
     if (P.water) P.water.scale.y = Math.max(.2, 1 - .75 * pour);
     if (P.waterSurface) P.waterSurface.visible = pour < .98;
+
+    if (bloom >= 1) {
+      const now = performance.now();
+      if (!P.resetAt) P.resetAt = now + 10000;
+      if (now >= P.resetAt) {
+        P.spillTime = -1;
+        o.art.position.y = 0;
+        o.art.rotation.z = 0;
+        P.cap.rotation.z = 0;
+        P.water.scale.y = 1;
+        P.waterSurface.visible = true;
+        P.puddle.scale.set(.001, .001, 1);
+        P.clover.scale.setScalar(.001);
+      }
+    }
   } else {
     o.art.rotation.z = Math.sin(o.time * 17) * t * .11;
     if (P.water) P.water.scale.y = 1 + slosh * .012;
@@ -4628,7 +4693,7 @@ if (
   
       // ===== 香檳倒酒動畫 =====
 
-      if (o.id === 'picnic' && o.parts.bottle) {
+      if (o.id === 'glass') {
 
         const P = o.parts;
 
@@ -4645,6 +4710,12 @@ if (
           if (P.bubbleTime >= 1.32) P.bubbles.visible = false;
         }
 
+      }
+      if (o.id === 'champagne') {
+        const P = o.parts;
+        const glass = byId.get('glass');
+        const hasGlass = active(glass) && !glass.arrival;
+        const cup = glass.parts;
         if (P.pourTime >= 0) {
 
           P.pourTime += dt;
@@ -4728,7 +4799,7 @@ if (
             ease((t - 3.5) / .35) *
             (1 - ease((t - 5) / .35));
 
-          P.stream.visible = flow > .02;
+          P.stream.visible = hasGlass && flow > .02;
 
           if (P.stream.visible) {
 
@@ -4751,7 +4822,7 @@ if (
             // 酒杯開口位置
             const glassTop =
               new T3.Vector3(
-                P.gx, 1.15, P.gz
+                cup.gx, 1.15, cup.gz
               );
 
             const direction =
@@ -4795,11 +4866,9 @@ if (
             (1 - ease((t - 15) / 1.1));
 
 
-          P.wine.scale.y =
-            1 + .85 * fill;
+          cup.wine.scale.y = 1 + (hasGlass ? .85 * fill : 0);
 
-          P.wine.position.y =
-            .66 + .068 * fill;
+          cup.wine.position.y = .66 + (hasGlass ? .068 * fill : 0);
 
 
           // ===== 5. 完成並恢復初始狀態 =====
@@ -4816,8 +4885,8 @@ if (
 
             P.bottle.rotation.z = 0;
 
-            P.wine.scale.y = 1;
-            P.wine.position.y = .66;
+            cup.wine.scale.y = 1;
+            cup.wine.position.y = .66;
 
           }
 
@@ -4902,11 +4971,6 @@ if (
       }
     }
 
-    basket.root.position.x =
-      picnic.root.position.x;
-
-    basket.root.position.z =
-      picnic.root.position.z;
   };
 
   // ===== 裁判椅與帆船的攝影機 =====
@@ -4937,7 +5001,8 @@ if (
     if (mode === 'chair') {
       const o = byId.get('chair');
 
-    p.set(o.x, 4.3, o.z + .25);
+    p.set(0, 4.3, .25);
+    o.root.localToWorld(p);
 
     const cp = Math.cos(chairLook.pitch);
     look.set(
@@ -4987,8 +5052,13 @@ if (
     window.worldItemsRenderStep = () => {
     if (!organizing || !selected || !active(selected)) { selRing.visible = false; return; }
     selRing.visible = true;
-    selRing.position.x = selected.root.position.x;
-    selRing.position.z = selected.root.position.z;
+    const part = selected.parts;
+    const x = part.gx ?? part.bx ?? 0;
+    const z = part.gz ?? part.bz ?? 0;
+    selRing.position.set(x, 0, z);
+    if (selected.id === 'basket') selRing.position.copy(part.inner.position);
+    selected.root.localToWorld(selRing.position);
+    selRing.position.y = .09;
     selRing.scale.setScalar((RADIUS[selected.id] || 1.1) / 1.15);
     selRing.material.opacity = .6 + .25 * Math.sin(performance.now() * .006);
   };
