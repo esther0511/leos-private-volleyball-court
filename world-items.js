@@ -125,6 +125,19 @@
     return m;
   }
 
+  // 把模型和點擊區放在同一根轉軸上，保留它們原本的擺放位置。
+  function facingPivot(parent, x, z) {
+    const pivot = new T3.Group();
+    pivot.position.set(x, 0, z);
+    for (const child of [...parent.children]) {
+      child.position.x -= x;
+      child.position.z -= z;
+      pivot.add(child);
+    }
+    parent.add(pivot);
+    return pivot;
+  }
+
   // ===== 建立物件 =====
   // art 負責外觀
   // root 負責位置、點擊與解鎖
@@ -161,7 +174,7 @@
       pending: false,
       // 野餐配件沿用墊子的擺放位置，各自記錄收納狀態。
       onPicnic: !!opts.onPicnic,
-      storageOnly: !!opts.onPicnic || id === 'sailboat',
+      noDrag: !!opts.onPicnic || id === 'sailboat',
       parts: {},
       interact: (...args) => {
         if (o.arrival || !active(o)) return;
@@ -1690,6 +1703,7 @@ window.worldTestMachineStrike = kind => {
 
 
     clickZone(o, .50, 1.40, .50, gx, .72, gz, () => o.interact(o));
+    o.facing = facingPivot(o.root, gx, gz);
   }, o => {
     if (organizing) return;
     o.parts.bubbleTime = 0;
@@ -1800,6 +1814,8 @@ window.worldTestMachineStrike = kind => {
 
     const bottleZone = clickZone(o, .55, 1.52, .55, 0, .78, 0, () => o.interact(o));
     bottle.add(bottleZone);
+    // 倒酒仍由外層酒瓶控制，內層只轉動瓶身朝向。
+    o.facing = facingPivot(bottle, 0, 0);
 
   }, o => {
     if (organizing) return;
@@ -2006,6 +2022,7 @@ window.worldBirthdayCatReaction = () => {
     o.open = false;
 
     clickZone(o, 1.5, 1.3, 1.1, cx, .6, cz, () => o.interact(o));
+    o.facing = facingPivot(o.root, cx, cz);
   }, o => {
     o.open = !o.open;
   }, { onPicnic: true });
@@ -2254,6 +2271,7 @@ if (typeof horizonHills !== 'undefined') {
 
           o.stored = !!v.stored;
           o.rot = Number.isFinite(v.rot) ? v.rot : 0;
+          if (o.facing) o.facing.rotation.y = Number.isFinite(v.facing) ? v.facing : 0;
         }
 
         o.root.position.set(o.x, 0, o.z);
@@ -2571,6 +2589,7 @@ function cartIconButton(icon, label, handler) {
   function saveLayout(o) {
     const [x, z] = o.id === 'sailboat' ? POS.sailboat : [o.x, o.z];
     layout[o.id] = { x, z, stored: o.stored, rot: o.rot || 0 };
+    if (o.facing) layout[o.id].facing = o.facing.rotation.y;
     if (o.id === 'picnic') {
       for (const id of ['glass', 'champagne', 'basket']) {
         if (!layout[id]) layout[id] = { x, z, stored: byId.get(id).stored, rot: o.rot };
@@ -2580,9 +2599,14 @@ function cartIconButton(icon, label, handler) {
   }
 
   function rotateSelected(dir) {
-    if (!selected) return;
-    selected.rot = (selected.rot || 0) + dir * Math.PI / 4;
-    selected.root.rotation.y = selected.rot;
+    if (!selected || selected.id === 'sailboat') return;
+    const step = dir * Math.PI / 4;
+    if (selected.facing) {
+      selected.facing.rotation.y = wrapAngle(selected.facing.rotation.y + step);
+    } else {
+      selected.rot += step;
+      selected.root.rotation.y = selected.rot;
+    }
     saveLayout(selected);
   }
   // ===== 恢復物件初始位置與方向 =====
@@ -2590,6 +2614,12 @@ function cartIconButton(icon, label, handler) {
 function resetSelectedPosition() {
 
   if (!selected || !POS[selected.id]) return;
+
+  if (selected.facing) {
+    selected.facing.rotation.y = 0;
+    saveLayout(selected);
+    return;
+  }
 
   // 取得這個物件的預設位置
   const [x, z] = POS[selected.id];
@@ -2728,7 +2758,7 @@ function resetSelectedPosition() {
       const tools = el('div', 'tools');
 
 // 第一列：左轉、恢復初始位置、右轉
-if (!selected.storageOnly) tools.append(
+if (selected.id !== 'sailboat') tools.append(
 
   cartIconButton(
     'left',
@@ -2738,7 +2768,7 @@ if (!selected.storageOnly) tools.append(
 
   cartIconButton(
     'reset',
-    '恢復初始位置',
+    selected.facing ? '恢復初始方向' : '恢復初始位置',
     resetSelectedPosition
   ),
 
@@ -2810,7 +2840,6 @@ renderStorage();
     if (!organizing || !selected) return;
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
     const k = e.key.toLowerCase();
-    if (selected.storageOnly) return;
     if (k === 'q') rotateSelected(-1);
     if (k === 'e') rotateSelected(1);
   });
@@ -2888,7 +2917,7 @@ if (!drag || drag.id !== e.pointerId) return;
 
 e.stopImmediatePropagation();
 e.preventDefault();
-if (drag.o.storageOnly) return;
+if (drag.o.noDrag) return;
 
 // 單純點擊只選取，超過 6px 才開始拖曳
 if (!drag.moved) {
