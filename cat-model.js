@@ -253,8 +253,6 @@ window.VBCatModel = (() => {
     P.head.position.x+=.023+.057*w+.030*st;P.head.position.y+=.072-.023*sl;
     const gaze = P.gaze;
     const pawWash = act === 'lickPaw' ? s : 0;
-    const coatWash = act === 'groom' ? s : 0;
-    const wash = pawWash + coatWash;
     const lick = .5 + .5*Math.sin(time*9);
     if (!sleeping) {
       gaze.hold -= dt;
@@ -264,20 +262,19 @@ window.VBCatModel = (() => {
         gaze.targetPitch = -.22 + Math.random()*.52;
       }
     }
-    const attention = (1-sl)*(1-wash)*(walking ? .58 : 1);
+    const attention = (1-sl)*(1-pawWash)*(walking ? .58 : 1);
     const turn = 1-Math.exp(-3.4*dt);
     gaze.yaw += (gaze.targetYaw*attention-gaze.yaw)*turn;
     gaze.pitch += (gaze.targetPitch*attention-gaze.pitch)*turn;
-    // Turn back towards the near shoulder for a coat wash, or dip towards the raised paw.
-    P.head.position.x -= .075*coatWash;
-    P.head.position.y -= (.09+.028*lick)*pawWash + (.16+.035*lick)*coatWash;
-    P.head.position.z += .05*pawWash + .19*coatWash;
-    P.head.rotation.set(0,gaze.yaw-.30*pawWash+2.12*coatWash,
+    // Dip towards the raised paw.
+    P.head.position.y -= (.09+.028*lick)*pawWash;
+    P.head.position.z += .05*pawWash;
+    P.head.rotation.set(0,gaze.yaw-.30*pawWash,
       gaze.pitch-.25*sl+.19*k.party+(act==='yawn'?.19*s:0)+(act==='meow'?.055*s:0)
-        -(.34+.12*lick)*wash);
-    P.mouth.scale.y=.018*(act==='yawn'?s:act==='meow'?.6*s*Math.abs(Math.sin(time*14)):wash*.42);
+        -(.34+.12*lick)*pawWash);
+    P.mouth.scale.y=.018*(act==='yawn'?s:act==='meow'?.6*s*Math.abs(Math.sin(time*14)):pawWash*.42);
     P.mouth.visible=P.mouth.scale.y>.001;
-    P.tongue.visible=wash*lick>.13;
+    P.tongue.visible=pawWash*lick>.13;
     P.tongue.position.set(.194+.025*lick,-.039-.017*lick,0);
     updateEyes(P,k.eye,act==='wide'?s:0,gaze.yaw,gaze.pitch);
     if (pawWash) pawTarget.set(.201,-.068,0).applyQuaternion(P.head.quaternion).add(P.head.position);

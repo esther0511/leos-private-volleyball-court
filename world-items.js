@@ -1843,7 +1843,7 @@ window.worldTestMachineStrike = kind => {
     ['meow', 1], ['yawn', 2], ['stretch', 2.2], ['tail', 2], ['ears', 1.6], ['none', 0]
   ];
   const awakeReactions = [
-    ...sleepReactions, ['squint', 1.8], ['wide', 1.6], ['lickPaw', 3], ['groom', 3.4]
+    ...sleepReactions, ['squint', 1.8], ['wide', 1.6], ['lickPaw', 3]
   ];
   const blinkDuration = .55;
   const CAT = { state: 'sleep', t: 0, wait: rnd(15, 40), tx: 0, tz: 0, act: '', actT: 0, actDur: 1, blink: rnd(8, 16), ballNear: false };
@@ -1866,7 +1866,7 @@ window.worldTestMachineStrike = kind => {
     CAT.act = name;
     CAT.actDur = CAT.actT = duration;
     if (asleep) CAT.state = 'stir';
-    else if (name === 'lickPaw' || name === 'groom') CAT.state = 'idle';
+    else if (name === 'lickPaw') CAT.state = 'idle';
     CAT.t = 0;
     if (name === 'meow') playCatMeow();
   }

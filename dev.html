@@ -389,7 +389,7 @@ for (const id of [
       ['stretch', '伸懶腰'], ['tail', '甩尾巴'], ['ears', '動耳朵'], ['none', '不理你']
     ];
     if (!asleep) choices.push(['blink', '慢慢眨眼'], ['squint', '瞇眼'],
-      ['wide', '放大瞳孔'], ['lickPaw', '舔手手'], ['groom', '舔身體'], ['walk', '走動']);
+      ['wide', '放大瞳孔'], ['lickPaw', '舔手手'], ['walk', '走動']);
     catAction.replaceChildren(...choices.map(([value, text]) => new Option(text, value)));
   }
   showCatActions();
