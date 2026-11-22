@@ -110,10 +110,8 @@ window.VBCatModel = (() => {
     g.setIndex(indices);g.computeVertexNormals();mesh(joint,g,pigment(0xa07e82));
     return joint;
   }
-  function makeTail(tail) {
-    const curve=new T.CatmullRomCurve3([[0,0,0],[-.12,.14,-.025],[-.17,.38,-.07],
-      [-.23,.61,-.14],[-.37,.79,-.24],[-.55,.88,-.35],[-.67,.89,-.41]]
-      .map(p=>new T.Vector3(...p)));
+  function tailGeometry(points) {
+    const curve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p)));
     const steps=40, sides=12, frames=curve.computeFrenetFrames(steps,false);
     const pos=[],colors=[],tri=[],v=new T.Vector3();
     for(let j=0;j<=steps;j++){
@@ -130,7 +128,21 @@ window.VBCatModel = (() => {
     }
     const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));
     g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(tri);g.computeVertexNormals();
-    mesh(tail,g,coat);
+    return g;
+  }
+  function makeTail(tail) {
+    const upright=tailGeometry([[0,0,0],[-.12,.14,-.025],[-.17,.38,-.07],
+      [-.23,.61,-.14],[-.37,.79,-.24],[-.55,.88,-.35],[-.67,.89,-.41]]);
+    // From the rump around the outside of the haunch, past the paws and under the chin.
+    const curled=tailGeometry([[0,0,0],[-.09,-.044,.06],[-.105,-.084,.16],
+      [-.015,-.097,.215],[.15,-.104,.225],[.32,-.108,.20],[.46,-.11,.15],
+      [.535,-.11,.065],[.55,-.107,-.016],[.53,-.102,-.095]]);
+    upright.morphAttributes.position=[curled.attributes.position];
+    upright.morphAttributes.normal=[curled.attributes.normal];
+    const tailCoat=coat.clone();
+    tailCoat.morphTargets=true;
+    tailCoat.morphNormals=true;
+    return mesh(tail,upright,tailCoat);
   }
   function build(parent,P) {
     P.pose=group(parent); P.body=group(P.pose);
@@ -192,7 +204,7 @@ window.VBCatModel = (() => {
       P.legs.push(leg);
       P.paws.push(oval(P.pose,0,0,0,front?.057:.071,.031,.043,pigment(front?fur:flank)));
     }
-    P.tail=group(P.pose);makeTail(P.tail);
+    P.tail=group(P.pose);P.tailMesh=makeTail(P.tail);
     P.blend={walk:0,stride:0,sleep:1,eye:0,party:0,stretch:0};
     pose(P,{sleeping:true,walking:false,party:false,closed:true,act:'',s:0},0,1);
   }
@@ -282,8 +294,10 @@ window.VBCatModel = (() => {
       P.paws[i].position.copy(ankle);P.paws[i].position.x+=front?.021:.030;
     }
     P.tail.position.copy(hip);P.tail.position.x-=.066;P.tail.position.y+=.038;
-    P.tail.rotation.z=.83*sl+.27*w+.20*st;
-    P.tail.rotation.y=1.45*sl+.10*Math.sin(time*1.5)+(party?.24:act==='tail'?.34*s:0)*Math.sin(time*6);
+    P.tailMesh.morphTargetInfluences[0]=sl;
+    P.tail.rotation.z=(.27*w+.20*st)*(1-sl);
+    const flick=party ? .24 : act==='tail' ? (.34-.23*sl)*s : 0;
+    P.tail.rotation.y=(1-sl)*.10*Math.sin(time*1.5)+flick*Math.sin(time*6);
     P.ears.forEach((e,i)=>{e.rotation.x=(act==='ears'?.20*s*Math.sin(time*16+i):0)+(i?1:-1)*.12*sl;});
     P.hat.visible=party;
   }

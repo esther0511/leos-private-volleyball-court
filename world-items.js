@@ -1858,16 +1858,7 @@ window.worldTestMachineStrike = kind => {
     catMeow.play().catch(() => {});
   }
 
-  create('cat', o => {
-    VBCatModel.build(o.art, o.parts);
-
-    clickZone(o, 1.6, 1.2, 1.6, 0, .5, 0, () => o.interact(o));
-  }, o => {
-    // 一個動作播完再受理下一次點擊；睡夢中的反應只判定一次去向。
-    if (CAT.actT > 0) return;
-    const asleep = CAT.state === 'sleep';
-    const pool = asleep ? sleepReactions : awakeReactions;
-    const [name, duration] = pool[Math.floor(Math.random() * pool.length)];
+  function playCatReaction(asleep, [name, duration]) {
     if (name === 'none') {
       if (asleep) CAT.t = 0;
       return;
@@ -1878,9 +1869,43 @@ window.worldTestMachineStrike = kind => {
     else if (name === 'lickPaw' || name === 'groom') CAT.state = 'idle';
     CAT.t = 0;
     if (name === 'meow') playCatMeow();
+  }
+
+  create('cat', o => {
+    VBCatModel.build(o.art, o.parts);
+
+    clickZone(o, 1.6, 1.2, 1.6, 0, .5, 0, () => o.interact(o));
+  }, o => {
+    // 一個動作播完再受理下一次點擊；睡夢中的反應只判定一次去向。
+    if (CAT.actT > 0) return;
+    const asleep = CAT.state === 'sleep';
+    const pool = asleep ? sleepReactions : awakeReactions;
+    playCatReaction(asleep, pool[Math.floor(Math.random() * pool.length)]);
   }, {
     fixed: true
   });
+
+  if (VB_IS_DEV) window.worldTestCat = (state, action) => {
+    const o = byId.get('cat');
+    if (!active(o) || o.arrival || (bday.active && bday.lit)) return false;
+    const asleep = state === 'sleep';
+    if (!asleep && state !== 'awake') return false;
+    const pool = asleep ? sleepReactions : awakeReactions;
+    const reaction = pool.find(([name]) => name === action);
+    if (!reaction && action !== 'pose' && action !== 'random' &&
+        (asleep || !['blink', 'walk'].includes(action))) return false;
+
+    Object.assign(CAT, { state: asleep ? 'sleep' : 'idle', t: 0, wait: 30,
+      act: '', actT: 0, blink: rnd(8, 16),
+      ballNear: Math.hypot(ball.position.x - o.x, ball.position.z - o.z) < 2.4 });
+    // Keep the current viewing angle, even if the cat has wandered since the previous test.
+    tgtP.set(o.x, .55, o.z);
+    if (action === 'random') o.interact(o);
+    else if (reaction) playCatReaction(asleep, reaction);
+    else if (action === 'blink') CAT.blink = 0;
+    else if (action === 'walk' && !startCatWalk(o)) CAT.state = 'findWalk';
+    return true;
+  };
 
   function catTarget(o) {
     for (let i = 0; i < 40; i++) {
@@ -4509,10 +4534,10 @@ window.setWorldPreviewDay = day => {
       ct.th = item.rot + .15;
     } else {
       tgtP.set(item.x, 1, item.z);
-      ct.th = item.parts.pose.rotation.y + 2.15;
+      ct.th = item.parts.pose.rotation.y + .95;
     }
-    ct.ph = 1.31;
-    ct.d = 8;
+    ct.ph = n === 14 ? 1.16 : 1.31;
+    ct.d = n === 14 ? 3.8 : 8;
     ct.tilt = 0;
 
   } else if (newItems.length > 0) {

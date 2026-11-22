@@ -37,8 +37,9 @@
   section { margin-top: 23px; padding-top: 21px; border-top: 1px solid var(--stroke); }
   .section-label { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
   h2 { margin: 0; font-size: 15px; letter-spacing: .04em; }
-  .machine-tools { margin-top: 14px; border-top: 1px solid var(--stroke); padding-top: 10px; }
-  .machine-tools summary { cursor: pointer; font-size: 14px; font-weight: 600; padding-block: 5px; }
+  .item-tools { margin-top: 14px; border-top: 1px solid var(--stroke); padding-top: 10px; }
+  .item-tools summary { cursor: pointer; font-size: 14px; font-weight: 600; padding-block: 5px; }
+  #catTools label { display: block; margin: 8px 0 3px; font-size: 12px; color: var(--muted); }
   .button-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   button, select, .link-button {
     display: inline-flex; align-items: center; justify-content: center;
@@ -97,7 +98,7 @@
         </select>
         <button id="testSpikeUnlock" class="primary space-top" type="button">測試殺球解鎖</button>
         <p class="note" id="dayHint">選擇天數後，直接點球場裡的物件。要測試登場過程，再按「測試殺球解鎖」。</p>
-        <details class="machine-tools">
+        <details class="item-tools" id="machineTools">
           <summary>第 7 天・發球機測試</summary>
           <button id="testMachine" class="secondary space-top" type="button">開啟擊球練習</button>
           <div class="button-grid space-top">
@@ -105,6 +106,17 @@
             <button id="testMachineSpike" type="button" class="secondary">特殊殺球效果</button>
           </div>
           <p class="note">可直接預覽擊球效果。連發模式最多 20 球，不計分。</p>
+        </details>
+        <details class="item-tools" id="catTools">
+          <summary>第 14 天・黑貓測試</summary>
+          <label for="catState">狀態</label>
+          <select id="catState">
+            <option value="sleep">睡著</option>
+            <option value="awake">清醒</option>
+          </select>
+          <label for="catAction">動作</label>
+          <select id="catAction"></select>
+          <button id="testCat" type="button" class="secondary space-top" disabled>播放動作</button>
         </details>
       </section>
 
@@ -226,11 +238,12 @@
   function showDay(g) {
     const day = Number(visitDay.value);
     g.setWorldPreviewDay(day);
-    document.querySelector('.machine-tools').open = day === 7;
+    document.querySelector('#machineTools').open = day === 7;
+    document.querySelector('#catTools').open = day === 14;
     document.querySelector('#dayHint').textContent = ({
       7: '按「特殊殺球效果」試打一次，可重播比較出手聲、尾跡與落點。',
       10: '點野餐墊上的酒杯，看氣泡浮起。點旁邊的酒瓶，會彈開軟木塞並倒酒。',
-      14: '點場邊的黑貓，看牠醒來或做出小動作。可以多點幾次，看看不同的反應。'
+      14: '點場邊的黑貓會隨機回應，也可以在下方指定姿勢或動作。'
     })[day] || '選擇天數後，直接點球場裡的物件。要測試登場過程，再按「測試殺球解鎖」。';
   }
 
@@ -268,6 +281,7 @@
     itemsState.textContent = items ? '已載入' : '未就緒';
     roamState.textContent = roam ? '已載入' : '尚未載入';
     testSpikeUnlock.disabled = !isFn(g, 'worldTestSpikeUnlock');
+    document.querySelector('#testCat').disabled = !isFn(g, 'worldTestCat');
     testMachine.disabled = !isFn(g, 'worldOpenMachinePanel');
     for (const id of [
   'testMachineHit',
@@ -363,6 +377,35 @@ for (const id of [
       timeButtons.forEach(b => b.classList.toggle('active', b === button));
       report(`已切換至「${button.textContent.trim()}」，球場時間繼續前進。`, 'success');
     });
+  });
+
+  const catState = document.querySelector('#catState');
+  const catAction = document.querySelector('#catAction');
+  function showCatActions() {
+    const asleep = catState.value === 'sleep';
+    const choices = [
+      ['pose', asleep ? '睡姿・尾巴環身' : '坐著張望'],
+      ['random', '隨機點擊反應'], ['meow', '喵叫'], ['yawn', '打哈欠'],
+      ['stretch', '伸懶腰'], ['tail', '甩尾巴'], ['ears', '動耳朵'], ['none', '不理你']
+    ];
+    if (!asleep) choices.push(['blink', '慢慢眨眼'], ['squint', '瞇眼'],
+      ['wide', '放大瞳孔'], ['lickPaw', '舔手手'], ['groom', '舔身體'], ['walk', '走動']);
+    catAction.replaceChildren(...choices.map(([value, text]) => new Option(text, value)));
+  }
+  showCatActions();
+  catState.addEventListener('change', showCatActions);
+  document.querySelector('#testCat').addEventListener('click', () => {
+    const g = court();
+    if (!isFn(g, 'worldTestCat')) return;
+    if (visitDay.value !== '14') {
+      visitDay.value = '14';
+      showDay(g);
+    }
+    if (g.worldTestCat(catState.value, catAction.value)) {
+      report(`黑貓（${catState.selectedOptions[0].text}）・${catAction.selectedOptions[0].text}`, 'success');
+    } else {
+      report('黑貓正在登場或參加生日彩蛋，請稍後再播放。', 'error');
+    }
   });
 
   visitDay.addEventListener('change', () => {
