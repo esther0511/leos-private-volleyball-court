@@ -21,9 +21,10 @@
   const LEGACY_PAGES = 100;
   const FIRST_LETTER_TEXT = `給返航後的我：
 
-如你所知，每當身心感到沉重時，我總會回到大海，過上幾天漫無目的的日子。
-寫下這封信，是想問問未來的自己：現在的你，是否還被出航前的那些事情困擾著？是否還會為此感到痛苦？
-不論如何，希望至少這幾天的海風，你有感到稍微輕鬆一點。偶爾可以當個漂流木，但也要記得回家。
+如你所知，每當身心感到沉重時，我總會來到大海，過上幾天漫無目的的日子。
+寫下這封信，是想問問現在的你：是否還被出航前的那些事情困擾著？是否還會為此感到痛苦？
+不論如何，希望至少這幾天的海風，讓你有感到稍微輕鬆一點。
+偶爾可以當個漂流木，但也要記得回家。
 
 From 啟航前的 L`;
   const MAX_TEXT = 1200;
@@ -334,7 +335,7 @@ document.head.append(boatHudStyle);
   const log = new T3.Group();
   mesh(log,.33,.04,.45,0,0,0,0xe9dec6);
   mesh(log,.06,.055,.46,-.145,.005,0,0x355c97);
-  log.position.set(.24,.67,.36);log.rotation.y = -.18;boat.art.add(log);props.log = log;
+  log.position.set(.24,.708,-.83);log.rotation.y = -.18;boat.art.add(log);props.log = log;
   const syncProps = () => { for (const id of ['letter','bag','log']) props[id].visible = !state[id];bagButton.hidden = !state.bag; };
   syncProps();
 

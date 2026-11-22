@@ -2140,6 +2140,8 @@ window.worldBirthdayCatReaction = () => {
     const deckWidths = [-1, -.92, -.69, -.43, -.15, .15, .43, .69, .92, 1];
     const deckColors = [0xab7048, 0xd4a174, 0xdbaa7a, 0xd7a678, 0xdfb184,
       0xd7a678, 0xdbaa7a, 0xd4a174, 0xab7048];
+    // Recess between the mast and coachroof. The two side decks remain walkable ledges.
+    const cockpitStart = 0, cockpitEnd = .88, halfOpening = .69, sole = .27;
     for (let i = 1; i < stations.length; i++) {
       const prev = stations[i - 1], next = stations[i];
       for (const side of [-1, 1]) {
@@ -2149,10 +2151,23 @@ window.worldBirthdayCatReaction = () => {
           else quad(b[k], b[k+1], a[k+1], a[k], hullBands[k]);
         }
       }
+      const inCockpit = prev[0] >= cockpitStart && next[0] <= cockpitEnd;
       for (let k = 0; k < deckColors.length; k++) {
         const l = deckWidths[k], r = deckWidths[k+1];
+        if (inCockpit && l >= -halfOpening && r <= halfOpening) continue;
         quad([prev[1]*l, prev[2], prev[0]], [next[1]*l, next[2], next[0]],
           [next[1]*r, next[2], next[0]], [prev[1]*r, prev[2], prev[0]], deckColors[k]);
+      }
+      if (inCockpit) {
+        const a = halfOpening * prev[1], b = halfOpening * next[1];
+        const z0 = prev[0], z1 = next[0];
+        const front = [[-a,prev[2],z0], [-a,sole,z0], [a,sole,z0], [a,prev[2],z0]];
+        const aft = [[-b,next[2],z1], [-b,sole,z1], [b,sole,z1], [b,next[2],z1]];
+        quad(front[1], aft[1], aft[2], front[2], 0xac825d); // sole
+        quad(front[1], front[0], aft[0], aft[1], 0xac7754);
+        quad(front[3], front[2], aft[2], aft[3], 0xac7754);
+        if (z0 === cockpitStart) quad(...front, 0x956747);
+        if (z1 === cockpitEnd) quad(aft[3], aft[2], aft[1], aft[0], 0x956747);
       }
     }
     for (const station of [stations[0], stations[stations.length-1]]) {
@@ -2169,14 +2184,20 @@ window.worldBirthdayCatReaction = () => {
     geometry.computeVertexNormals();
     art.add(new T3.Mesh(geometry, new T3.MeshLambertMaterial({ vertexColors: true })));
 
-    // A low coachroof aft of the journal leaves the working deck clear.
-    cub(art, .61, .18, .61, 0, .78, .99, 0xa0643e);
-    cub(art, .68, .035, .68, 0, .884, .99, 0xd9a573);
+    // A transverse seat sits below the deck rim, with foot room forward of it.
+    cub(art, .86, .055, .22, 0, .485, .68, 0xd9aa74);
     for (const side of [-1, 1]) {
-      for (const z of [.84, 1.11]) {
+      cub(art, .05, .19, .18, side * .38, .365, .68, 0xa4734f);
+    }
+    cub(art, .15, .08, .15, 0, .65, 0, 0xb17c53);
+    // Keep the coachroof clear of the aft edge of the cockpit.
+    cub(art, .61, .18, .61, 0, .78, 1.24, 0xa0643e);
+    cub(art, .68, .035, .68, 0, .884, 1.24, 0xd9a573);
+    for (const side of [-1, 1]) {
+      for (const z of [1.09, 1.36]) {
         cub(art, .012, .077, .18, side * .306, .793, z, 0x344b50);
       }
-      cub(art, .18, .077, .012, side * .145, .793, .684, 0x344b50);
+      cub(art, .18, .077, .012, side * .145, .793, .934, 0x344b50);
     }
   }
 

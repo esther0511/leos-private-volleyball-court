@@ -599,7 +599,7 @@ const wet = [
   const journal = new T3.Group();
 
   journal.position.set(
-    .21, .70, .33
+    .21, .727, -.83
   );
 
   // 書封
