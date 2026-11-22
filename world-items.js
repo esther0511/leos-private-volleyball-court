@@ -2109,19 +2109,79 @@ window.worldBirthdayCatReaction = () => {
   water.visible = false;
   sc.add(water);
   
+  function buildSailboatHull(art) {
+    // From bow (-Z) to stern: station, half-beam, deck height and keel height.
+    const stations = [
+      [-1.86, .018, .79, .44], [-1.62, .21, .75, .16],
+      [-1.29, .39, .72, -.01], [-.88, .55, .694, -.12],
+      [-.48, .635, .685, -.17], [0, .67, .685, -.18],
+      [.47, .65, .685, -.15], [.88, .58, .69, -.08],
+      [1.25, .48, .705, .025], [1.53, .36, .73, .14], [1.69, .29, .748, .22]
+    ];
+    const positions = [], colors = [];
+    const tint = new T3.Color();
+    function quad(a, b, c, d, color) {
+      tint.setHex(color);
+      for (const point of [a, b, c, a, c, d]) {
+        positions.push(...point);
+        colors.push(tint.r, tint.g, tint.b);
+      }
+    }
+    // The narrow dark stripe sits below a wooden cap rail.
+    const hullBands = [0xb6b9ae, 0xe3e3d4, 0xf5f0dd, 0x2b4951, 0xfff4df, 0x9e6440];
+    function section([z, w, top, bottom], side) {
+      const depth = top - bottom;
+      // Rake the stem and transom back towards the keel.
+      const rake = z < -1 ? (-1-z) * .46 : -Math.max(0, z-1) * .28;
+      return [[0, bottom], [.53, bottom + depth * .19], [.84, bottom + depth * .48],
+        [.97, top - .116], [.985, top - .085], [1, top - .035], [1, top]]
+        .map(([fraction, y]) => [side * w * fraction, y, z + rake * (top-y) / depth]);
+    }
+    const deckWidths = [-1, -.92, -.69, -.43, -.15, .15, .43, .69, .92, 1];
+    const deckColors = [0xab7048, 0xd4a174, 0xdbaa7a, 0xd7a678, 0xdfb184,
+      0xd7a678, 0xdbaa7a, 0xd4a174, 0xab7048];
+    for (let i = 1; i < stations.length; i++) {
+      const prev = stations[i - 1], next = stations[i];
+      for (const side of [-1, 1]) {
+        const a = section(prev, side), b = section(next, side);
+        for (let k = 0; k < hullBands.length; k++) {
+          if (side === 1) quad(a[k], a[k+1], b[k+1], b[k], hullBands[k]);
+          else quad(b[k], b[k+1], a[k+1], a[k], hullBands[k]);
+        }
+      }
+      for (let k = 0; k < deckColors.length; k++) {
+        const l = deckWidths[k], r = deckWidths[k+1];
+        quad([prev[1]*l, prev[2], prev[0]], [next[1]*l, next[2], next[0]],
+          [next[1]*r, next[2], next[0]], [prev[1]*r, prev[2], prev[0]], deckColors[k]);
+      }
+    }
+    for (const station of [stations[0], stations[stations.length-1]]) {
+      const l = section(station, -1), r = section(station, 1);
+      for (let k = 0; k < hullBands.length; k++) {
+        const color = hullBands[k];
+        if (station === stations[0]) quad(r[k], l[k], l[k+1], r[k+1], color);
+        else quad(l[k], r[k], r[k+1], l[k+1], color);
+      }
+    }
+    const geometry = new T3.BufferGeometry();
+    geometry.setAttribute('position', new T3.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new T3.Float32BufferAttribute(colors, 3));
+    geometry.computeVertexNormals();
+    art.add(new T3.Mesh(geometry, new T3.MeshLambertMaterial({ vertexColors: true })));
+
+    // A low coachroof aft of the journal leaves the working deck clear.
+    cub(art, .61, .18, .61, 0, .78, .99, 0xa0643e);
+    cub(art, .68, .035, .68, 0, .884, .99, 0xd9a573);
+    for (const side of [-1, 1]) {
+      for (const z of [.84, 1.11]) {
+        cub(art, .012, .077, .18, side * .306, .793, z, 0x344b50);
+      }
+      cub(art, .18, .077, .012, side * .145, .793, .684, 0x344b50);
+    }
+  }
+
   create('sailboat', o => {
-    const hull = orb(
-      o.art, 1.12,
-      0, .35, 0,
-      0xf5dfb7, 18, 12
-    );
-
-    hull.scale.set(.72, .35, 1.4);
-
-    cub(
-      o.art, .8, .12, 1.3,
-      0, .59, 0, 0xc18d6e
-    );
+    buildSailboatHull(o.art);
 
     cyl(
       o.art, .045, .05, 2.55,
@@ -2147,7 +2207,7 @@ window.worldBirthdayCatReaction = () => {
     o.art.add(sail);
 
     clickZone(
-      o, 2.4, 3.0, 3.5,
+      o, 2.4, 3.0, 3.78,
       0, 1.5, 0,
       () => o.interact(o)
     );
