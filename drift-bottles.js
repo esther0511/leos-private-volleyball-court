@@ -553,10 +553,36 @@ const wet = [
       [x,.15,-.17],[x,.071,-.106]], .041,.013,[1,0,0],0x2c465e);
   }
   part(bagArt,new T3.BoxGeometry(.074,.028,.059),0x263749,[0,.618,0]);
-  // 袋面短提帶。
-  webbing([[0,.36,.123],[0,.334,.15],[0,.231,.16],
-    [0,.2,.137]], .027,.008,[1,0,0],0x395673);
+  // 六個固定袢撐出兩層交叉繩，中央凸起貼合圓弧袋面。
+  const cordColor = 0x8cd6e6;
+  const tabColor = 0x263749;
+  const left = -.127, right = .127;
+  const top = .367, middle = .263, bottom = .159;
+  function elastic(points, radius = .005) {
+    const curve = new T3.CatmullRomCurve3(points.map(p => new T3.Vector3(...p)));
+    part(bagArt, new T3.TubeGeometry(curve, points.length * 4, radius, 6, false),
+      cordColor, [0, 0, 0]);
+  }
 
+  for (const x of [left, right]) {
+    for (const [y, z] of [[top,.094], [middle,.103], [bottom,.108]]) {
+      const tab = part(bagArt, new T3.BoxGeometry(.014,.027,.017), tabColor, [x,y,z]);
+      tab.rotation.y = Math.sign(x) * .55;
+    }
+  }
+  // 一條繩從底部繩扣穿上去，繞過上緣，再沿另一側穿回繩扣。
+  elastic([[0,.14,.149], [left*.64,.147,.135], [left,bottom,.113],
+    [0,.211,.151], [right,middle,.108], [0,.315,.142], [left,top,.100],
+    [0,.358,.132], [right,top,.100], [0,.315,.153], [left,middle,.108],
+    [0,.211,.162], [right,bottom,.113], [right*.64,.147,.135], [0,.14,.149]]);
+  const lock = part(bagArt, new T3.CylinderGeometry(.014,.015,.031,8),
+    tabColor, [0,.136,.154]);
+  lock.rotation.z = -.34;
+  elastic([[-.004,.13,.154], [.002,.101,.156], [.009,.067,.15],
+    [.01,.051,.148], [.005,.034,.145]], .0037);
+  elastic([[.004,.13,.154], [.014,.096,.154], [.015,.07,.15],
+    [.01,.051,.148], [.024,.036,.145]], .0037);
+  part(bagArt, new T3.SphereGeometry(.007,7,5), cordColor, [.01,.051,.148]);
 
   // 點擊背包
   target(
