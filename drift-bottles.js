@@ -482,58 +482,81 @@ const wet = [
 
   bag.position.set(.28, .67, -.22);
 
-  // 袋身
-  part(
-    bag,
-    new T3.BoxGeometry(.39, .41, .31),
-    0x355c97,
-    [0, .25, 0]
-  );
+  const bagArt = new T3.Group();
+  bagArt.rotation.y = 2.1;
+  bag.add(bagArt);
 
-  // 捲口
-  part(
-    bag,
-    new T3.CylinderGeometry(
-      .2, .2, .10, 18
-    ),
-    0x263653,
-    [0, .49, 0]
-  );
+  // 橢圓形袋底，袋口收窄成一道摺邊；左右兩端比中央高。
+  const sections = [
+    // 高度、半寬、半深、袋口兩側隆起
+    [0, .147, .103, 0], [.025, .179, .128, 0],
+    [.09, .19, .14, 0], [.29, .18, .135, 0],
+    [.42, .174, .104, .029], [.471, .169, .042, .056],
+    [.489, .157, .025, .06]
+  ];
+  const sides = 16;
+  const fabric = [], triangles = [];
+  sections.forEach(([height, width, depth, rise], ring) => {
+    for (let j = 0; j < sides; j++) {
+      const angle = 2 * Math.PI * j / sides;
+      const x = Math.cos(angle), z = Math.sin(angle);
+      fabric.push(width * x, height + rise * x * x,
+        depth * z * (1 + .045 * Math.sin(3 * angle + ring * .55)));
+      if (!ring) continue;
+      const a = (ring - 1) * sides + j;
+      const b = (ring - 1) * sides + (j + 1) % sides;
+      triangles.push(a, a + sides, b, b, a + sides, b + sides);
+    }
+  });
+  const rim = (sections.length - 1) * sides;
+  for (let j = 1; j < sides - 1; j++) {
+    triangles.push(0, j, j + 1, rim, rim + j + 1, rim + j);
+  }
+  const shell = new T3.BufferGeometry();
+  shell.setAttribute('position', new T3.Float32BufferAttribute(fabric, 3));
+  shell.setIndex(triangles);
+  shell.computeVertexNormals();
+  part(bagArt, shell, 0x486785, [0, 0, 0]);
 
-  // 扣帶
-  part(
-    bag,
-    new T3.BoxGeometry(
-      .045, .29, .025
-    ),
-    0xe0a176,
-    [0, .37, .167]
-  );
+  // 沿曲線擠出扁平織帶。截面隨曲線轉向，從側面也看得到厚度。
+  function webbing(points, width, thickness, across, color) {
+    const curve = new T3.CatmullRomCurve3(points.map(p => new T3.Vector3(...p)));
+    const axis = new T3.Vector3(...across);
+    const vertices = [], indices = [];
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12, center = curve.getPoint(t);
+      const normal = curve.getTangent(t).cross(axis).normalize();
+      for (const [w, h] of [[-1,-1],[1,-1],[1,1],[-1,1]]) {
+        vertices.push(...center.clone().addScaledVector(axis, w * width / 2)
+          .addScaledVector(normal, h * thickness / 2).toArray());
+      }
+      if (!i) continue;
+      for (let k = 0; k < 4; k++) {
+        const a = (i - 1) * 4 + k, b = (i - 1) * 4 + (k + 1) % 4;
+        indices.push(a, b, a + 4, b, b + 4, a + 4);
+      }
+    }
+    const geo = new T3.BufferGeometry();
+    geo.setAttribute('position', new T3.Float32BufferAttribute(vertices, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    part(bagArt, geo, color, [0, 0, 0]);
+  }
 
-  // 扣具
-  part(
-    bag,
-    new T3.BoxGeometry(
-      .13, .055, .045
-    ),
-    0xffe7ad,
-    [0, .46, .185]
-  );
+  for (const side of [-1, 1]) {
+    // 捲口兩端向中間扣合，提把下方鏤空。
+    webbing([[side*.154,.52,0], [side*.138,.566,0],
+      [side*.079,.608,0], [side*.018,.62,0]], .052,.021,[0,0,1],0x567e99);
+    // 雙肩帶向袋背拱起，底端縫回袋身。
+    const x = side * .083;
+    webbing([[x,.453,-.058],[x,.419,-.143],[x,.31,-.189],
+      [x,.15,-.17],[x,.071,-.106]], .041,.013,[1,0,0],0x2c465e);
+  }
+  part(bagArt,new T3.BoxGeometry(.074,.028,.059),0x263749,[0,.618,0]);
+  // 袋面短提帶。
+  webbing([[0,.36,.123],[0,.334,.15],[0,.231,.16],
+    [0,.2,.137]], .027,.008,[1,0,0],0x395673);
 
-  // 背帶
-  const handle = new T3.Mesh(
-    new T3.TorusGeometry(
-      .13, .024, 6, 18, Math.PI
-    ),
-    new T3.MeshLambertMaterial({
-      color: 0x263653
-    })
-  );
-
-  handle.rotation.z = Math.PI;
-  handle.position.y = .56;
-
-  bag.add(handle);
 
   // 點擊背包
   target(
