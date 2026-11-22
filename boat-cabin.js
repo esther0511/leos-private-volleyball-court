@@ -525,7 +525,7 @@ document.head.append(boatHudStyle);
   }
   function render() {
     content.replaceChildren();
-    title.textContent=view==='boat'?'船上物品':view==='bag'?'我的背包':'閱讀信件';
+    title.textContent=view==='boat'?'船上物品':view==='bag'?'防水背包':'閱讀信件';
     if(view==='boat')renderBoat();
     else if(view==='bag')renderBag();
     else if(view==='letter')renderFirstLetter();
