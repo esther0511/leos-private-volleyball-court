@@ -724,8 +724,21 @@ const wet = [
   const css = document.createElement('style');
 
   css.textContent = `
-    #vbDriftPickup {position:fixed;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(116px + env(safe-area-inset-bottom,0px));}
-    #vbDriftPickup[hidden], #vbLetterReader[hidden] {
+    #vbDriftPickupHint {
+      position: fixed;
+      right: calc(16px + env(safe-area-inset-right, 0px));
+      bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+      color: white;
+      font-size: 14px;
+      line-height: 1.5;
+      text-shadow: 0 1px 3px #24334b, 0 0 4px #24334b;
+      pointer-events: none;
+      user-select: none;
+    }
+    html.vb-sticks-enabled #vbDriftPickupHint {
+      bottom: calc(116px + env(safe-area-inset-bottom, 0px));
+    }
+    html.vb-hide-tips #vbDriftPickupHint, #vbDriftPickupHint[hidden], #vbLetterReader[hidden] {
       display: none !important;
     }
 
@@ -827,14 +840,12 @@ const wet = [
 
   document.head.append(css);
 
-  const pickup = document.createElement('button');
-  pickup.type = 'button';
-  pickup.id = 'vbDriftPickup';
-  pickup.textContent = '撿起漂流瓶';
-  pickup.hidden = true;
-  document.querySelector('#vbBoatCtrl').append(pickup);
-  let nearby = null;
-  pickup.addEventListener('click', () => beginPickup(nearby));
+  const pickupHint = document.createElement('span');
+  pickupHint.id = 'vbDriftPickupHint';
+  pickupHint.textContent = '點一下漂流瓶，就能撿起來';
+  pickupHint.hidden = true;
+  document.querySelector('#vbBoatCtrl').append(pickupHint);
+
 
   // ====================================
   // 十二、漂流瓶資料
@@ -1632,7 +1643,7 @@ const wet = [
     const t =
       performance.now() * .001;
 
-    nearby = null;
+    let hasNearbyBottle = false;
     let opening = false;
     for (const o of bottles) {
 
@@ -1726,14 +1737,14 @@ const wet = [
           access.isSailing() &&
           distance(o) < TAKE_DISTANCE;
 
-        if (close && (!nearby || distance(o) < distance(nearby))) nearby = o;
+        if (close) hasNearbyBottle = true;
         // 靠近時玻璃微微變亮
         o.glass.opacity =
           close ? .59 : .48;
 
       }
     }
-    pickup.hidden = !nearby || opening || !reader.hidden || cabin.isOpen();
+    pickupHint.hidden = !hasNearbyBottle || opening || !reader.hidden || cabin.isOpen();
   }
 
   // 使用原本動畫循環
