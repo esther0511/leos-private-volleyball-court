@@ -110,10 +110,8 @@ window.VBCatModel = (() => {
     g.setIndex(indices);g.computeVertexNormals();mesh(joint,g,pigment(0xa07e82));
     return joint;
   }
-  function makeTail(tail) {
-    const curve=new T.CatmullRomCurve3([[0,0,0],[-.12,.14,-.025],[-.17,.38,-.07],
-      [-.23,.61,-.14],[-.37,.79,-.24],[-.55,.88,-.35],[-.67,.89,-.41]]
-      .map(p=>new T.Vector3(...p)));
+  function tailGeometry(points) {
+    const curve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p)));
     const steps=40, sides=12, frames=curve.computeFrenetFrames(steps,false);
     const pos=[],colors=[],tri=[],v=new T.Vector3();
     for(let j=0;j<=steps;j++){
@@ -130,7 +128,21 @@ window.VBCatModel = (() => {
     }
     const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));
     g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.setIndex(tri);g.computeVertexNormals();
-    mesh(tail,g,coat);
+    return g;
+  }
+  function makeTail(tail) {
+    const upright=tailGeometry([[0,0,0],[-.12,.14,-.025],[-.17,.38,-.07],
+      [-.23,.61,-.14],[-.37,.79,-.24],[-.55,.88,-.35],[-.67,.89,-.41]]);
+    // From the rump around the outside of the haunch, past the paws and under the chin.
+    const curled=tailGeometry([[0,0,0],[-.09,-.044,.06],[-.105,-.084,.16],
+      [-.015,-.097,.215],[.15,-.104,.225],[.32,-.108,.20],[.46,-.11,.15],
+      [.535,-.11,.065],[.55,-.107,-.016],[.53,-.102,-.095]]);
+    upright.morphAttributes.position=[curled.attributes.position];
+    upright.morphAttributes.normal=[curled.attributes.normal];
+    const tailCoat=coat.clone();
+    tailCoat.morphTargets=true;
+    tailCoat.morphNormals=true;
+    return mesh(tail,upright,tailCoat);
   }
   function build(parent,P) {
     P.pose=group(parent); P.body=group(P.pose);
@@ -151,14 +163,19 @@ window.VBCatModel = (() => {
     }
     skull.geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));
     P.ears=[ear(P.head,1),ear(P.head,-1)];
-    P.eyes=[];P.closedEyes=[];
+    P.eyes=[];P.closedEyes=[];P.pupils=[];
     for(const side of [1,-1]){
       const z=side*.106, y=.046;
       const ry=.077, rz=.076;
       const eye=group(P.head);
       facePatch(eye,y,z,ry,rz,.0018,pigment(ink));
       facePatch(eye,y,z,ry-.003,rz-.003,.0033,pigment(0xfffaf3));
-      facePatch(eye,y+.003,z+.008,.034,.016,.0053,pigment(0x100f13));
+      const pupil = facePatch(eye,y+.003,z,.034,.016,.006,pigment(0x100f13));
+      P.pupils.push(pupil);
+      // Keep the original, unposed coordinates for projecting the moving eye onto the skull.
+      for (const patch of eye.children) {
+        patch.userData.rest = patch.geometry.attributes.position.array.slice();
+      }
       P.eyes.push(eye);
       const lid=[-.8,0,.8].map(t=>{const zz=z+t*rz, yy=y-.006*(1-t*t);return [faceX(yy,zz)+.004,yy,zz];});
       P.closedEyes.push(line(P.head,lid,.0026,pigment(ink)));
@@ -172,6 +189,9 @@ window.VBCatModel = (() => {
       [.004,.196,0,.008,.022],[.009,.193,0,.004,.012]],0xc79095,0xa8747c);
     for(const s of [-1,1])line(P.head,[[.195,-.015,0],[.194,-.025,s*.008],[.191,-.039,s*.021]],.0027,pigment(ink));
     P.mouth=oval(P.head,.193,-.035,0,.004,.018,.015,pigment(0x673d48));
+    P.tongue=oval(P.head,.195,-.042,0,.022,.009,.012,pigment(0xc88d92));
+    P.tongue.visible=false;
+    P.gaze={yaw:0,pitch:0,targetYaw:0,targetPitch:0,hold:0};
     P.hat=group(P.head);
     const cone=mesh(P.hat,new T.ConeGeometry(.09,.22,8),pigment(0xe0a176));
     cone.position.y=.30;oval(P.hat,0,.42,0,.030,.030,.030,pigment(0xffffff));P.hat.visible=false;
@@ -184,16 +204,45 @@ window.VBCatModel = (() => {
       P.legs.push(leg);
       P.paws.push(oval(P.pose,0,0,0,front?.057:.071,.031,.043,pigment(front?fur:flank)));
     }
-    P.tail=group(P.pose);makeTail(P.tail);
+    P.tail=group(P.pose);P.tailMesh=makeTail(P.tail);
     P.blend={walk:0,stride:0,sleep:1,eye:0,party:0,stretch:0};
     pose(P,{sleeping:true,walking:false,party:false,closed:true,act:'',s:0},0,1);
   }
   const hip=new T.Vector3(),shoulder=new T.Vector3(),ankle=new T.Vector3(),socket=new T.Vector3(),axis=new T.Vector3();
-  function pose(P,{sleeping,walking,standing=false,party,closed,act,s},time,dt){
+  const pawTarget = new T.Vector3();
+  function updateEyes(P, openness, dilation, yaw, pitch) {
+    P.eyes.forEach((eye,i) => {
+      eye.visible = openness > .09;
+      P.closedEyes[i].visible = !eye.visible;
+      if (!eye.visible) return;
+      const centerY = .046, sideZ = i === 0 ? .106 : -.106;
+      for (const patch of eye.children) {
+        const pupil = patch === P.pupils[i];
+        const rest = patch.userData.rest;
+        const pos = patch.geometry.attributes.position;
+        const yScale = openness * (pupil ? 1 + dilation * .32 : 1);
+        const zScale = pupil ? 1 + dilation * 1.35 : 1;
+        const dy = pupil ? pitch * .031 : 0;
+        const dz = pupil ? -yaw * .018 : 0;
+        const offset = pupil ? .006 : patch === eye.children[0] ? .0018 : .0033;
+        for (let j=0;j<pos.count;j++) {
+          const y = centerY + (patch.position.y-centerY+dy)*openness + rest[3*j+1]*yScale;
+          const z = sideZ + dz + rest[3*j+2]*zScale;
+          pos.setXYZ(j,faceX(y,z)+offset,y-patch.position.y,z-patch.position.z);
+        }
+        pos.needsUpdate = true;
+      }
+    });
+  }
+
+  function pose(P,{sleeping,walking,standing=false,party,closed,blink=0,act,s},time,dt){
     const k=P.blend, mix=1-Math.exp(-7*dt);
-    k.walk+=((walking||standing?1:0)-k.walk)*mix;k.sleep+=((sleeping?1:0)-k.sleep)*mix;
+    k.walk+=((walking||standing?1:0)-k.walk)*mix;
+    const rouse = act==='stretch' ? s : act==='yawn' || act==='meow' ? .30*s : 0;
+    k.sleep+=((sleeping ? 1-rouse : 0)-k.sleep)*mix;
     k.party+=((party?1:0)-k.party)*mix;k.stretch+=((act==='stretch'?s:0)-k.stretch)*mix;
-    k.eye+=((closed?0:1)-k.eye)*(1-Math.exp(-32*dt));
+    const openness = closed ? 0 : (1-blink)*(act==='squint' ? 1-.79*s : 1);
+    k.eye+=(openness-k.eye)*(1-Math.exp(-32*dt));
     k.stride+=((walking?1:0)-k.stride)*mix;
     const w=k.walk, sl=k.sleep, st=k.stretch, stride=k.stride;
     hip.set(-.15-.09*w,.235+.23*w+.21*st-.085*sl,0);
@@ -202,13 +251,33 @@ window.VBCatModel = (() => {
     P.body.position.copy(hip);P.body.scale.y=axis.length();P.body.quaternion.setFromUnitVectors(up,axis.normalize());
     P.head.position.copy(shoulder).addScaledVector(axis,.115);
     P.head.position.x+=.023+.057*w+.030*st;P.head.position.y+=.072-.023*sl;
-    P.head.rotation.set(0,.16*Math.sin(time*.72)*(1-sl),-.25*sl+.19*k.party+(act==='yawn'?.19*s:0)+(act==='meow'?.055*s:0));
-    P.mouth.scale.y=.018*(act==='yawn'?s:act==='meow'?.6*s*Math.abs(Math.sin(time*14)):0);
+    const gaze = P.gaze;
+    const pawWash = act === 'lickPaw' ? s : 0;
+    const lick = .5 + .5*Math.sin(time*9);
+    if (!sleeping) {
+      gaze.hold -= dt;
+      if (gaze.hold <= 0) {
+        gaze.hold = 1.8 + 3*Math.random();
+        gaze.targetYaw = (Math.random()*2-1)*1.05;
+        gaze.targetPitch = -.22 + Math.random()*.52;
+      }
+    }
+    const attention = (1-sl)*(1-pawWash)*(walking ? .58 : 1);
+    const turn = 1-Math.exp(-3.4*dt);
+    gaze.yaw += (gaze.targetYaw*attention-gaze.yaw)*turn;
+    gaze.pitch += (gaze.targetPitch*attention-gaze.pitch)*turn;
+    // Dip towards the raised paw.
+    P.head.position.y -= (.09+.028*lick)*pawWash;
+    P.head.position.z += .05*pawWash;
+    P.head.rotation.set(0,gaze.yaw-.30*pawWash,
+      gaze.pitch-.25*sl+.19*k.party+(act==='yawn'?.19*s:0)+(act==='meow'?.055*s:0)
+        -(.34+.12*lick)*pawWash);
+    P.mouth.scale.y=.018*(act==='yawn'?s:act==='meow'?.6*s*Math.abs(Math.sin(time*14)):pawWash*.42);
     P.mouth.visible=P.mouth.scale.y>.001;
-    P.eyes.forEach((e,i)=>{
-      e.visible=k.eye>.12;e.scale.y=Math.max(.12,k.eye);
-      e.position.y=.046*(1-e.scale.y);P.closedEyes[i].visible=k.eye<.42;
-    });
+    P.tongue.visible=pawWash*lick>.13;
+    P.tongue.position.set(.194+.025*lick,-.039-.017*lick,0);
+    updateEyes(P,k.eye,act==='wide'?s:0,gaze.yaw,gaze.pitch);
+    if (pawWash) pawTarget.set(.201,-.068,0).applyQuaternion(P.head.quaternion).add(P.head.position);
     for(let i=0;i<4;i++){
       const front=i<2, side=i%2===0?1:-1, phase=time*7+(i===1||i===2?Math.PI:0);
       socket.copy(front?shoulder:hip);
@@ -216,13 +285,16 @@ window.VBCatModel = (() => {
       ankle.set((front?.104:-.15)+(front?.22:-.12)*w+(front?.42:0)*st+
         (front?.12:.07)*sl+.122*Math.sin(phase)*stride,
         .031+.062*Math.max(0,Math.cos(phase))*stride,side*(front?.077:.098));
+      if (i===0 && pawWash) ankle.lerp(pawTarget, Math.min(1, pawWash*1.6));
       const leg=P.legs[i];axis.subVectors(socket,ankle);leg.position.copy(ankle);
       leg.scale.y=axis.length();leg.quaternion.setFromUnitVectors(up,axis.normalize());
       P.paws[i].position.copy(ankle);P.paws[i].position.x+=front?.021:.030;
     }
     P.tail.position.copy(hip);P.tail.position.x-=.066;P.tail.position.y+=.038;
-    P.tail.rotation.z=.83*sl+.27*w+.20*st;
-    P.tail.rotation.y=1.45*sl+.10*Math.sin(time*1.5)+(party?.24:act==='tail'?.34*s:0)*Math.sin(time*6);
+    P.tailMesh.morphTargetInfluences[0]=sl;
+    P.tail.rotation.z=(.27*w+.20*st)*(1-sl);
+    const flick=party ? .24 : act==='tail' ? (.34-.23*sl)*s : 0;
+    P.tail.rotation.y=(1-sl)*.10*Math.sin(time*1.5)+flick*Math.sin(time*6);
     P.ears.forEach((e,i)=>{e.rotation.x=(act==='ears'?.20*s*Math.sin(time*16+i):0)+(i?1:-1)*.12*sl;});
     P.hat.visible=party;
   }

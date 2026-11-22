@@ -1839,7 +1839,14 @@ window.worldTestMachineStrike = kind => {
 
   // ===== 第 14 天：睡覺的黑貓 =====
 
-    const CAT = { state: 'sleep', t: 0, wait: rnd(15, 40), tx: 0, tz: 0, act: '', actT: 0, actDur: 1, blink: 0 };
+  const sleepReactions = [
+    ['meow', 1], ['yawn', 2], ['stretch', 2.2], ['tail', 2], ['ears', 1.6], ['none', 0]
+  ];
+  const awakeReactions = [
+    ...sleepReactions, ['squint', 1.8], ['wide', 1.6], ['lickPaw', 3]
+  ];
+  const blinkDuration = .55;
+  const CAT = { state: 'sleep', t: 0, wait: rnd(15, 40), tx: 0, tz: 0, act: '', actT: 0, actDur: 1, blink: rnd(8, 16), ballNear: false };
 
   let catMeow = null;
   function playCatMeow() {
@@ -1851,25 +1858,54 @@ window.worldTestMachineStrike = kind => {
     catMeow.play().catch(() => {});
   }
 
+  function playCatReaction(asleep, [name, duration]) {
+    if (name === 'none') {
+      if (asleep) CAT.t = 0;
+      return;
+    }
+    CAT.act = name;
+    CAT.actDur = CAT.actT = duration;
+    if (asleep) CAT.state = 'stir';
+    else if (name === 'lickPaw') CAT.state = 'idle';
+    CAT.t = 0;
+    if (name === 'meow') playCatMeow();
+  }
+
   create('cat', o => {
     VBCatModel.build(o.art, o.parts);
 
     clickZone(o, 1.6, 1.2, 1.6, 0, .5, 0, () => o.interact(o));
   }, o => {
-    // 無反應、喵、打哈欠、伸懶腰、動尾巴、動耳朵
-    const acts = [['meow', 1], ['yawn', 2], ['stretch', 2.2], ['tail', 2], ['ears', 1.6]];
-    if (!VB_IS_DEV) acts.push(['none', 0]);
-    const [name, dur] = acts[Math.floor(Math.random() * acts.length)];
-
-    CAT.act = name;
-    CAT.actDur = dur;
-    CAT.actT = dur;
-
-    if (name === 'meow') playCatMeow();
-    if (CAT.state === 'sleep' && name !== 'none') { CAT.state = 'idle'; CAT.t = 0; CAT.wait = rnd(4, 7); }
+    // 一個動作播完再受理下一次點擊；睡夢中的反應只判定一次去向。
+    if (CAT.actT > 0) return;
+    const asleep = CAT.state === 'sleep';
+    const pool = asleep ? sleepReactions : awakeReactions;
+    playCatReaction(asleep, pool[Math.floor(Math.random() * pool.length)]);
   }, {
     fixed: true
   });
+
+  if (VB_IS_DEV) window.worldTestCat = (state, action) => {
+    const o = byId.get('cat');
+    if (!active(o) || o.arrival || (bday.active && bday.lit)) return false;
+    const asleep = state === 'sleep';
+    if (!asleep && state !== 'awake') return false;
+    const pool = asleep ? sleepReactions : awakeReactions;
+    const reaction = pool.find(([name]) => name === action);
+    if (!reaction && action !== 'pose' && action !== 'random' &&
+        (asleep || !['blink', 'walk'].includes(action))) return false;
+
+    Object.assign(CAT, { state: asleep ? 'sleep' : 'idle', t: 0, wait: 30,
+      act: '', actT: 0, blink: rnd(8, 16),
+      ballNear: Math.hypot(ball.position.x - o.x, ball.position.z - o.z) < 2.4 });
+    // Keep the current viewing angle, even if the cat has wandered since the previous test.
+    tgtP.set(o.x, .55, o.z);
+    if (action === 'random') o.interact(o);
+    else if (reaction) playCatReaction(asleep, reaction);
+    else if (action === 'blink') CAT.blink = 0;
+    else if (action === 'walk' && !startCatWalk(o)) CAT.state = 'findWalk';
+    return true;
+  };
 
   function catTarget(o) {
     for (let i = 0; i < 40; i++) {
@@ -1885,6 +1921,13 @@ window.worldTestMachineStrike = kind => {
     return null;
   }
 
+  function startCatWalk(o) {
+    const target = catTarget(o);
+    if (!target) return false;
+    Object.assign(CAT, { tx: target.x, tz: target.z, state: 'walk', t: 0 });
+    return true;
+  }
+
   function updateCat(o, dt) {
     const P = o.parts, C = CAT, now = performance.now() * .001;
     C.t += dt;
@@ -1894,21 +1937,32 @@ window.worldTestMachineStrike = kind => {
 
     // 排球靠近：醒來伸懶腰
     const near = Math.hypot(ball.position.x - o.x, ball.position.z - o.z) < 2.4;
-    if (near && C.state === 'sleep' && C.t > 1) {
+    if (near && !C.ballNear && C.state === 'sleep' && C.t > 1) {
       C.state = 'idle'; C.t = 0; C.wait = rnd(3, 6);
       C.act = 'stretch'; C.actDur = 2.2; C.actT = 2.2;
     }
 
+    if (!near || C.state !== 'sleep' || C.t > 1) C.ballNear = near;
     if (party) {
       if (C.state !== 'idle') { C.state = 'idle'; C.t = 0; }
       C.wait = 99;
+    } else if (C.state === 'stir' && C.actT === 0) {
+      C.t = 0;
+      if (Math.random() < .35) {
+        // 場邊暫時找不到空位時，保持清醒並在下一幀重新找路。
+        if (!startCatWalk(o)) C.state = 'findWalk';
+      } else {
+        C.state = 'sleep';
+        C.wait = rnd(20, 60);
+      }
+    } else if (C.state === 'findWalk') {
+      startCatWalk(o);
     } else if (C.state === 'sleep' && C.t > C.wait) {
       C.state = 'idle'; C.t = 0; C.wait = rnd(3, 7);
-    } else if (C.state === 'idle' && C.t > C.wait) {
+    } else if (C.state === 'idle' && C.actT === 0 && C.t > C.wait) {
       const r = Math.random();
       if (r < .55) {
-        const tg = catTarget(o);
-        if (tg) { C.tx = tg.x; C.tz = tg.z; C.state = 'walk'; C.t = 0; } else { C.t = 0; }
+        if (!startCatWalk(o)) C.t = 0;
       } else if (r < .85) { C.state = 'sleep'; C.t = 0; C.wait = rnd(20, 60); }
       else { C.t = 0; C.wait = rnd(3, 6); }
     } else if (C.state === 'walk') {
@@ -1924,17 +1978,25 @@ window.worldTestMachineStrike = kind => {
     }
     o.root.position.set(o.x, 0, o.z);
 
-    const sleeping = C.state === 'sleep', walking = C.state === 'walk';
+    const sleeping = C.state === 'sleep' || C.state === 'stir', walking = C.state === 'walk';
     // 動作進度 0 → 1 → 0
     const s = C.actT > 0 ? Math.sin(Math.PI * (1 - C.actT / C.actDur)) : 0;
     const act = C.actT > 0 ? C.act : '';
 
-    // 眨眼：睡覺、打哈欠時閉眼
-    C.blink -= dt;
-    if (C.blink < -.12) C.blink = rnd(2.5, 6);
-    const closed = sleeping || act === 'yawn' || (C.blink < 0 && C.blink > -.12);
+    // 自然眨眼與點擊瞇眼分開。閉合、短暫停留，再緩緩張開。
+    let blink = 0;
+    if (!sleeping && act !== 'yawn') {
+      C.blink -= dt;
+      if (C.blink <= -blinkDuration) C.blink = rnd(8, 16);
+      if (C.blink < 0) {
+        const elapsed = -C.blink;
+        blink = T3.MathUtils.smoothstep(elapsed, 0, .21) *
+          (1 - T3.MathUtils.smoothstep(elapsed, .27, blinkDuration));
+      }
+    }
+    const closed = sleeping || act === 'yawn';
     const standing = C.state === 'idle' && !act && !party && C.t > C.wait - 1.4;
-    VBCatModel.pose(P, { sleeping, walking, standing, party, closed, act, s }, now, dt);
+    VBCatModel.pose(P, { sleeping, walking, standing, party, closed, blink, act, s }, now, dt);
   }
 // ===== 生日彩蛋：已解鎖黑貓的特殊反應 =====
 
@@ -4472,10 +4534,10 @@ window.setWorldPreviewDay = day => {
       ct.th = item.rot + .15;
     } else {
       tgtP.set(item.x, 1, item.z);
-      ct.th = item.parts.pose.rotation.y + 2.15;
+      ct.th = item.parts.pose.rotation.y + .95;
     }
-    ct.ph = 1.31;
-    ct.d = 8;
+    ct.ph = n === 14 ? 1.16 : 1.31;
+    ct.d = n === 14 ? 3.8 : 8;
     ct.tilt = 0;
 
   } else if (newItems.length > 0) {
