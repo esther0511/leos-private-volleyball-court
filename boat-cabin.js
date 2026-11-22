@@ -530,8 +530,19 @@ document.head.append(boatHudStyle);
     else if(view==='letter')renderFirstLetter();
     else renderFoundLetter();
   }
-  // Project the hull, mast and sail after the camera has moved for this frame.
-  const shipParts = boat.art.children.filter(m => m.isMesh && m.material.opacity > 0);
+  // Keep the hull, sail and mast bounds in boat coordinates, before wave animation.
+  const shipCorners = [];
+  for (const mesh of boat.art.children) {
+    if (!mesh.isMesh || !(mesh.material.opacity > 0)) continue;
+    mesh.updateMatrix();
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    const {min, max} = mesh.geometry.boundingBox;
+    for (let i = 0; i < 8; i++) {
+      shipCorners.push(new T3.Vector3(i & 1 ? max.x : min.x,
+        i & 2 ? max.y : min.y, i & 4 ? max.z : min.z).applyMatrix4(mesh.matrix));
+    }
+  }
+  const levelBoat = new T3.Matrix4();
   const projected = new T3.Vector3();
   function placeBesideBoat() {
     if (panel.hidden) return;
@@ -548,18 +559,15 @@ document.head.append(boatHudStyle);
     const toY = y => viewport.top + (1 - y) * viewport.height / 2;
     let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
     cam.updateMatrixWorld();
-    boat.root.updateWorldMatrix(true, true);
-    for (const mesh of shipParts) {
-      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-      const {min, max} = mesh.geometry.boundingBox;
-      for (let i = 0; i < 8; i++) {
-        projected.set(i & 1 ? max.x : min.x, i & 2 ? max.y : min.y, i & 4 ? max.z : min.z)
-          .applyMatrix4(mesh.matrixWorld).project(cam);
-        if (projected.z < -1 || projected.z > 1) continue;
-        const x = toX(projected.x), y = toY(projected.y);
-        left = Math.min(left,x); right = Math.max(right,x);
-        top = Math.min(top,y); bottom = Math.max(bottom,y);
-      }
+    // Use navigation position and heading. The rendered hull is free to bob and roll.
+    levelBoat.makeRotationY(boat.root.rotation.y + boat.art.rotation.y);
+    levelBoat.setPosition(boat.x, .1, boat.z);
+    for (const corner of shipCorners) {
+      projected.copy(corner).applyMatrix4(levelBoat).project(cam);
+      if (projected.z < -1 || projected.z > 1) continue;
+      const x = toX(projected.x), y = toY(projected.y);
+      left = Math.min(left,x); right = Math.max(right,x);
+      top = Math.min(top,y); bottom = Math.max(bottom,y);
     }
     if (!Number.isFinite(left)) return;
     const gap = 12;
