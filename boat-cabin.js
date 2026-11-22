@@ -19,8 +19,13 @@
   const KEY = 'vb-boat-cabin-v1';
   const BOOK_PAGES = 48;
   const LEGACY_PAGES = 100;
-  // 第一封信的正文，等故事定稿後再填入這裡。
-  const FIRST_LETTER_TEXT = '';
+  const FIRST_LETTER_TEXT = `給返航後的我：
+
+如你所知，每當身心感到沉重時，我總會回到大海，過上幾天漫無目的的日子。
+寫下這封信，是想問問未來的自己：現在的你，是否還被出航前的那些事情困擾著？是否還會為此感到痛苦？
+不論如何，希望至少這幾天的海風，你有感到稍微輕鬆一點。偶爾可以當個漂流木，但也要記得回家。
+
+From 啟航前的 L`;
   const MAX_TEXT = 1200;
   const limit = (s, max = MAX_TEXT) => typeof s === 'string' ? s.slice(0, max) : '';
   const safeInt = (v, lo, hi, fallback) => Number.isInteger(v) && v >= lo && v <= hi ? v : fallback;
@@ -403,7 +408,7 @@ document.head.append(boatHudStyle);
   }
   function renderFirstLetter() {
     const r=row('船上找到的信','');
-    r.append(el('div','vb-paper',FIRST_LETTER_TEXT || '（這封信的正文尚未加入，之後會放入正式故事文字。）'));
+    r.append(el('div','vb-paper',FIRST_LETTER_TEXT));
     tools(r).append(button('返回信件',()=>{view='bag';tab='letters';render();}));
   }
   function renderFoundLetter() {
